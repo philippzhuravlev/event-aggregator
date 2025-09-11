@@ -4,15 +4,13 @@ This website will be a central registry for Technical University of Denmark (DTU
 # List
 Below are the pages for bars at DTU. Note well that some events are not listed through these pages, but those dedicated to social gatherings.
 
-### Bars (Lyngby Campus):
-- S-Huset (S-House): https://www.facebook.com/shuset.dk
+### Bars:
 - Diagonalen (The Diagonal): https://www.facebook.com/DiagonalenDTU
-- Etheren (The Ether): https://www.facebook.com/EtherenDTU 
 - Diamanten (The Diamond): https://www.facebook.com/DiamantenDTU
+- Etheren (The Ether): https://www.facebook.com/EtherenDTU 
 - Hegnet (The Fence): https://www.facebook.com/hegnetdtu
-
-### Ballerup Campus
-- Verners Kelder (Verner's Cellar) https://www.facebook.com/vernerskaelder
+- S-Huset (S-House): https://www.facebook.com/shuset.dk
+- Verners Kælder (Verner's Cellar), Ballerup https://www.facebook.com/vernerskaelder
 
 ### Dorm Bars Near Lyngby Campus:
 - Nakkeosten (The Neck Cheese), Ostenfeld Dorm: https://www.facebook.com/Nakkeosten
@@ -30,5 +28,4 @@ Below are the pages for bars at DTU. Note well that some events are not listed t
 ### Missing:
 The dorms below have no dedicated bars, but still have parties over the summer. 
 - William Demant Dorm, 2 km 
-- Villum Kann Rasmussen Dorm, 14 km
-- G.A. Hagemanns Dorm, 15 km 
+- Villum Kann Rasmussen Dorm, 1 km
