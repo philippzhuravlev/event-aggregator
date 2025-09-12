@@ -29,3 +29,21 @@ Below are the pages for bars at DTU. Note well that some events are not listed t
 The dorms below have no dedicated bars, but still have parties over the summer. 
 - William Demant Dorm, 2 km 
 - Villum Kann Rasmussen Dorm, 1 km
+
+# Tech Stack
+- HTML + CSS: the structure (HTML) and visual styling (CSS) of web pages.
+- TypeScript: JavaScript with "types" that help catch mistakes early.
+- React: lets us easily build the UI from small, reusable components.
+- Vite: Fast dev server ("npm run dev") and build tool. Pronounced "veet".
+- Tailwind CSS: style quickly using small utility classes.
+- Node.js + npm: run tools and install packages on your computer.
+- ESLint: checks code for common errors and enforces consistent style.
+- PostCSS + Autoprefixer: makes CSS work consistently across different browsers.
+- Firebase Hosting: deploy the website through a particular url on the internet.
+- Firebase Firestore: cloud database for events, pages, and settings.
+- Facebook Graph API: automatically fetch event data from Facebook pages.
+
+# Dev Diary
+1. Added "types" in web/src/types.ts to "mold" our data when we get it from our DB 
+2. Generated mock data
+3. Created first draft of main page on web/src/App.tsc. w/ filter, search box, data access layer ("dal"), utils (eventUtils.ts) and made the EventCard its own object
