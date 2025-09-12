@@ -3,12 +3,28 @@ This website will be a central registry for Technical University of Denmark (DTU
 
 # Setting Up
 1. Prereqs: Node.js 20+, npm, Firebase CLI (`npm i -g firebase-tools`).
-2. install deps: `cd web` and then `npm install`.
-3. add .env fle: `copy web\.env.example web\.env` (Windows), then fill Firebase keys and set `VITE_USE_FIRESTORE=true`.
-4. Dev: `npm run dev` (run inside `web/`).
-5. For building: `npm run build` (inside `web/`).
-5. Firebase (one-time, repo root): `firebase login` → `firebase init` → choose Firestore + Hosting (public `web/dist`, SPA rewrite Yes).
-6. For deployment: `npx firebase-tools deploy --only hosting`.
+2. Install root deps (repo root): `npm install`.
+3. Install web deps: `cd web` and then `npm install`.
+4. Add .env file: `copy web\.env.example web\.env` (Windows), then fill Firebase keys and set `VITE_USE_FIRESTORE=true`.
+5. Add service key JSON: place your Firebase service account JSON in the repo root (it is gitignored). Example path to use later: `C:\...\DTUEvent\dtuevent-service-account.json`.
+6. Dev: `npm run dev` (run inside `web/`).
+7. Build: `npm run build` (inside `web/`).
+8. Firebase (one-time, repo root): `firebase login` → `firebase init` → choose Firestore + Hosting (public `web/dist`, SPA rewrite Yes).
+9. Deploy: `npx firebase-tools deploy --only hosting`.
+
+# Tech Stack
+- HTML + CSS: the structure (HTML) and visual styling (CSS) of web pages.
+- TypeScript: JavaScript with "types" that help catch mistakes early.
+- React: lets us easily build the UI from small, reusable components.
+- Vite: Fast dev server ("npm run dev") and build tool. Pronounced "veet".
+- Tailwind CSS: style quickly using small utility classes.
+- Node.js + npm: run tools and install packages on your computer.
+- ESLint: checks code for common errors and enforces consistent style.
+- PostCSS + Autoprefixer: makes CSS work consistently across different browsers.
+- Firebase Hosting: deploy the website through a particular url on the internet.
+- Firebase Firestore: cloud database for events, pages, and settings.
+- Facebook Graph API: automatically fetch event data from Facebook pages.
+- Github Workflows: automatically hosts "live" branch 
 
 # List
 Below are the pages for bars at DTU. Note well that some events are not listed through these pages, but those dedicated to social gatherings.
@@ -39,24 +55,11 @@ The dorms below have no dedicated bars, but still have parties over the summer.
 - William Demant Dorm, 2 km 
 - Villum Kann Rasmussen Dorm, 1 km
 
-# Tech Stack
-- HTML + CSS: the structure (HTML) and visual styling (CSS) of web pages.
-- TypeScript: JavaScript with "types" that help catch mistakes early.
-- React: lets us easily build the UI from small, reusable components.
-- Vite: Fast dev server ("npm run dev") and build tool. Pronounced "veet".
-- Tailwind CSS: style quickly using small utility classes.
-- Node.js + npm: run tools and install packages on your computer.
-- ESLint: checks code for common errors and enforces consistent style.
-- PostCSS + Autoprefixer: makes CSS work consistently across different browsers.
-- Firebase Hosting: deploy the website through a particular url on the internet.
-- Firebase Firestore: cloud database for events, pages, and settings.
-- Facebook Graph API: automatically fetch event data from Facebook pages.
-- Github Workflows: automatically hosts "live" branch 
-
 # Dev Diary
 1. Added "types" in web/src/types.ts to "mold" our data when we get it from our DB 
 2. Generated mock data
-3. Created first draft of main page on web/src/App.tsc. w/ filter, search box, data access layer ("dal"), utils (eventUtils.ts) and made the EventCard its own object
+3. Created first draft of main page
+4. Added firebase integration 
 
 # Planned Features
 1. Automatic calendar page
