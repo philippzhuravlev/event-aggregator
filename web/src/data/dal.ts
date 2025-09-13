@@ -4,7 +4,7 @@ import { events as mockEvents, pages as mockPages } from './mock';
 // Data Access Layer (client-side). Today: returns mock data asynchronously.
 // Later: swap implementation to call Firestore / API.
 
-const useFirestore = (import.meta as any).env?.VITE_USE_FIRESTORE === 'true';
+const useFirestore = (String((import.meta as any).env?.VITE_USE_FIRESTORE || '')).toLowerCase() === 'true';
 
 export async function getPages(): Promise<Page[]> {
   if (!useFirestore) {

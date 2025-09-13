@@ -24,7 +24,8 @@ function App() {
         setEvents(event); // set the data
       } catch (err) {
         if (cancelled) return;
-        setError('Failed to load data');
+        const message = (err instanceof Error && err.message) ? err.message : 'Failed to load data';
+        setError(message);
       } finally {
         if (!cancelled) setLoading(false);
       }
