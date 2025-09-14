@@ -13,6 +13,7 @@ This website will be a central registry for Technical University of Denmark (DTU
 9. Deploy: `npx firebase-tools deploy --only hosting`.
 
 # Tech Stack
+This project is technically fullstack (front- and backend), but as Firebase handles most of the backend, it is effectively mostly frontend.
 - HTML + CSS: the structure (HTML) and visual styling (CSS) of web pages.
 - TypeScript: JavaScript with "types" that help catch mistakes early.
 - React: lets us easily build the UI from small, reusable components.
@@ -24,7 +25,8 @@ This website will be a central registry for Technical University of Denmark (DTU
 - Firebase Hosting: deploy the website through a particular url on the internet.
 - Firebase Firestore: cloud database for events, pages, and settings.
 - Facebook Graph API: automatically fetch event data from Facebook pages.
-- Github Workflows: automatically hosts "live" branch 
+- Github Workflows: automatically hosts "live" branch to Firebase
+- Facebook Graph API: fetches DTU event data from the list (see "List" below)
 
 # List
 Below are the pages for bars at DTU. Note well that some events are not listed through these pages, but those dedicated to social gatherings.
@@ -67,3 +69,8 @@ The dorms below have no dedicated bars, but still have parties over the summer.
 3. Not just party events but filter by educational/seminars etc
 4. Add events manually 
 5. Google Maps overview
+6. Facebook Graph API: create Meta app (Dev) and validate Page token on a test page
+7. Firebase Functions: implement /api/sync/facebook and upsert normalized events to Firestore
+8. App Review: request Page Public Content Access (read-only public events)
+9. Cloud Scheduler: daily sync trigger with shared secret header
+10. Compliance: privacy policy page + short screencast for review submission
