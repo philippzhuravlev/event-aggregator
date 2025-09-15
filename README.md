@@ -64,13 +64,15 @@ The dorms below have no dedicated bars, but still have parties over the summer.
 4. Added firebase integration 
 
 # Planned Features
-1. Automatic calendar page
-2. Google Calendar Integration ("Add to Calendar" button)
-3. Not just party events but filter by educational/seminars etc
-4. Add events manually 
-5. Google Maps overview
-6. Facebook Graph API: create Meta app (Dev) and validate Page token on a test page
-7. Firebase Functions: implement /api/sync/facebook and upsert normalized events to Firestore
-8. App Review: request Page Public Content Access (read-only public events)
-9. Cloud Scheduler: daily sync trigger with shared secret header
-10. Compliance: privacy policy page + short screencast for review submission
+1. Fetch public facebook page data from Facebook's Graph API and list them
+2. Let people favorite pages but pref. no profiles nor cookie use
+3. Automatic calendar page
+4. Google Calendar Integration ("Add to Calendar" button)
+5. Not just party events but filter by educational/seminars etc
+6. Add events manually 
+7. Google Maps overview
+8. Facebook Graph API: create Meta app (Dev) and validate Page token on a test page
+9. Firebase Functions: implement /api/sync/facebook and upsert normalized events to Firestore
+10. App Review: request Page Public Content Access (read-only public events)
+11. Cloud Scheduler: daily sync trigger with shared secret header
+12. Compliance: privacy policy page + short screencast for review submission
