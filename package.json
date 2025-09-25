@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "cd web && npm run build",
     "ingest:facebook": "node ./tools/ingest-facebook.mjs"
   },
   "repository": {
