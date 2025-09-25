@@ -27,12 +27,6 @@ Organizer:
 - View basic interest / going counts & simple recent views.
 - Have event details auto‑sync from Facebook within ≤15 minutes of changes (once sync service is live).
 
-## Challenges
-
-- Facebook Graph API access limited: only pages where we hold admin/editor access are queryable without full App Review; strategy is to (1) use mock pages, (2) invite actual page admins to grant scoped access, (3) request permissions incrementally. Scraping is intentionally avoided due to fragility and legal risk.
-- Privacy / GDPR: MVP stores minimal or no personal data; if later storing preferences or notification channels, we will implement export & deletion plus a clear privacy policy and (if needed) cookie/localStorage consent dialog.
-- Non‑commercial student project: lowers compliance surface but we still document data flows for review.
-
 ## Team
 
 Or "TonkaProductions". Note that all contribute code.
@@ -108,15 +102,9 @@ The dorms below have no dedicated bars, but still have parties over the summer.
 
 ## Planned Features
 
-1. Fetch public facebook page data from Facebook's Graph API and list them
-2. Let people favorite pages but pref. no profiles nor cookie use
-3. Automatic calendar page
-4. Google Calendar Integration ("Add to Calendar" button)
-5. Not just party events but filter by educational/seminars etc
-6. Add events manually
-7. Google Maps overview
-8. Facebook Graph API: create Meta app (Dev) and validate Page token on a test page
-9. Firebase Functions: implement /api/sync/facebook and upsert normalized events to Firestore
-10. App Review: request Page Public Content Access (read-only public events)
-11. Cloud Scheduler: daily sync trigger with shared secret header
-12. Compliance: privacy policy page + short screencast for review submission
+- User favorites and personalization
+- Calendar integration and export
+- Event categorization (academic, social, etc.)
+- Manual event submission
+- Location mapping
+- Mobile-responsive design improvements

@@ -1,6 +1,12 @@
 {
+  "firestore": {
+    "database": "(default)",
+    "location": "eur3",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
   "hosting": {
-    "public": "web/dist",
+    "public": "../web/dist",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -13,15 +19,9 @@
       }
     ]
   },
-  "firestore": {
-    "database": "(default)",
-    "location": "eur3",
-    "rules": "firebase/firestore.rules",
-    "indexes": "firebase/firestore.indexes.json"
-  },
   "functions": [
     {
-      "source": "functions",
+      "source": "../functions",
       "codebase": "default",
       "ignore": [
         "node_modules",

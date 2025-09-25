@@ -35,14 +35,21 @@ DTUEvent/
 ├── tools/
 │   └── ingest-facebook.mjs           # Script: pull events via Graph API → Firestore
 ├── functions/                        # (Planned) Firebase Functions (currently placeholder)
-├── firebase.json                     # Firebase hosting + emulators config
-├── firestore.rules                   # Firestore security rules
-├── firestore.indexes.json            # Declared composite indexes
-├── dtuevent-*.json                   # Service account, from Firebase (DO NOT COMMIT real secrets)
-├── CONTRIBUTING.md                   # Dev & contribution guidelines (this file)
-├── README.md                         # Project overview & feature context
-├── package.json                      # Root scripts (ingestion) + shared deps
-└── LICENSE                           # License file
+│   └── package.json                  # Firebase Functions deps
+├── firebase/                         # Firebase configuration files (organized)
+│   ├── firebase.json                 # Local development Firebase config
+│   ├── firestore.rules               # Firestore security rules
+│   ├── firestore.indexes.json        # Declared composite indexes
+│   ├── dtuevent-*.json               # Service account key (DO NOT COMMIT)
+│   ├── exports/                      # Firebase export data
+│   └── README.md                     # Firebase setup documentation
+├── .firebaserc                       # Firebase configuration
+├── firebase.json                     # Firebase redirects
+├── CONTRIBUTING.md                   # Docs for devs specifially
+├── README.md                         # Docs for users
+├── package.json                      # From `npm install`. Deps. 
+├── package-lock.json                 # From `npm install` Exact deps
+└── LICENSE
 ```
 
 ## Quick Start (Local Dev)
@@ -56,8 +63,8 @@ DTUEvent/
    - `copy web\.env.example web\.env`
    - Fill Firebase config vars; set `VITE_USE_FIRESTORE=true`.
 5. Service account:
-   - Place Firebase service account JSON at repo root (gitignored). Export path:
-     - `setx FIREBASE_SERVICE_ACCOUNT_JSON_PATH "C:\\path\\to\\service.json"`
+   - Place Firebase service account JSON in `/firebase` directory (gitignored). Export path:
+     - `setx FIREBASE_SERVICE_ACCOUNT_JSON_PATH "C:\\path\\to\\DTUEvent\\firebase\\dtuevent-*-firebase-adminsdk-*.json"`
 6. Development server:
    - `cd web && npm run dev`
 7. Build production bundle:
@@ -65,9 +72,12 @@ DTUEvent/
 8. First‑time Firebase project setup (repo root):
    - `firebase login`
    - `firebase init` (select Firestore + Hosting, public directory: `web/dist`, enable SPA rewrite)
-9. Deploy Hosting only:
-   - `npx firebase-tools deploy --only hosting`
-   - Note that the "main" branch is automatically deployed to Firebase Hosting via GitHub Actions
+   - Note: Firebase config files are organized in `/firebase` directory, but always run commands from root
+9. Firebase deployment (always from root):
+   - `firebase deploy --only hosting` (deploy web app only)
+   - `firebase deploy` (deploy all: hosting, functions, rules)
+   - `firebase emulators:start` (local development)
+   - Note: The "main" branch auto-deploys via GitHub Actions
 
 ## Facebook Graph API Ingestion
 
@@ -84,3 +94,39 @@ npm run ingest:facebook
 ```
 
 (Uses `tools/ingest-facebook.mjs` to upsert events into `events` collection.)
+
+## List
+
+Below are the pages for bars at DTU. Note well that some events are not listed through these pages, but those dedicated to social gatherings.
+
+### Bars
+
+- Diagonalen (The Diagonal): <https://www.facebook.com/DiagonalenDTU>
+- Diamanten (The Diamond): <https://www.facebook.com/DiamantenDTU>
+- Etheren (The Ether): <https://www.facebook.com/EtherenDTU>
+- Hegnet (The Fence): <https://www.facebook.com/hegnetdtu>
+- S-Huset (S-House): <https://www.facebook.com/shuset.dk>
+- Verners Kælder (Verner's Cellar), Ballerup: <https://www.facebook.com/vernerskaelder>
+
+### Dorm Bars Near Lyngby Campus
+
+- Nakkeosten (The Neck Cheese), Ostenfeld Dorm: <https://www.facebook.com/Nakkeosten>
+- Saxen (The Sax), Kampsax Dorm: <https://www.facebook.com/kampsax/?locale=da_DK>
+
+### Dorms Further Away From Lyngby Campus
+
+- Række 0 (Row 0), Trørød Dorm, 11 km: <https://www.facebook.com/profile.php?id=100073724250125>
+- Falladen (The Fail), P.O: Pedersen Dorm, 5 km: <https://www.facebook.com/POPSARRANGEMENTER/>
+- Pauls Ølstue (Paul's Beer Room), Paul Bergsøe Dorm, 5 km: <https://www.facebook.com/p/Pauls-%C3%98lstue-100057429738696/>
+
+### Event Pages
+
+- SenSommerFest (Latesummer Party): <https://www.facebook.com/SenSommerfest>
+- Egmont Kollegiets Festival (Egmont Dorm Festival): <https://www.facebook.com/profile.php?id=100063867437478>
+
+### Missing
+
+The dorms below have no dedicated bars, but still have parties over the summer.
+
+- William Demant Dorm, 2 km
+- Villum Kann Rasmussen Dorm, 1 km
