@@ -1,4 +1,6 @@
-# Contributing to DTUEvent
+# Contributing
+
+This document is the **Technical** part of DTU Event documentation, for developers and contributors. For general user documentation, see [README.md](./README.md).
 
 Some key principles:
 
@@ -7,52 +9,68 @@ Some key principles:
 - Rather more git pushes than fewer.
 - Use Git branches for your own features / fixes.
 
+## Tech Stack
+
+This project is technically fullstack (front- and backend), but as Firebase handles most of the backend, it is effectively mostly frontend.
+
+- HTML + CSS: the structure (HTML) and visual styling (CSS) of web pages.
+- TypeScript: JavaScript with "types" that help catch mistakes early.
+- React: lets us easily build the UI from small, reusable components.
+- Vite: Fast dev server ("npm run dev") and build tool. Pronounced "veet".
+- Tailwind CSS: style quickly using small utility classes.
+- Node.js + npm: run tools and install packages on your computer.
+- ESLint: checks code for common errors and enforces consistent style.
+- PostCSS + Autoprefixer: makes CSS work consistently across different browsers.
+- Firebase Hosting: deploy the website through a particular url on the internet.
+- Firebase Firestore: cloud database for events, pages, and settings.
+- Facebook Graph API: automatically fetch event data from Facebook pages.
+- Github Workflows: automatically hosts "live" branch to Firebase
+- Facebook Graph API: fetches DTU event data from the list (see "List" below)
+
 ## Project Structure
 
 ```text
 DTUEvent/
 ├── web/                              # React 19 + Vite + Tailwind frontend
 │   ├── src/
-│   │   ├── components/
-│   │   │   └── EventCard.tsx         # Presentational card for an event
+│   │   ├── components/               # React components
+│   │   │   ├── EventCard.tsx         # Event card component
 │   │   ├── data/
-│   │   │   ├── dal.ts                # Data access layer (Firestore / mock switch)
-│   │   │   └── mock.ts               # Mock seed events/pages for local dev
+│   │   │   ├── dal.ts                # Data access layer
+│   │   │   └── mock.ts               # Mock data
 │   │   ├── lib/
 │   │   │   └── firebase.ts           # Firebase client initialization
 │   │   ├── utils/
 │   │   │   └── eventUtils.ts         # Helper functions (sorting, formatting)
-│   │   ├── types.ts                  # Shared TS interfaces (Event, Page, etc.)
+│   │   ├── types.ts                  # Shared TS types
 │   │   ├── App.tsx                   # Root component
-│   │   ├── main.tsx                  # Entry point / React bootstrap
-│   │   ├── index.css                 # Tailwind base imports
-│   │   └── App.css                   # App‑level styles (override/util)
-│   ├── public/                       # Static assets served as‑is
+│   │   ├── main.tsx                  # Entry point
+│   │   ├── index.css                 # Tailwind
+│   │   └── App.css                   # Root component CSS style
+│   ├── public/                       # Assets
 │   ├── vite.config.ts                # Vite + plugin config
 │   ├── tsconfig.*.json               # TS build configs
-│   ├── eslint.config.js              # Lint rules
-│   └── package.json                  # Frontend deps & scripts
+│   ├── eslint.config.js              # ESLint config
+│   └── package.json                  # From `npm install`. Deps, specifically for frontend
 ├── tools/
-│   └── ingest-facebook.mjs           # Script: pull events via Graph API → Firestore
+│   └── ingest-facebook.mjs           # Script that pull events via Graph API → Firestore
 ├── functions/                        # (Planned) Firebase Functions (currently placeholder)
 │   └── package.json                  # Firebase Functions deps
-├── firebase/                         # Firebase configuration files (organized)
-│   ├── firebase.json                 # Local development Firebase config
-│   ├── firestore.rules               # Firestore security rules
-│   ├── firestore.indexes.json        # Declared composite indexes
-│   ├── dtuevent-*.json               # Service account key (DO NOT COMMIT)
-│   ├── exports/                      # Firebase export data
-│   └── README.md                     # Firebase setup documentation
-├── .firebaserc                       # Firebase configuration
+├── firebase/                         # Firebase config files (organized)
+│   ├── firebase.json                 
+│   ├── firestore.rules               
+│   ├── firestore.indexes.json        
+│   └── exports/                      
+├── .firebaserc                       # Firebase config
 ├── firebase.json                     # Firebase redirects
 ├── CONTRIBUTING.md                   # Docs for devs specifially
 ├── README.md                         # Docs for users
-├── package.json                      # From `npm install`. Deps. 
-├── package-lock.json                 # From `npm install` Exact deps
+├── package.json                      # From `npm install`. Deps, specifically for backend
+├── package-lock.json                 # From `npm install` Exact backend deps
 └── LICENSE
 ```
 
-## Quick Start (Local Dev)
+## Quick Start
 
 1. Install prerequisites: Node.js 20+, npm, Firebase CLI (`npm i -g firebase-tools`).
 2. Clone repo & install root dependencies:
@@ -83,9 +101,9 @@ DTUEvent/
 
 Environment variables (set in PowerShell or `.env` for ingestion script):
 
-- `FB_PAGE_ACCESS_TOKEN` – Page access token with events read scope.
-- `FB_PAGES` – Comma separated list (e.g. `shuset.dk,DiagonalenDTU`).
-- `FIREBASE_SERVICE_ACCOUNT_JSON_PATH` – Absolute path to service account file.
+- `FB_PAGE_ACCESS_TOKEN` - Page access token with events read scope.
+- `FB_PAGES` - Comma separated list (e.g. `shuset.dk,DiagonalenDTU`).
+- `FIREBASE_SERVICE_ACCOUNT_JSON_PATH` - Absolute path to service account file.
 
 Run ingestion:
 
@@ -94,39 +112,3 @@ npm run ingest:facebook
 ```
 
 (Uses `tools/ingest-facebook.mjs` to upsert events into `events` collection.)
-
-## List
-
-Below are the pages for bars at DTU. Note well that some events are not listed through these pages, but those dedicated to social gatherings.
-
-### Bars
-
-- Diagonalen (The Diagonal): <https://www.facebook.com/DiagonalenDTU>
-- Diamanten (The Diamond): <https://www.facebook.com/DiamantenDTU>
-- Etheren (The Ether): <https://www.facebook.com/EtherenDTU>
-- Hegnet (The Fence): <https://www.facebook.com/hegnetdtu>
-- S-Huset (S-House): <https://www.facebook.com/shuset.dk>
-- Verners Kælder (Verner's Cellar), Ballerup: <https://www.facebook.com/vernerskaelder>
-
-### Dorm Bars Near Lyngby Campus
-
-- Nakkeosten (The Neck Cheese), Ostenfeld Dorm: <https://www.facebook.com/Nakkeosten>
-- Saxen (The Sax), Kampsax Dorm: <https://www.facebook.com/kampsax/?locale=da_DK>
-
-### Dorms Further Away From Lyngby Campus
-
-- Række 0 (Row 0), Trørød Dorm, 11 km: <https://www.facebook.com/profile.php?id=100073724250125>
-- Falladen (The Fail), P.O: Pedersen Dorm, 5 km: <https://www.facebook.com/POPSARRANGEMENTER/>
-- Pauls Ølstue (Paul's Beer Room), Paul Bergsøe Dorm, 5 km: <https://www.facebook.com/p/Pauls-%C3%98lstue-100057429738696/>
-
-### Event Pages
-
-- SenSommerFest (Latesummer Party): <https://www.facebook.com/SenSommerfest>
-- Egmont Kollegiets Festival (Egmont Dorm Festival): <https://www.facebook.com/profile.php?id=100063867437478>
-
-### Missing
-
-The dorms below have no dedicated bars, but still have parties over the summer.
-
-- William Demant Dorm, 2 km
-- Villum Kann Rasmussen Dorm, 1 km
