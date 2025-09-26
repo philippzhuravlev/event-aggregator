@@ -22,5 +22,8 @@
   "devDependencies": {
     "firebase-admin": "^13.5.0",
     "node-fetch": "^3.3.2"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.2"
   }
 }

@@ -2,6 +2,10 @@ import { readFile } from 'node:fs/promises';
 import fetch from 'node-fetch';
 import { initializeApp, cert, applicationDefault } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { config } from 'dotenv';
+
+// Load environment variables from .env file
+config();
 
 // ENV
 const SERVICE_ACCOUNT_PATH = process.env.FIREBASE_SERVICE_ACCOUNT_JSON_PATH;

@@ -77,12 +77,18 @@ DTUEvent/
    - `npm install`
 3. Install web app dependencies:
    - `cd web && npm install`
-4. Create env file (Windows example):
-   - `copy web\.env.example web\.env`
-   - Fill Firebase config vars; set `VITE_USE_FIRESTORE=true`.
+4. **Create environment files**:
+   - **Root .env file** (Windows example):
+     - `copy .env.example .env`
+     - Fill in your Facebook Page Access Token and Page ID
+     - Verify Firebase service account path is correct
+   - **Web .env file** (Windows example):
+     - `copy web\.env.example web\.env`
+     - Fill Firebase config vars from Firebase Console
+     - Set `VITE_USE_FIRESTORE=true` to use real data
 5. Service account:
-   - Place Firebase service account JSON in `/firebase` directory (gitignored). Export path:
-     - `setx FIREBASE_SERVICE_ACCOUNT_JSON_PATH "C:\\path\\to\\DTUEvent\\firebase\\dtuevent-*-firebase-adminsdk-*.json"`
+   - Place Firebase service account JSON in `/firebase` directory (gitignored)
+   - Path should match `FIREBASE_SERVICE_ACCOUNT_JSON_PATH` in root `.env`
 6. Development server:
    - `cd web && npm run dev`
 7. Build production bundle:
@@ -97,13 +103,56 @@ DTUEvent/
    - `firebase emulators:start` (local development)
    - Note: The "main" branch auto-deploys via GitHub Actions
 
+## Environment Configuration
+
+The project requires two `.env` files for full functionality:
+
+### Root `.env` file (for Facebook ingestion)
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+# Facebook Graph API Configuration
+FB_PAGE_ACCESS_TOKEN=your_page_access_token_here
+FB_PAGES=your_facebook_page_id_here
+
+# Firebase Admin Configuration
+FIREBASE_SERVICE_ACCOUNT_JSON_PATH=./firebase/your-firebase-adminsdk-file.json
+FIREBASE_PROJECT_ID=your-firebase-project-id
+
+# Development Settings
+NODE_ENV=development
+```
+
+### Web `.env` file (for frontend Firebase connection)
+
+Copy `web/.env.example` to `web/.env` and configure:
+
+```bash
+# Firebase Web App Configuration
+VITE_FIREBASE_API_KEY=your_firebase_api_key_here
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-firebase-project-id
+VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+VITE_FIREBASE_APP_ID=your_firebase_app_id
+
+# Feature Flags
+VITE_USE_FIRESTORE=true
+
+# Development Options (uncomment as needed)
+# VITE_FIRESTORE_EMULATOR=true
+```
+
+**Note**: Get Firebase web config values from Firebase Console > Project Settings > General > Your apps > Web app config.
+
 ## Facebook Graph API Ingestion
 
-Environment variables (set in PowerShell or `.env` for ingestion script):
+Configure the required environment variables in your root `.env` file (see Environment Configuration section above):
 
-- `FB_PAGE_ACCESS_TOKEN` - Page access token with events read scope.
-- `FB_PAGES` - Comma separated list (e.g. `shuset.dk,DiagonalenDTU`).
-- `FIREBASE_SERVICE_ACCOUNT_JSON_PATH` - Absolute path to service account file.
+- `FB_PAGE_ACCESS_TOKEN` - Page access token with `pages_read_engagement` permission
+- `FB_PAGES` - Comma-separated list of Facebook page IDs (e.g. `777401265463466,shuset.dk`)
+- `FIREBASE_SERVICE_ACCOUNT_JSON_PATH` - Relative path to service account file
 
 Run ingestion:
 
@@ -112,3 +161,12 @@ npm run ingest:facebook
 ```
 
 (Uses `tools/ingest-facebook.mjs` to upsert events into `events` collection.)
+
+### Troubleshooting Environment Setup
+
+**Common issues:**
+
+- **"Missing FB_PAGE_ACCESS_TOKEN"**: Ensure root `.env` file exists and has valid Page Access Token
+- **"An active access token must be used"**: Token may be User Token instead of Page Token - regenerate from Graph API Explorer
+- **Firebase connection errors**: Verify `web/.env` has correct Firebase config from Console
+- **"VITE_USE_FIRESTORE=true" not working**: Check `web/.env` file exists and variable is set correctly
