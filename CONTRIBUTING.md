@@ -1,13 +1,48 @@
-# Contributing
+# Contributing Guide
 
-This document is the **Technical** part of DTU Event documentation, for developers and contributors. For general user documentation, see [README.md](./README.md).
+First, some principles:
 
-Some key principles:
+- Make very strict database rules; tokens are stored there
+- Minimal personal data collection
+- Use git branches for features, frequent commits
 
-- Save minimal personal data. If needed, make it GDPR compliant (export, deletion, privacy policy).
-- Keep Firebase rules strict (least privilege).
-- Rather more git pushes than fewer.
-- Use Git branches for your own features / fixes.
+## Setting Up
+
+1. **Prerequisites**:
+   - Download Node.js 20+!
+
+2. **Dependencies**:
+
+   ```bash
+   # Backend (in root)
+   npm install
+
+   # Frontend (in /web)
+   cd web && npm install
+   ```
+
+3. **Environment Setup**:
+Request .env files from a team member. Create local copies from examples:
+
+   ```bash
+   # Backend (in root .env)
+   cp .env.example .env
+   # Edit: FIREBASE_SERVICE_ACCOUNT_JSON_PATH, FIREBASE_PROJECT_ID
+
+   # Frontend (in /web .env)
+   cp web/.env.example web/.env
+   # Edit: Firebase config from Console > Project Settings
+   ```
+
+4. **Service Account**:
+Request `serviceAccountKey.json` from a team member. Place it in /firebase
+
+5. **Development**:
+
+   ```bash
+   cd web && npm run dev     # Frontend dev server
+   npm run ingest:facebook   # Pull Facebook events manually
+   ```
 
 ## Tech Stack
 
@@ -25,7 +60,47 @@ This project is technically fullstack (front- and backend), but as Firebase hand
 - Firebase Firestore: cloud database for events, pages, and settings.
 - Facebook Graph API: automatically fetch event data from Facebook pages.
 - Github Workflows: automatically hosts "live" branch to Firebase
-- Facebook Graph API: fetches DTU event data from the list (see "List" below)
+
+## Token Management
+
+Add Facebook Page Access Tokens to Firestore
+
+```bash
+# Add token for a Facebook page
+npm run tokens add <pageId> "EAABwzLix..."
+
+# View stored tokens
+npm run tokens:list
+
+# Check system status
+npm run tokens:status
+
+# Get Facebook debug info
+npm run tokens debug <pageId>
+```
+
+**Getting Facebook Tokens:**
+
+1. [Facebook Developers](https://developers.facebook.com/) → Create App
+2. Add "Facebook Pages API" product
+3. Generate Page Access Token with `pages_read_engagement` + `pages_show_list`
+4. Store with CLI: `npm run tokens add <pageId> <token>`
+
+## Key Commands
+
+```bash
+# Development
+cd web && npm run dev              # Frontend dev server
+npm run build                      # Build production bundle
+
+# Facebook Integration  
+npm run ingest:facebook           # Pull events from stored tokens
+npm run tokens:status             # Token health overview
+
+# Firebase
+firebase login                    # One-time setup
+firebase deploy                   # Deploy to production
+```
 
 ## Project Structure
 
@@ -34,7 +109,7 @@ DTUEvent/
 ├── web/                              # React 19 + Vite + Tailwind frontend
 │   ├── src/
 │   │   ├── components/               # React components
-│   │   │   ├── EventCard.tsx         # Event card component
+│   │   │   └── EventCard.tsx         # Event card component
 │   │   ├── data/
 │   │   │   ├── dal.ts                # Data access layer
 │   │   │   └── mock.ts               # Mock data
@@ -44,129 +119,66 @@ DTUEvent/
 │   │   │   └── eventUtils.ts         # Helper functions (sorting, formatting)
 │   │   ├── types.ts                  # Shared TS types
 │   │   ├── App.tsx                   # Root component
+│   │   ├── App.css                   # Root component CSS style
 │   │   ├── main.tsx                  # Entry point
-│   │   ├── index.css                 # Tailwind
-│   │   └── App.css                   # Root component CSS style
-│   ├── public/                       # Assets
+│   │   ├── index.css                 # Tailwind styles
+│   │   └── vite-env.d.ts             # Vite type definitions
+│   ├── public/                       # Static assets (currently empty)
+│   ├── dist/                         # Build output (generated)
+│   ├── .env                          # Frontend environment variables
+│   ├── .env.example                  # Frontend environment template
+│   ├── index.html                    # HTML entry point
 │   ├── vite.config.ts                # Vite + plugin config
-│   ├── tsconfig.*.json               # TS build configs
+│   ├── postcss.config.js             # PostCSS configuration
 │   ├── eslint.config.js              # ESLint config
-│   └── package.json                  # From `npm install`. Deps, specifically for frontend
-├── tools/
-│   └── ingest-facebook.mjs           # Script that pull events via Graph API → Firestore
-├── functions/                        # (Planned) Firebase Functions (currently placeholder)
-│   └── package.json                  # Firebase Functions deps
-├── firebase/                         # Firebase config files (organized)
-│   ├── firebase.json                 
-│   ├── firestore.rules               
-│   ├── firestore.indexes.json        
-│   └── exports/                      
-├── .firebaserc                       # Firebase config
-├── firebase.json                     # Firebase redirects
-├── CONTRIBUTING.md                   # Docs for devs specifially
-├── README.md                         # Docs for users
-├── package.json                      # From `npm install`. Deps, specifically for backend
-├── package-lock.json                 # From `npm install` Exact backend deps
-└── LICENSE
+│   ├── tsconfig.json                 # Main TypeScript config
+│   ├── tsconfig.app.json             # App-specific TS config
+│   ├── tsconfig.node.json            # Node-specific TS config
+│   └── package.json                  # Frontend dependencies
+├── tools/                            # Backend utilities & scripts
+│   ├── ingest-facebook.mjs           # Facebook → Firestore ingestion script
+│   ├── manage-tokens.mjs             # Token management CLI
+│   └── token-manager.mjs             # Token management core logic
+├── functions/                        # Firebase Functions (active)
+│   ├── index.js                      # Functions entry point
+│   ├── firebase-debug.log            # Firebase debug logs
+│   ├── .eslintrc.js                  # Functions ESLint config
+│   ├── .gitignore                    # Functions gitignore
+│   └── package.json                  # Functions dependencies
+├── firebase/                         # Firebase config & credentials
+│   ├── dtuevent-8105b-firebase-adminsdk-fbsvc-ce81792c13.json  # Service account (gitignored)
+│   ├── firebase.json                 # Firebase project config
+│   ├── firestore.rules               # Database security rules
+│   ├── firestore.indexes.json        # Database indexes
+│   └── exports/                      # Database exports
+├── .github/                          # GitHub Actions & workflows
+├── .vscode/                          # VS Code workspace settings
+├── .env                              # Backend environment variables
+├── .env.example                      # Backend environment template
+├── .firebaserc                       # Firebase project aliases
+├── .gitignore                        # Git ignore rules
+├── firebase.json                     # Firebase hosting & redirects
+├── CONTRIBUTING.md                   # Developer documentation
+├── README.md                         # User documentation
+├── package.json                      # Backend dependencies & scripts
+├── package-lock.json                 # Exact dependency versions
+└── LICENSE                           # Project license
 ```
 
-## Quick Start
+## Firebase Security Rules
 
-1. Install prerequisites: Node.js 20+, npm, Firebase CLI (`npm i -g firebase-tools`).
-2. Clone repo & install root dependencies:
-   - `npm install`
-3. Install web app dependencies:
-   - `cd web && npm install`
-4. **Create environment files**:
-   - **Root .env file** (Windows example):
-     - `copy .env.example .env`
-     - Fill in your Facebook Page Access Token and Page ID
-     - Verify Firebase service account path is correct
-   - **Web .env file** (Windows example):
-     - `copy web\.env.example web\.env`
-     - Fill Firebase config vars from Firebase Console
-     - Set `VITE_USE_FIRESTORE=true` to use real data
-5. Service account:
-   - Place Firebase service account JSON in `/firebase` directory (gitignored)
-   - Path should match `FIREBASE_SERVICE_ACCOUNT_JSON_PATH` in root `.env`
-6. Development server:
-   - `cd web && npm run dev`
-7. Build production bundle:
-   - `cd web && npm run build`
-8. First‑time Firebase project setup (repo root):
-   - `firebase login`
-   - `firebase init` (select Firestore + Hosting, public directory: `web/dist`, enable SPA rewrite)
-   - Note: Firebase config files are organized in `/firebase` directory, but always run commands from root
-9. Firebase deployment (always from root):
-   - `firebase deploy --only hosting` (deploy web app only)
-   - `firebase deploy` (deploy all: hosting, functions, rules)
-   - `firebase emulators:start` (local development)
-   - Note: The "main" branch auto-deploys via GitHub Actions
+Tokens stored in admin-only Firestore collections:
 
-## Environment Configuration
+- `events/` - Public read, admin write
+- `pages/` - Public read, admin write  
+- `admin-tokens/` - Admin only (no client access)
 
-The project requires two `.env` files for full functionality:
+## Deployment
 
-### Root `.env` file (for Facebook ingestion)
+GitHub Actions automatically deploys `main` branch to Firebase Hosting.
 
-Copy `.env.example` to `.env` and configure:
+Manual deployment:
 
 ```bash
-# Facebook Graph API Configuration
-FB_PAGE_ACCESS_TOKEN=your_page_access_token_here
-FB_PAGES=your_facebook_page_id_here
-
-# Firebase Admin Configuration
-FIREBASE_SERVICE_ACCOUNT_JSON_PATH=./firebase/your-firebase-adminsdk-file.json
-FIREBASE_PROJECT_ID=your-firebase-project-id
-
-# Development Settings
-NODE_ENV=development
+firebase deploy
 ```
-
-### Web `.env` file (for frontend Firebase connection)
-
-Copy `web/.env.example` to `web/.env` and configure:
-
-```bash
-# Firebase Web App Configuration
-VITE_FIREBASE_API_KEY=your_firebase_api_key_here
-VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-firebase-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
-VITE_FIREBASE_APP_ID=your_firebase_app_id
-
-# Feature Flags
-VITE_USE_FIRESTORE=true
-
-# Development Options (uncomment as needed)
-# VITE_FIRESTORE_EMULATOR=true
-```
-
-**Note**: Get Firebase web config values from Firebase Console > Project Settings > General > Your apps > Web app config.
-
-## Facebook Graph API Ingestion
-
-Configure the required environment variables in your root `.env` file (see Environment Configuration section above):
-
-- `FB_PAGE_ACCESS_TOKEN` - Page access token with `pages_read_engagement` permission
-- `FB_PAGES` - Comma-separated list of Facebook page IDs (e.g. `777401265463466,shuset.dk`)
-- `FIREBASE_SERVICE_ACCOUNT_JSON_PATH` - Relative path to service account file
-
-Run ingestion:
-
-```bash
-npm run ingest:facebook
-```
-
-(Uses `tools/ingest-facebook.mjs` to upsert events into `events` collection.)
-
-### Troubleshooting Environment Setup
-
-**Common issues:**
-
-- **"Missing FB_PAGE_ACCESS_TOKEN"**: Ensure root `.env` file exists and has valid Page Access Token
-- **"An active access token must be used"**: Token may be User Token instead of Page Token - regenerate from Graph API Explorer
-- **Firebase connection errors**: Verify `web/.env` has correct Firebase config from Console
-- **"VITE_USE_FIRESTORE=true" not working**: Check `web/.env` file exists and variable is set correctly

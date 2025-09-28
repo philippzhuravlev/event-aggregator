@@ -49,6 +49,7 @@ Or "TonkaProductions". Note that all contribute code.
 5. Added structured README + CONTRIBUTING guide
 6. Put firebase config in /firebase directory
 7. Added Facebook ingestion script
+8. Added token to Firestore
 
 ## Planned Features
 

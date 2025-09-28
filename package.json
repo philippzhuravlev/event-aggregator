@@ -6,7 +6,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "cd web && npm run build",
-    "ingest:facebook": "node ./tools/ingest-facebook.mjs"
+    "ingest:facebook": "node ./tools/ingest-facebook.mjs",
+    "tokens": "node ./tools/manage-tokens.mjs",
+    "tokens:list": "node ./tools/manage-tokens.mjs list",
+    "tokens:status": "node ./tools/manage-tokens.mjs status"
   },
   "repository": {
     "type": "git",

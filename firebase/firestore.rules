@@ -13,6 +13,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Admin-only collections - NO CLIENT ACCESS EVER
+    match /admin/{document=**} {
+      allow read, write: if false;
+    }
+
+    // Logs collection - server-side only
+    match /logs/{document=**} {
+      allow read, write: if false;
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;
