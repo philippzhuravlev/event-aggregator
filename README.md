@@ -56,9 +56,17 @@ Or "TonkaProductions". Note that all contribute code.
 - User favorites and personalization
 - Calendar integration and export
 - Event categorization (academic, social, etc.)
-- Manual event submission
 - Location mapping
 - Mobile-responsive design improvements
+- Page admin authentication system (Facebook OAuth)
+- Business Manager integration for stable API access
+- Automated token refresh system
+- Page admin dashboard for managing event sync
+- Manual event submission (fallback for pages without API access)
+- Page admin onboarding flow
+- Event moderation and approval system
+- Analytics dashboard for event engagement
+- Notification system for page admins (event sync status, token expiration)
 
 ## List
 

@@ -6,10 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "cd web && npm run build",
-    "ingest:facebook": "node ./tools/ingest-facebook.mjs",
-    "tokens": "node ./tools/manage-tokens.mjs",
-    "tokens:list": "node ./tools/manage-tokens.mjs list",
-    "tokens:status": "node ./tools/manage-tokens.mjs status"
+    "ingest:facebook": "node ./tools/ingest-facebook.mjs"
   },
   "repository": {
     "type": "git",
@@ -23,6 +20,7 @@
   },
   "homepage": "https://github.com/philippzhuravlev/DTUEvent#readme",
   "devDependencies": {
+    "@google-cloud/secret-manager": "^6.1.0",
     "firebase-admin": "^13.5.0",
     "node-fetch": "^3.3.2"
   },
