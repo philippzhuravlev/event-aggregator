@@ -40,6 +40,7 @@ coverage/
 firebase-debug.log
 firestore-debug.log
 firebase-export-* 
+firebase/exports/
 *firebase-adminsdk*.json
 *serviceAccount*.json
 *.serviceAccount.json
