@@ -111,11 +111,24 @@ function getTokenForPage(pageId) {
 /**
  * Get all pages to process - hardcoded for simplicity
  */
-async function getAllPages() {
+/**async function getAllPages() {
   // Just hardcode your page IDs - way simpler than complex metadata queries
   const pageIds = ['777401265463466']; // Add more page IDs here as needed
   
   console.log(`Processing ${pageIds.length} configured pages`);
+  return pageIds;
+}*/
+
+/**
+ * Get all pages to process from Firestore collection 'pages'
+ */
+async function getAllPages() {
+  const snapshot = await db.collection('pages').get();
+  const pageIds = [];
+  snapshot.forEach(doc => {
+    pageIds.push(doc.id);
+  });
+  console.log(`Processing ${pageIds.length} pages from Firestore`);
   return pageIds;
 }
 
@@ -143,7 +156,7 @@ for (const pageId of pages) {
   // cover image URL. Without this, some API responses omit the cover object.
   const url = new URL(`https://graph.facebook.com/v19.0/${pageId}/events`);
   url.searchParams.set('access_token', token);
-  url.searchParams.set('time_filter', 'upcoming');
+  //url.searchParams.set('time_filter', 'upcoming');
   url.searchParams.set('fields', 'id,name,description,start_time,end_time,place,cover{source}');
   const res = await fetch(url.toString());
 

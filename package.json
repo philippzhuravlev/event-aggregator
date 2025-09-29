@@ -25,6 +25,8 @@
     "node-fetch": "^3.3.2"
   },
   "dependencies": {
-    "dotenv": "^17.2.2"
+    "axios": "^1.12.2",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0"
   }
 }

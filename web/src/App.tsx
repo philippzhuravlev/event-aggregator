@@ -12,6 +12,19 @@ function App() {
   const [loading, setLoading] = useState(true);   // loading indicator
   const [error, setError] = useState<string>(''); // simple error string
 
+  // Facebook OAuth
+  const FB_APP_ID = process.env.VITE_FACEBOOK_APP_ID;
+  const FB_REDIRECT_URI = encodeURIComponent('http://localhost:3001/fb/callback');
+  const FB_SCOPES = [
+    'pages_show_list',
+    'pages_read_engagement'
+    //'pages_manage_events'
+  ].join(',');
+
+  function buildFacebookLoginUrl() {
+    return `https://www.facebook.com/v23.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${FB_REDIRECT_URI}&scope=${FB_SCOPES}`;
+  }
+
   // load data on mount. "mount" = when the component is created/loaded. Done asynchronously. 
   useEffect(() => {
     let cancelled = false; // if the component is "unmounted", i.e. deleted, we don't want to set the state.
@@ -189,6 +202,16 @@ function App() {
           <EventCard key={event.id} event={event} />
         ))}
       </div>
+
+      <div className="mb-4">
+        <a
+          href={buildFacebookLoginUrl()}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded"
+        >
+          Connect Facebook Page
+        </a>
+      </div>
+
     </div>
   );
 }
