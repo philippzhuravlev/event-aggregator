@@ -13,7 +13,7 @@ function App() {
   const [error, setError] = useState<string>(''); // simple error string
 
   // Facebook OAuth
-  const FB_APP_ID = process.env.VITE_FACEBOOK_APP_ID;
+  const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID;
   const FB_REDIRECT_URI = encodeURIComponent('http://localhost:3001/fb/callback');
   const FB_SCOPES = [
     'pages_show_list',
