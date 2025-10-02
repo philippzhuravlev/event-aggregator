@@ -196,12 +196,14 @@ for (const pageId of pages) {
           if (imgRes.ok) {
             const contentType = imgRes.headers.get('content-type') || 'application/octet-stream';
             const buffer = Buffer.from(await imgRes.arrayBuffer());
-            const filePath = `event-covers/${docId}${getExtFromContentType(contentType)}`;
+            const filePath = `events/${docId}/cover${getExtFromContentType(contentType)}`;
             const file = storageBucket.file(filePath);
             await file.save(buffer, { metadata: { contentType } });
             // Make file public so clients can access it without signing.
             try { await file.makePublic(); } catch (e) { console.warn('Could not make file public:', e.message); }
-            coverUrl = `https://storage.googleapis.com/${storageBucket.name}/${file.name}`;
+            // Use Firebase Storage URL format
+            const encodedPath = encodeURIComponent(filePath);
+            coverUrl = `https://firebasestorage.googleapis.com/v0/b/${storageBucket.name}/o/${encodedPath}?alt=media`;
             console.log(`Uploaded cover for ${docId} to ${coverUrl}`);
           } else {
             console.warn(`Failed to fetch cover image for ${docId}: HTTP ${imgRes.status}`);
