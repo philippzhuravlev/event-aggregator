@@ -12,6 +12,9 @@ function App() {
   const [loading, setLoading] = useState(true);   // loading indicator
   const [error, setError] = useState<string>(''); // simple error string
 
+  // Facebook OAuth callback handling
+  const [oauthMessage, setOauthMessage] = useState<string>('');
+
   // Facebook OAuth
   const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID;
   const FB_REDIRECT_URI = encodeURIComponent('https://europe-west1-dtuevent-8105b.cloudfunctions.net/facebookCallback');
@@ -24,6 +27,23 @@ function App() {
   function buildFacebookLoginUrl() {
     return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${FB_REDIRECT_URI}&scope=${FB_SCOPES}`;
   }
+
+  // Handle Facebook OAuth callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const pagesCount = urlParams.get('pages');
+    const error = urlParams.get('error');
+    
+    if (success === 'true') {
+      setOauthMessage(`Facebook pages connected successfully! (${pagesCount} page${pagesCount !== '1' ? 's' : ''})`);
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (error) {
+      setOauthMessage(`Facebook connection failed: ${error}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   // load data on mount. "mount" = when the component is created/loaded. Done asynchronously. 
   useEffect(() => {
@@ -122,6 +142,23 @@ function App() {
       {/* header */}
       <header className="mb-6">
         <h1 className="text-2xl font-bold mb-1">DTU Events</h1>
+        
+        {/* OAuth message display */}
+        {oauthMessage && (
+          <div className={`p-3 rounded mb-4 ${
+            oauthMessage.startsWith('✅') 
+              ? 'bg-green-100 text-green-800 border border-green-300' 
+              : 'bg-red-100 text-red-800 border border-red-300'
+          }`}>
+            {oauthMessage}
+            <button 
+              onClick={() => setOauthMessage('')} 
+              className="float-right text-sm underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
       </header>
 
       {/* filter bar (row 1: Page then Search inline) */}
