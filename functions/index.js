@@ -2,12 +2,19 @@ const { onRequest } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
+const axios = require('axios');
 
 admin.initializeApp();
 
 // Secret set via: firebase functions:secrets:set FB_PAGE_TOKEN
-const FB_PAGE_TOKEN = defineSecret('FB_PAGE_TOKEN');
+// const FB_PAGE_TOKEN = defineSecret('FB_PAGE_TOKEN'); // Temporarily commented out
 
+// Facebook OAuth secrets
+const FACEBOOK_APP_ID = defineSecret('FACEBOOK_APP_ID');
+const FACEBOOK_APP_SECRET = defineSecret('FACEBOOK_APP_SECRET');
+
+// Temporarily commented out - will update to use page tokens from Firestore after OAuth setup
+/*
 exports.syncFacebook = onRequest({ secrets: [FB_PAGE_TOKEN] }, async (req, res) => {
   try {
     const pageId = String(req.query.pageId || '').trim();
@@ -68,8 +75,11 @@ exports.syncFacebook = onRequest({ secrets: [FB_PAGE_TOKEN] }, async (req, res) 
     res.status(500).send(err instanceof Error ? err.message : 'Unknown error');
   }
 });
+*/
 
 // Run twice daily to refresh upcoming events for all active pages in Firestore
+// Temporarily commented out - will update to use page tokens from Firestore after OAuth setup
+/*
 exports.nightlySyncFacebook = onSchedule({
   schedule: 'every 12 hours',
   timeZone: 'Etc/UTC',
@@ -132,6 +142,99 @@ exports.nightlySyncFacebook = onSchedule({
   }
 
   await batch.commit();
+});
+*/
+
+// Facebook OAuth callback function
+exports.facebookCallback = onRequest({
+  region: 'europe-west1',
+  secrets: [FACEBOOK_APP_ID, FACEBOOK_APP_SECRET],
+}, async (req, res) => {
+  try {
+    const { code, error } = req.query;
+    
+    if (error) {
+      console.error('Facebook OAuth error:', error);
+      return res.redirect('https://dtuevent-8105b.web.app/?error=oauth_failed');
+    }
+    
+    if (!code) {
+      console.error('Missing authorization code');
+      return res.redirect('https://dtuevent-8105b.web.app/?error=missing_code');
+    }
+
+    console.log('Processing Facebook OAuth callback...');
+
+    // Exchange code for short-lived user access token
+    const tokenResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+      params: {
+        client_id: FACEBOOK_APP_ID.value(),
+        client_secret: FACEBOOK_APP_SECRET.value(),
+        redirect_uri: 'https://europe-west1-dtuevent-8105b.cloudfunctions.net/facebookCallback',
+        code: code,
+      },
+    });
+
+    const shortLivedToken = tokenResponse.data.access_token;
+    
+    if (!shortLivedToken) {
+      throw new Error('No access token received from Facebook');
+    }
+
+    // Exchange short-lived token for long-lived user token
+    const longTokenResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+      params: {
+        grant_type: 'fb_exchange_token',
+        client_id: FACEBOOK_APP_ID.value(),
+        client_secret: FACEBOOK_APP_SECRET.value(),
+        fb_exchange_token: shortLivedToken,
+      },
+    });
+
+    const longLivedToken = longTokenResponse.data.access_token;
+
+    // Get user's pages with their access tokens
+    const pagesResponse = await axios.get('https://graph.facebook.com/v18.0/me/accounts', {
+      params: {
+        access_token: longLivedToken,
+        fields: 'id,name,access_token',
+      },
+    });
+
+    const pages = pagesResponse.data.data || [];
+    console.log(`Found ${pages.length} pages for user`);
+
+    if (pages.length === 0) {
+      return res.redirect('https://dtuevent-8105b.web.app/?error=no_pages');
+    }
+
+    // Store page tokens in Firestore
+    const db = admin.firestore();
+    const batch = db.batch();
+
+    for (const page of pages) {
+      const pageRef = db.collection('pages').doc(page.id);
+      batch.set(pageRef, {
+        id: page.id,
+        name: page.name,
+        url: `https://facebook.com/${page.id}`,
+        accessToken: page.access_token,
+        active: true,
+        connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+
+    await batch.commit();
+    console.log(`Stored ${pages.length} page tokens in Firestore`);
+
+    // Redirect back to your app with success
+    res.redirect(`https://dtuevent-8105b.web.app/?success=true&pages=${pages.length}`);
+
+  } catch (error) {
+    console.error('Facebook OAuth callback error:', error.response?.data || error.message || error);
+    res.redirect('https://dtuevent-8105b.web.app/?error=server_error');
+  }
 });
 
 

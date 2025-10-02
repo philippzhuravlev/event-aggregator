@@ -1,6 +1,3 @@
 {
-  "$comment": "Main Firebase configuration is in ./firebase/firebase.json",
-  "projects": {
-    "default": "./firebase"
-  }
+  "functions": { "source": "functions" }
 }
