@@ -16,8 +16,13 @@ const db = admin.firestore();
 // Initialize Secret Manager client
 const secretClient = new SecretManagerServiceClient();
 
-const FB_APP_ID = process.env.VITE_FACEBOOK_APP_ID;
-const FB_APP_SECRET = process.env.VITE_FACEBOOK_APP_SECRET;
+const FB_APP_ID = process.env.FACEBOOK_APP_ID || process.env.VITE_FACEBOOK_APP_ID;
+const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET; // Intentionally no fallback
+
+if (!FB_APP_SECRET) {
+  throw new Error("Missing required environment variable in .env file: FACEBOOK_APP_SECRET");
+}
+
 const FB_REDIRECT_URI = 'http://localhost:3001/fb/callback';
 const GCP_PROJECT_ID = process.env.VITE_GCP_PROJECT_ID;
 
