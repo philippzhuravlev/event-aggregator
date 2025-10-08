@@ -154,7 +154,7 @@ for (const pageId of pages) {
   const token = getTokenForPage(pageId);
   // Explicitly request the cover{source} field so the Graph API returns the
   // cover image URL. Without this, some API responses omit the cover object.
-  const url = new URL(`https://graph.facebook.com/v19.0/${pageId}/events`);
+  const url = new URL(`https://graph.facebook.com/v23.0/${pageId}/events`);
   url.searchParams.set('access_token', token);
   //url.searchParams.set('time_filter', 'upcoming');
   url.searchParams.set('fields', 'id,name,description,start_time,end_time,place,cover{source}');
