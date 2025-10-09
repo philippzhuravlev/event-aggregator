@@ -12,11 +12,14 @@ export function EventCard({ event }: { event: Event }) {
     >
       {/* card */}
       <div className="border rounded p-4 hover:bg-gray-50 transition">
-        {/* layout: optional image */}
+        {/* layout: image + text */}
         <div className="flex items-start gap-4">
-          {event.coverImageUrl && (
-            <img src={event.coverImageUrl} alt={event.title} className="w-28 h-16 object-cover rounded" />
-          )}
+          {/* event cover image with fallback to DTU logo */}
+          <img 
+            src={event.coverImageUrl || '/dtuevent-logo.png'} 
+            alt={event.title} 
+            className="w-28 h-16 object-cover rounded" 
+          />
           {/* text column */}
           <div className="min-w-0">
             <div className="font-semibold truncate">{event.title}</div>
