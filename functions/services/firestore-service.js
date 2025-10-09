@@ -62,12 +62,28 @@ async function saveEvent(db, eventId, eventData) {
 }
 
 /**
+ * Initialize Firestore settings for better undefined property handling
+ * @param {admin.firestore.Firestore} db - Firestore database instance
+ */
+function initializeFirestoreSettings(db) {
+  try {
+    db.settings({ ignoreUndefinedProperties: true });
+    console.log('Firestore settings initialized: ignoreUndefinedProperties = true');
+  } catch (e) {
+    // Some older SDKs may not support settings; log and continue
+    console.warn('Could not set Firestore settings ignoreUndefinedProperties:', e.message);
+  }
+}
+
+/**
  * Batch write multiple events to Firestore
  * @param {admin.firestore.Firestore} db - Firestore database instance
  * @param {Array} events - Array of {id, data} objects
+ * @param {Object} [options] - Additional options
+ * @param {boolean} [options.includeRaw=false] - Whether to include raw Facebook data
  * @returns {Promise<number>} Number of events written
  */
-async function batchWriteEvents(db, events) {
+async function batchWriteEvents(db, events, options = {}) {
   // batch wrting is a neat way of doing a thing all at once. It's kind 
   // of like a SQL transaction; you do the entire thing or you do nothing
   // that way you don't update only half the items. How useful!
@@ -75,12 +91,22 @@ async function batchWriteEvents(db, events) {
     return 0;
   }
   
+  const { includeRaw = false } = options;
+  
   const batch = db.batch();
   
   for (const event of events) {
     // again, ref = reference, i.e. the path inside /event/ collecton
     const eventRef = db.collection('events').doc(event.id);
-    batch.set(eventRef, event.data, { merge: true });
+    
+    let eventData = event.data;
+    
+    // Optionally include raw Facebook data for debugging
+    if (includeRaw && event.raw) {
+      eventData = { ...eventData, raw: event.raw };
+    }
+    
+    batch.set(eventRef, eventData, { merge: true });
   }
   
   await batch.commit();
@@ -96,4 +122,5 @@ module.exports = {
   savePage,
   saveEvent,
   batchWriteEvents,
+  initializeFirestoreSettings,
 };

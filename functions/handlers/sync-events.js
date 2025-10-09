@@ -3,6 +3,7 @@ const { getPageEvents } = require('../services/facebook-api');
 const { getPageToken } = require('../services/secret-manager');
 const { getActivePages, batchWriteEvents } = require('../services/firestore-service');
 const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
+const { normalizeEvent } = require('../utils/event-normalizer');
 
 // NB: "Handlers" like execute business logic. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
@@ -23,7 +24,10 @@ async function syncAllPageEvents() {
     return { syncedPages: 0, syncedEvents: 0 };
   }
 
-  // Initialize Storage bucket for image processing
+  // Storage bucket is googles way of passing data thru objects, often images. It's quite
+  // similar to e.g. http req res objects, firebase's snapshots or reaally any object that
+  // has methods and properties. If it fails, we just use the original facebook url
+  // instead of downloading and reuploading it to our own storage bucket
   let storageBucket = null;
   try {
     storageBucket = initializeStorageBucket();
@@ -36,7 +40,7 @@ async function syncAllPageEvents() {
   const eventData = [];
 
   // Sync each page
-  for (const page of pages) {
+  for (const page of pages) { 
     try {
       // Get access token from Secret Manager
       const accessToken = await getPageToken(page.id); // in secret-manager service
@@ -47,12 +51,15 @@ async function syncAllPageEvents() {
 
       console.log(`Syncing events for page ${page.name} (${page.id})`);
       
-      // Fetch events from Facebook-api service
+      // Get events from Facebook-api service
       const events = await getPageEvents(page.id, accessToken);
       console.log(`Found ${events.length} events for page ${page.name}`);
 
       // Normalize and prepare for batch write
+      // batch write is doing it all at once or not at all. Normalize is just 
+      // formatting it in a standard way
       for (const event of events) {
+        // Start with image processing
         // Process cover image using the image service
         let coverImageUrl = null;
         if (storageBucket) {
@@ -68,27 +75,10 @@ async function syncAllPageEvents() {
           coverImageUrl = event.cover ? event.cover.source : undefined;
         }
 
-        // Safely extract place data if it exists
-        const placeData = event.place ? {
-          name: event.place.name,
-          location: event.place.location,
-        } : undefined;
-        
-        const normalized = Object.fromEntries(
-          Object.entries({
-            id: event.id,
-            pageId: page.id,
-            title: event.name,
-            description: event.description,
-            startTime: event.start_time,
-            endTime: event.end_time,
-            place: placeData,
-            coverImageUrl: coverImageUrl,
-            eventURL: `https://facebook.com/events/${event.id}`,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }).filter(([, v]) => v !== undefined)
-        );
+        // here we use our "normalizer" util in /functions/utils which basically matches
+        // facebook's event object to our firestore event object
+        const normalized = normalizeEvent(event, page.id, coverImageUrl);
+
         eventData.push({
           id: event.id,
           data: normalized,

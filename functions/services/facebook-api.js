@@ -102,7 +102,8 @@ async function getPageEvents(pageId, accessToken, timeFilter = 'upcoming') {
     params: {
       access_token: accessToken,
       time_filter: timeFilter,
-      fields: 'id,name,description,start_time,end_time,place,cover',
+      // Explicitly request cover{source} to ensure Facebook returns the image URL
+      fields: 'id,name,description,start_time,end_time,place,cover{source}',
     },
   });
   

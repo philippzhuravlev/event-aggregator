@@ -2,6 +2,8 @@ const admin = require('firebase-admin');
 const { exchangeCodeForToken, exchangeForLongLivedToken, getUserPages, getPageEvents } = require('../services/facebook-api');
 const { storePageToken, getPageToken } = require('../services/secret-manager');
 const { savePage, batchWriteEvents } = require('../services/firestore-service');
+const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
+const { normalizeEvent } = require('../utils/event-normalizer');
 
 // App URLs
 const APP_BASE_URL = 'https://dtuevent-8105b.web.app';
@@ -68,7 +70,16 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
       });
     }
 
-    // step 5: Fetch and store events for each page
+    // step 5: Initialize storage bucket for image processing
+    let storageBucket = null;
+    try {
+      storageBucket = initializeStorageBucket();
+      console.log('Storage bucket initialized for OAuth event image processing');
+    } catch (error) {
+      console.warn('Storage bucket not available during OAuth; will use original Facebook URLs:', error.message);
+    }
+
+    // step 6: Fetch and store events for each page
     let totalEvents = 0;
     const eventData = [];
 
@@ -85,29 +96,24 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
         
         // normalization before putting into Firestore
         for (const event of events) {
-          const nowIso = new Date().toISOString();
-          // extract place data if it exists
-          const placeData = event.place ? {
-            name: event.place.name,
-            location: event.place.location,
-          } : undefined;
-          
-          // drop undefined values (Firestore doesn't accept them)
-          const normalized = Object.fromEntries(
-            Object.entries({
-              id: event.id,
-              pageId: page.id,
-              title: event.name,
-              description: event.description,
-              startTime: event.start_time,
-              endTime: event.end_time,
-              place: placeData,
-              coverImageUrl: event.cover ? event.cover.source : undefined,
-              eventURL: `https://facebook.com/events/${event.id}`,
-              createdAt: nowIso,
-              updatedAt: nowIso,
-            }).filter(([, v]) => v !== undefined)
-          );
+          // process cover image using the image service util inside /utils/ to connect between facebook and firestore
+          let coverImageUrl = null;
+          if (storageBucket) {
+            try {
+              coverImageUrl = await processEventCoverImage(event, page.id, storageBucket);
+            } catch (error) {
+              console.warn(`Image processing failed for event ${event.id} during OAuth:`, error.message);
+              // Fallback to original Facebook URL
+              coverImageUrl = event.cover ? event.cover.source : undefined;
+            }
+          } else {
+            // No storage available, use original URL
+            coverImageUrl = event.cover ? event.cover.source : undefined;
+          }
+
+          // Use centralized normalizer for consistent schema
+          const normalized = normalizeEvent(event, page.id, coverImageUrl);
+
           eventData.push({
             id: event.id,
             data: normalized,
