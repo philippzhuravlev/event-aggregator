@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { FACEBOOK } = require('./constants');
 
 // So this is a util, a helper function that is neither "what to do" (handler) nor 
 // "how to connect to an external service" (service). It just does pure logic that 
@@ -39,7 +40,7 @@ function normalizeEvent(facebookEvent, pageId, coverImageUrl = null) {
     endTime: facebookEvent.end_time,
     place: placeData,
     coverImageUrl: finalCoverUrl,
-    eventURL: `https://facebook.com/events/${facebookEvent.id}`,
+    eventURL: FACEBOOK.eventUrl(facebookEvent.id),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };

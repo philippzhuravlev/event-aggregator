@@ -4,10 +4,7 @@ const { storePageToken, getPageToken } = require('../services/secret-manager');
 const { savePage, batchWriteEvents } = require('../services/firestore-service');
 const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
 const { normalizeEvent } = require('../utils/event-normalizer');
-
-// App URLs
-const APP_BASE_URL = 'https://dtuevent-8105b.web.app';
-const CALLBACK_URL = 'https://europe-west1-dtuevent-8105b.cloudfunctions.net/facebookCallback';
+const { URLS, ERROR_CODES } = require('../utils/constants');
 
 // NB: "Handlers" execute business logic. "Services" connect something
 // an existing service, e.g. facebook or google secrets manager
@@ -35,16 +32,16 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
     // error handling
     if (error) {
       console.error('Facebook OAuth error:', error);
-      return res.redirect(`${APP_BASE_URL}/?error=oauth_failed`);
+      return res.redirect(`${URLS.WEB_APP}/?error=oauth_failed`);
     }
     if (!code) {
       console.error('Missing authorization code');
-      return res.redirect(`${APP_BASE_URL}/?error=missing_code`);
+      return res.redirect(`${URLS.WEB_APP}/?error=missing_code`);
     }
 
     // 1: get code for short-lived token
     // uses firebook-api service in /functions/service
-    const shortLivedToken = await exchangeCodeForToken(code, appId, appSecret, CALLBACK_URL);
+    const shortLivedToken = await exchangeCodeForToken(code, appId, appSecret, URLS.OAUTH_CALLBACK);
     
     // 2: get code for long-lived token (60 days)
     // also uses firebook-api service also in /functions/service
@@ -54,7 +51,7 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
     // this is now done thru firestore-service service
     const pages = await getUserPages(longLivedToken);
     if (pages.length === 0) {
-      return res.redirect(`${APP_BASE_URL}/?error=no_pages`);
+      return res.redirect(`${URLS.WEB_APP}/?error=no_pages`);
     }
 
     // Step 4: Store page tokens in Secret Manager and metadata in Firestore
@@ -92,7 +89,23 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
           continue;
         }
         // get events this time thru facebook-api
-        const events = await getPageEvents(page.id, accessToken);
+        let events;
+        try {
+          events = await getPageEvents(page.id, accessToken);
+        } catch (eventError) {
+          // Check if it's a token expiry error (Facebook error code 190)
+          if (eventError.response && eventError.response.data && eventError.response.data.error) {
+            const fbError = eventError.response.data.error;
+            if (fbError.code === ERROR_CODES.FACEBOOK_TOKEN_INVALID) {
+              console.error(`Token expired for page ${page.name} (${page.id}) during OAuth. Marking as inactive.`);
+              // Mark the page as inactive so it won't be synced until re-authorized
+              await savePage(db, page.id, { active: false });
+              continue; // Skip to next page
+            }
+          }
+          // Re-throw if it's not a token error
+          throw eventError;
+        }
         
         // normalization before putting into Firestore
         for (const event of events) {
@@ -131,12 +144,12 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
     }
 
     // redirect back upon success
-    res.redirect(`${APP_BASE_URL}/?success=true&pages=${pages.length}&events=${totalEvents}`);
+    res.redirect(`${URLS.WEB_APP}/?success=true&pages=${pages.length}&events=${totalEvents}`);
 
     // boilerplate catch statment
   } catch (error) {
     console.error('Facebook OAuth callback error:', error.message || error);
-    res.redirect(`${APP_BASE_URL}/?error=callback_failed`);
+    res.redirect(`${URLS.WEB_APP}/?error=callback_failed`);
   }
 }
 

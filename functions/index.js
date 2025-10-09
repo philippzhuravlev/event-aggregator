@@ -15,9 +15,8 @@ const admin = require('firebase-admin');
 const { handleOAuthCallback } = require('./handlers/oauth-callback');
 const { handleManualSync, handleScheduledSync } = require('./handlers/sync-events');
 
-// consts
-const SYNC_SCHEDULE = 'every 12 hours';
-const SYNC_TIMEZONE = 'Etc/UTC';
+// import constants
+const { SYNC } = require('./utils/constants');
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -28,17 +27,22 @@ const FACEBOOK_APP_SECRET = defineSecret('FACEBOOK_APP_SECRET');
 
 /**
  * Manual sync facebook endpoints
- * GET/POST https://us-central1-dtuevent-8105b.cloudfunctions.net/syncFacebook
+ * GET/POST https://europe-west1-dtuevent-8105b.cloudfunctions.net/syncFacebook
+ * Note: Changed to europe-west1 to match facebookCallback region
  */
-exports.syncFacebook = onRequest({ secrets: [] }, handleManualSync);
+exports.syncFacebook = onRequest({ 
+  region: 'europe-west1',
+  secrets: [] 
+}, handleManualSync);
 
 /**
  * Cronjob sync, runs every 12 hours
  * What it does is that it syncs events from all active Facebook pages
  */
 exports.nightlySyncFacebook = onSchedule({
-  schedule: SYNC_SCHEDULE,
-  timeZone: SYNC_TIMEZONE,
+  region: 'europe-west1',
+  schedule: SYNC.SCHEDULE,
+  timeZone: SYNC.TIMEZONE,
   secrets: [],
 }, handleScheduledSync);
 

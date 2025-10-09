@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { FACEBOOK, FIRESTORE } = require('../utils/constants');
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, firestore and
@@ -10,7 +11,7 @@ const admin = require('firebase-admin');
 /**
  * Get all active pages from Firestore
  * @param {admin.firestore.Firestore} db - Firestore database instance
- * @returns {Promise<Array>} Array of {id, name, data} objects
+ * @returns {Promise<Array<{id: string, name: string, data: Object}>}> Array of page objects
  */
 async function getActivePages(db) {
   // snapshots are firebase's way of returning results after consulting it. It's
@@ -41,7 +42,7 @@ async function savePage(db, pageId, pageData) {
   await pageRef.set({
     id: pageId,
     name: pageData.name,
-    url: `https://facebook.com/${pageId}`,
+    url: FACEBOOK.pageUrl(pageId),
     active: true,
     connectedAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -62,28 +63,12 @@ async function saveEvent(db, eventId, eventData) {
 }
 
 /**
- * Initialize Firestore settings for better undefined property handling
- * @param {admin.firestore.Firestore} db - Firestore database instance
- */
-function initializeFirestoreSettings(db) {
-  try {
-    db.settings({ ignoreUndefinedProperties: true });
-    console.log('Firestore settings initialized: ignoreUndefinedProperties = true');
-  } catch (e) {
-    // Some older SDKs may not support settings; log and continue
-    console.warn('Could not set Firestore settings ignoreUndefinedProperties:', e.message);
-  }
-}
-
-/**
  * Batch write multiple events to Firestore
  * @param {admin.firestore.Firestore} db - Firestore database instance
- * @param {Array} events - Array of {id, data} objects
- * @param {Object} [options] - Additional options
- * @param {boolean} [options.includeRaw=false] - Whether to include raw Facebook data
+ * @param {Array<{id: string, data: Object}>} events - Array of event objects with id and data
  * @returns {Promise<number>} Number of events written
  */
-async function batchWriteEvents(db, events, options = {}) {
+async function batchWriteEvents(db, events) {
   // batch wrting is a neat way of doing a thing all at once. It's kind 
   // of like a SQL transaction; you do the entire thing or you do nothing
   // that way you don't update only half the items. How useful!
@@ -91,26 +76,31 @@ async function batchWriteEvents(db, events, options = {}) {
     return 0;
   }
   
-  const { includeRaw = false } = options;
+  // Firestore has a 500 operation limit per batch, so we need to chunk
+  const BATCH_SIZE = FIRESTORE.MAX_BATCH_SIZE;
+  const chunks = [];
   
-  const batch = db.batch();
-  
-  for (const event of events) {
-    // again, ref = reference, i.e. the path inside /event/ collecton
-    const eventRef = db.collection('events').doc(event.id);
-    
-    let eventData = event.data;
-    
-    // Optionally include raw Facebook data for debugging
-    if (includeRaw && event.raw) {
-      eventData = { ...eventData, raw: event.raw };
-    }
-    
-    batch.set(eventRef, eventData, { merge: true });
+  for (let i = 0; i < events.length; i += BATCH_SIZE) {
+    chunks.push(events.slice(i, i + BATCH_SIZE));
   }
   
-  await batch.commit();
-  return events.length;
+  // Process each chunk
+  let totalWritten = 0;
+  for (const chunk of chunks) {
+    const batch = db.batch();
+    
+    for (const event of chunk) {
+      // again, ref = reference, i.e. the path inside /event/ collecton
+      const eventRef = db.collection('events').doc(event.id);
+      batch.set(eventRef, event.data, { merge: true });
+    }
+    
+    await batch.commit();
+    totalWritten += chunk.length;
+    console.log(`Wrote batch of ${chunk.length} events (${totalWritten}/${events.length} total)`);
+  }
+  
+  return totalWritten;
 }
 
 // NB: One could theoretically do batch write for facebook pages also,
@@ -122,5 +112,4 @@ module.exports = {
   savePage,
   saveEvent,
   batchWriteEvents,
-  initializeFirestoreSettings,
 };

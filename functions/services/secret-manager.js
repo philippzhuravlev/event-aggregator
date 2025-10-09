@@ -31,11 +31,13 @@ async function storePageToken(pageId, accessToken) {
   } catch (error) {
     // if we failed to create the secret, it might not be because it's
     // __actually__ an error, but because it might already exist
-
-    // but if not:
     if (!error.message.includes('already exists')) {
-      console.warn(`Failed to create secret ${secretName}:`, error.message);
+      // If it's a real error (not "already exists"), we should fail fast
+      // rather than trying to add a version to a potentially non-existent secret
+      console.error(`Failed to create secret ${secretName}:`, error.message);
+      throw new Error(`Cannot store token: Secret creation failed for ${secretName}`);
     }
+    // If it already exists, that's fine - we'll add a new version below
   }
   
   // secret version actually contains the data, kind of like firestore's 

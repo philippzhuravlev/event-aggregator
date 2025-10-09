@@ -1,9 +1,10 @@
 const admin = require('firebase-admin');
 const { getPageEvents } = require('../services/facebook-api');
 const { getPageToken } = require('../services/secret-manager');
-const { getActivePages, batchWriteEvents } = require('../services/firestore-service');
+const { getActivePages, batchWriteEvents, savePage } = require('../services/firestore-service');
 const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
 const { normalizeEvent } = require('../utils/event-normalizer');
+const { ERROR_CODES } = require('../utils/constants');
 
 // NB: "Handlers" like execute business logic. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
@@ -52,7 +53,24 @@ async function syncAllPageEvents() {
       console.log(`Syncing events for page ${page.name} (${page.id})`);
       
       // Get events from Facebook-api service
-      const events = await getPageEvents(page.id, accessToken);
+      let events;
+      try {
+        events = await getPageEvents(page.id, accessToken);
+      } catch (error) {
+        // Check if it's a token expiry error (Facebook error code 190)
+        if (error.response && error.response.data && error.response.data.error) {
+          const fbError = error.response.data.error;
+          if (fbError.code === ERROR_CODES.FACEBOOK_TOKEN_INVALID) {
+            console.error(`Token expired for page ${page.name} (${page.id}). Marking as inactive.`);
+            // Mark the page as inactive so it won't be synced until re-authorized
+            await savePage(db, page.id, { active: false });
+            continue; // Skip to next page
+          }
+        }
+        // Re-throw if it's not a token error
+        throw error;
+      }
+      
       console.log(`Found ${events.length} events for page ${page.name}`);
 
       // Normalize and prepare for batch write

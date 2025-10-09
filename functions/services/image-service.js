@@ -2,6 +2,7 @@ const admin = require('firebase-admin');
 const axios = require('axios');
 const { pipeline } = require('stream/promises');
 const path = require('path');
+const { IMAGE_SERVICE } = require('../utils/constants');
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, firestore and
@@ -37,7 +38,7 @@ function getFileExtension(contentType, originalUrl) {
     try {
       const urlPath = new URL(originalUrl).pathname;
       const ext = path.extname(urlPath).toLowerCase();
-      if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'].includes(ext)) {
+      if (IMAGE_SERVICE.ALLOWED_EXTENSIONS.includes(ext)) {
         return ext === '.jpeg' ? '.jpg' : ext;
       }
     } catch (e) {
@@ -73,8 +74,8 @@ function sleep(ms) {
 async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
   const { // looks a bit complicated but we're just assigning many constants from options
     bucket, // the fancy word for this is object destruturing in js. It just gets values
-    maxRetries = 3,
-    timeoutMs = 30000,
+    maxRetries = IMAGE_SERVICE.MAX_RETRIES,
+    timeoutMs = IMAGE_SERVICE.TIMEOUT_MS,
     makePublic = true,
     signedUrlExpiryYears = 1
   } = options;
@@ -125,7 +126,7 @@ async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
       const writeStream = file.createWriteStream({
         metadata: {
           contentType,
-          cacheControl: 'public, max-age=31536000', // i.e. 1 year cache
+          cacheControl: `public, max-age=${IMAGE_SERVICE.CACHE_MAX_AGE}`, // i.e. 1 year cache
         },
         resumable: false, // Use simple upload for smaller files
       });
@@ -166,7 +167,7 @@ async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
       
       // If this isn't the last attempt, wait before retrying
       if (attempt < maxRetries) {
-        const delayMs = Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff, max 10s
+        const delayMs = Math.min(IMAGE_SERVICE.BACKOFF_BASE_MS * Math.pow(2, attempt), IMAGE_SERVICE.BACKOFF_MAX_MS);
         console.log(`Waiting ${delayMs}ms before retry...`);
         await sleep(delayMs);
       }
