@@ -3,6 +3,7 @@ const axios = require('axios');
 const { pipeline } = require('stream/promises');
 const path = require('path');
 const { IMAGE_SERVICE } = require('../utils/constants');
+const { logger } = require('../utils/logger');
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, firestore and
@@ -98,7 +99,12 @@ async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
   // etc
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`Downloading image from ${imageUrl} (attempt ${attempt + 1}/${maxRetries + 1})`);
+      logger.debug('Downloading image from URL', {
+        imageUrl,
+        attempt: attempt + 1,
+        maxRetries: maxRetries + 1,
+        storagePath,
+      });
       
       // Download image with streaming
       // remember streaming from programming 2? We can use this for images too to speed up the process;
@@ -116,7 +122,10 @@ async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
       const fileExtension = getFileExtension(contentType, imageUrl);
       const fullStoragePath = `${storagePath}${fileExtension}`;
       
-      console.log(`Uploading to Storage: ${fullStoragePath} (Content-Type: ${contentType})`);
+      logger.debug('Uploading image to Storage', {
+        fullStoragePath,
+        contentType,
+      });
       
       // Storage bucket creation
       const file = bucket.file(fullStoragePath);
@@ -134,14 +143,14 @@ async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
       // the pipline is what connects the readstream to the writestream
       await pipeline(response.data, writeStream);
       
-      console.log(`Successfully uploaded image to ${fullStoragePath}`);
+      logger.debug('Successfully uploaded image to Storage', { fullStoragePath });
       
       // Generate public URL for the user to access the image in browser 
       let publicUrl;
       if (makePublic) {
         await file.makePublic();
         publicUrl = `https://storage.googleapis.com/${bucket.name}/${fullStoragePath}`;
-        console.log(`Made file public: ${publicUrl}`);
+        logger.debug('Made file public', { publicUrl });
       } else {
         // or generate a signed URL valid for a certain time period if its not public
         const expiryDate = new Date();
@@ -152,13 +161,20 @@ async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
           expires: expiryDate,
         });
         publicUrl = signedUrl;
-        console.log(`Generated signed URL (expires: ${expiryDate.toISOString()})`);
+        logger.debug('Generated signed URL for image', {
+          expires: expiryDate.toISOString(),
+        });
       }
       
       return publicUrl;
     } catch (error) {
       lastError = error;
-      console.warn(`Upload attempt ${attempt + 1} failed:`, error.message);
+      logger.warn('Image upload attempt failed', {
+        attempt: attempt + 1,
+        maxRetries: maxRetries + 1,
+        error: error.message,
+        storagePath,
+      });
       
       // Don't retry on certain errors
       if (error.response && (error.response.status === 404 || error.response.status === 403)) {
@@ -168,7 +184,7 @@ async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
       // If this isn't the last attempt, wait before retrying
       if (attempt < maxRetries) {
         const delayMs = Math.min(IMAGE_SERVICE.BACKOFF_BASE_MS * Math.pow(2, attempt), IMAGE_SERVICE.BACKOFF_MAX_MS);
-        console.log(`Waiting ${delayMs}ms before retry...`);
+        logger.debug('Waiting before retry', { delayMs });
         await sleep(delayMs);
       }
     }
@@ -187,7 +203,7 @@ async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
  */
 async function processEventCoverImage(event, pageId, bucket, options = {}) {
   if (!event.cover || !event.cover.source) {
-    console.log(`Event ${event.id} has no cover image`);
+    logger.debug('Event has no cover image', { eventId: event.id });
     return null;
   }
 
@@ -198,12 +214,18 @@ async function processEventCoverImage(event, pageId, bucket, options = {}) {
       ...options
     });
     
-    console.log(`Processed cover image for event ${event.id}: ${imageUrl}`);
+    logger.debug('Processed cover image for event', {
+      eventId: event.id,
+      imageUrl,
+    });
     return imageUrl;
   } catch (error) {
-    console.error(`Failed to process cover image for event ${event.id}:`, error.message);
+    logger.warn('Failed to process cover image - using Facebook URL', {
+      eventId: event.id,
+      error: error.message,
+      fallbackUrl: event.cover.source,
+    });
     // return original URL as fallback
-    console.log(`Falling back to original Facebook URL: ${event.cover.source}`);
     return event.cover.source;
   }
 }

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { ERROR_CODES } = require('../utils/constants');
+const { logger } = require('../utils/logger');
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, firestore and
@@ -61,14 +62,23 @@ async function withRetry(apiCall, maxRetries = MAX_RETRIES) {
     } catch (error) {
       // Don't retry if token is expired or invalid - send out the token
       if (isTokenExpiredError(error)) {
-        console.error('Facebook token expired or invalid (error 190)');
+        const errorCode = error.response && error.response.data && error.response.data.error ?
+          error.response.data.error.code :
+          'unknown';
+        logger.error('Facebook token expired or invalid', error, { errorCode });
         throw error;
       }
       
       // retry on rate limiting or server errors
       if (isRetryableError(error) && attempt < maxRetries) {
         const delayMs = RETRY_DELAY_MS * Math.pow(2, attempt - 1); // Exponential backoff
-        console.warn(`Facebook API error (${error.response.status}), retrying in ${delayMs}ms... (attempt ${attempt}/${maxRetries})`);
+        const status = error.response ? error.response.status : 'unknown';
+        logger.warn('Facebook API error - retrying with backoff', {
+          status,
+          delayMs,
+          attempt,
+          maxRetries,
+        });
         await sleep(delayMs);
         continue;
       }
@@ -239,7 +249,13 @@ async function getAllRelevantEvents(pageId, accessToken, daysBack = 30) {
     new Map(allEvents.map(event => [event.id, event])).values()
   );
   
-  console.log(`Found ${upcomingEvents.length} upcoming and ${recentPastEvents.length} recent past events (last ${daysBack} days)`);
+  logger.debug('Retrieved events from Facebook API', {
+    pageId,
+    upcomingCount: upcomingEvents.length,
+    recentPastCount: recentPastEvents.length,
+    daysBack,
+    totalUnique: uniqueEvents.length,
+  });
   
   return uniqueEvents;
 }

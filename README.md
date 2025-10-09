@@ -68,6 +68,18 @@ Or "TonkaProductions". Note that all contribute code.
 - Analytics dashboard for event engagement
 - Notification system for page admins (event sync status, token expiration)
 
+## TODO: Backend
+
+- [ ] Add error monitoring & structured logging (Sentry/Winston)
+- [ ] Write tests (unit + integration, >80% coverage)
+- [ ] Add rate limiting & CORS to public endpoints
+- [ ] Migrate to TypeScript
+- [ ] Implement automatic token refresh before expiry
+- [ ] Add pagination to database queries
+- [ ] Optimize images (resize, compress, WebP)
+- [ ] Add request validation middleware
+- [ ] Set up proper environment configs (dev/staging/prod)
+
 ## List
 
 Below are the pages for bars at DTU. Note well that some events are not listed through these pages, but those dedicated to social gatherings.

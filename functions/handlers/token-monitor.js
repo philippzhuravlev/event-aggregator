@@ -1,6 +1,7 @@
 const admin = require('firebase-admin');
 const { checkTokenExpiry } = require('../services/secret-manager');
 const { getActivePages } = require('../services/firestore-service');
+const { logger } = require('../utils/logger');
 
 // NB: "Handlers" like execute business logic. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
@@ -49,7 +50,10 @@ async function checkAllTokenHealth() {
         report.unknown.push(pageInfo);
       }
     } catch (error) {
-      console.error(`Error checking token for page ${page.id}:`, error);
+      logger.error('Error checking token expiry for page', error, {
+        pageId: page.id,
+        pageName: page.name,
+      });
       report.unknown.push({
         pageId: page.id,
         pageName: page.name,
@@ -78,15 +82,21 @@ async function handleTokenHealthCheck(req, res, authMiddleware) {
   }
 
   try {
-    console.log('Checking token health...');
+    logger.info('Token health check started');
     const report = await checkAllTokenHealth();
     
     // Log warnings for expiring/expired tokens
     if (report.expired.length > 0) {
-      console.error(`${report.expired.length} expired token(s)!`);
+      logger.critical('Expired tokens detected', new Error('Tokens expired'), {
+        count: report.expired.length,
+        expiredTokens: report.expired,
+      });
     }
     if (report.expiringSoon.length > 0) {
-      console.warn(`${report.expiringSoon.length} token(s) expiring soon!`);
+      logger.warn('Tokens expiring soon', {
+        count: report.expiringSoon.length,
+        expiringTokens: report.expiringSoon,
+      });
     }
     
     res.json({
@@ -94,7 +104,7 @@ async function handleTokenHealthCheck(req, res, authMiddleware) {
       report,
     });
   } catch (error) {
-    console.error('Token health check error:', error);
+    logger.error('Token health check failed', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -108,35 +118,36 @@ async function handleTokenHealthCheck(req, res, authMiddleware) {
  */
 async function handleScheduledTokenMonitoring() {
   try {
-    console.log('🔍 Running scheduled token health monitoring...');
+    logger.info('Scheduled token health monitoring started');
     const report = await checkAllTokenHealth();
     
     // Log summary
-    console.log(`Token Health Summary:
-      Healthy: ${report.healthy.length}
-      Expiring Soon: ${report.expiringSoon.length}
-      Expired: ${report.expired.length}
-      Unknown: ${report.unknown.length}`);
+    logger.info('Token health summary', {
+      healthy: report.healthy.length,
+      expiringSoon: report.expiringSoon.length,
+      expired: report.expired.length,
+      unknown: report.unknown.length,
+    });
     
     // expired token summary
     if (report.expired.length > 0) {
-      console.error('Expired tokens (!):');
-      report.expired.forEach(page => {
-        console.error(`   - ${page.pageName} (${page.pageId})`);
+      logger.critical('Expired tokens detected in scheduled monitoring', new Error('Tokens expired'), {
+        count: report.expired.length,
+        expiredTokens: report.expired,
       });
     }
     
     // expiring tokens
     if (report.expiringSoon.length > 0) {
-      console.warn('Tokens expiring soon (!):');
-      report.expiringSoon.forEach(page => {
-        console.warn(`   - ${page.pageName} (${page.pageId}): ${page.daysUntilExpiry} days remaining`);
+      logger.warn('Tokens expiring soon in scheduled monitoring', {
+        count: report.expiringSoon.length,
+        expiringTokens: report.expiringSoon,
       });
     }
     
     return report;
   } catch (error) {
-    console.error('Scheduled token monitoring error:', error);
+    logger.error('Scheduled token monitoring failed', error);
     throw error;
   }
 }

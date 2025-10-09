@@ -5,6 +5,7 @@ const { getActivePages, batchWriteEvents } = require('../services/firestore-serv
 const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
 const { normalizeEvent } = require('../utils/event-normalizer');
 const { ERROR_CODES } = require('../utils/constants');
+const { logger } = require('../utils/logger');
 
 // NB: "Handlers" like execute business logic. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
@@ -21,7 +22,7 @@ async function syncAllPageEvents() {
   const pages = await getActivePages(db);
   
   if (pages.length === 0) {
-    console.log('No active pages; nothing to sync');
+    logger.info('No active pages to sync');
     return { syncedPages: 0, syncedEvents: 0 };
   }
 
@@ -32,9 +33,11 @@ async function syncAllPageEvents() {
   let storageBucket = null;
   try {
     storageBucket = initializeStorageBucket();
-    console.log('Storage bucket initialized for image processing');
+    logger.info('Storage bucket initialized for image processing');
   } catch (error) {
-    console.warn('Storage bucket not available; will use original Facebook URLs:', error.message);
+    logger.warn('Storage bucket not available; using original Facebook URLs', { 
+      error: error.message 
+    });
   }
 
   let totalEvents = 0;
@@ -47,7 +50,12 @@ async function syncAllPageEvents() {
       // Check if token is expiring soon (within 7 days)
       const tokenStatus = await checkTokenExpiry(db, page.id, 7);
       if (tokenStatus.isExpiring) {
-        console.warn(`Token for page ${page.name} (${page.id}) expires in ${tokenStatus.daysUntilExpiry} days!`);
+        logger.warn('Token expiring soon', {
+          pageId: page.id,
+          pageName: page.name,
+          daysUntilExpiry: tokenStatus.daysUntilExpiry,
+          expiresAt: tokenStatus.expiresAt ? tokenStatus.expiresAt.toISOString() : null,
+        });
         expiringTokens.push({
           pageId: page.id,
           pageName: page.name,
@@ -59,11 +67,17 @@ async function syncAllPageEvents() {
       // Get access token from Secret Manager
       const accessToken = await getPageToken(page.id); // in secret-manager service
       if (!accessToken) {
-        console.warn(`No access token found for page ${page.id}`);
+        logger.error('No access token found for page', null, {
+          pageId: page.id,
+          pageName: page.name,
+        });
         continue;
       }
 
-      console.log(`Syncing events for page ${page.name} (${page.id})`);
+      logger.info('Syncing events for page', {
+        pageId: page.id,
+        pageName: page.name,
+      });
       
       // Get events from Facebook-api service (upcoming + last 30 days)
       let events;
@@ -74,7 +88,11 @@ async function syncAllPageEvents() {
         if (error.response && error.response.data && error.response.data.error) {
           const fbError = error.response.data.error;
           if (fbError.code === ERROR_CODES.FACEBOOK_TOKEN_INVALID) {
-            console.error(`Token expired for page ${page.name} (${page.id}). Marking as inactive.`);
+            logger.error('Token expired for page - marking as inactive', error, {
+              pageId: page.id,
+              pageName: page.name,
+              facebookErrorCode: fbError.code,
+            });
             // Mark the page as inactive and token as expired
             await markTokenExpired(db, page.id);
             continue; // Skip to next page
@@ -84,7 +102,11 @@ async function syncAllPageEvents() {
         throw error;
       }
       
-      console.log(`Found ${events.length} events for page ${page.name}`);
+      logger.info('Events fetched from Facebook', {
+        pageId: page.id,
+        pageName: page.name,
+        eventCount: events.length,
+      });
 
       // Normalize and prepare for batch write
       // batch write is doing it all at once or not at all. Normalize is just 
@@ -97,7 +119,11 @@ async function syncAllPageEvents() {
           try {
             coverImageUrl = await processEventCoverImage(event, page.id, storageBucket);
           } catch (error) {
-            console.warn(`Image processing failed for event ${event.id}:`, error.message);
+            logger.warn('Image processing failed - using Facebook URL', {
+              eventId: event.id,
+              pageId: page.id,
+              error: error.message,
+            });
             // Fallback to original Facebook URL
             coverImageUrl = event.cover ? event.cover.source : undefined;
           }
@@ -117,21 +143,28 @@ async function syncAllPageEvents() {
         totalEvents++;
       }
     } catch (error) {
-      console.warn(`Failed to sync events for page ${page.id}:`, error.message);
+      logger.error('Failed to sync events for page', error, {
+        pageId: page.id,
+        pageName: page.name,
+      });
     }
   }
 
   // Batch write all events. Again, batch writing is doing it all at once
   if (eventData.length > 0) {
     await batchWriteEvents(db, eventData);
-    console.log(`Synced ${totalEvents} events from ${pages.length} pages`);
+    logger.info('Sync completed successfully', {
+      totalEvents,
+      totalPages: pages.length,
+      expiringTokens: expiringTokens.length,
+    });
   }
 
   // Log expiring tokens summary
   if (expiringTokens.length > 0) {
-    console.warn(`${expiringTokens.length} page(s) have expiring tokens:`);
-    expiringTokens.forEach(token => {
-      console.warn(`   - ${token.pageName} (${token.pageId}): ${token.daysUntilExpiry} days until expiry`);
+    logger.warn('Multiple tokens expiring soon', {
+      count: expiringTokens.length,
+      tokens: expiringTokens,
     });
   }
 
@@ -161,16 +194,16 @@ async function handleManualSync(req, res, authMiddleware) {
   }
 
   try {
-    console.log('🔄 Starting manual sync...');
+    logger.info('Manual sync started');
     const result = await syncAllPageEvents();
-    console.log('Manual sync completed successfully');
+    logger.info('Manual sync completed successfully', result);
     res.json({ 
       success: true,
       ...result,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Sync error:', error);
+    logger.error('Manual sync failed', error);
     res.status(500).json({ 
       success: false,
       error: error.message,
@@ -184,10 +217,11 @@ async function handleManualSync(req, res, authMiddleware) {
  */
 async function handleScheduledSync() {
   try {
+    logger.info('Scheduled sync started');
     const result = await syncAllPageEvents();
-    console.log('Scheduled sync completed:', result);
+    logger.info('Scheduled sync completed', result);
   } catch (error) {
-    console.error('Scheduled sync error:', error);
+    logger.error('Scheduled sync failed', error);
   }
 }
 

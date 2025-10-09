@@ -1,4 +1,5 @@
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
+const { logger } = require('../utils/logger');
 const secretClient = new SecretManagerServiceClient();
 
 // this is a "service", which sounds vague but basically means a specific piece
@@ -33,14 +34,14 @@ async function storePageToken(pageId, accessToken, options = {}) {
         replication: { automatic: {} },
       },
     });
-    console.log(`Created new secret: ${secretName}`);
+    logger.debug('Created new secret for page token', { secretName, pageId });
   } catch (error) {
     // if we failed to create the secret, it might not be because it's
     // __actually__ an error, but because it might already exist
     if (!error.message.includes('already exists')) {
       // If it's a real error (not "already exists"), we should fail fast
       // rather than trying to add a version to a potentially non-existent secret
-      console.error(`Failed to create secret ${secretName}:`, error.message);
+      logger.error('Failed to create secret', error, { secretName, pageId });
       throw new Error(`Cannot store token: Secret creation failed for ${secretName}`);
     }
     // If it already exists, that's fine - we'll add a new version below
@@ -56,7 +57,7 @@ async function storePageToken(pageId, accessToken, options = {}) {
     },
   });
   
-  console.log(`Stored token for page ${pageId}`);
+  logger.info('Stored token for page in Secret Manager', { pageId });
 
   // Store token metadata in Firestore for expiry tracking
   if (db) {
@@ -73,7 +74,11 @@ async function storePageToken(pageId, accessToken, options = {}) {
       tokenStatus: 'valid',
     }, { merge: true });
     
-    console.log(`Stored token metadata for page ${pageId}, expires at ${expiresAt.toISOString()}`);
+    logger.info('Stored token metadata in Firestore', {
+      pageId,
+      expiresAt: expiresAt.toISOString(),
+      expiresInDays,
+    });
   }
 }
 
@@ -94,7 +99,10 @@ async function getPageToken(pageId) {
     });
     return version.payload.data.toString();
   } catch (error) {
-    console.warn(`Failed to get token for page ${pageId}:`, error.message);
+    logger.warn('Failed to retrieve token from Secret Manager', {
+      pageId,
+      error: error.message,
+    });
     return null;
   }
 }
@@ -113,7 +121,7 @@ async function getApiKey() {
     });
     return version.payload.data.toString();
   } catch (error) {
-    console.error(`Failed to get API key:`, error.message);
+    logger.error('Failed to retrieve API key from Secret Manager', error);
     return null;
   }
 }
@@ -157,7 +165,7 @@ async function markTokenExpired(db, pageId) {
     active: false,
   }, { merge: true });
   
-  console.log(`Marked token as expired for page ${pageId}`);
+  logger.warn('Marked token as expired in Firestore', { pageId });
 }
 
 module.exports = {

@@ -1,4 +1,5 @@
 const { getApiKey } = require('../services/secret-manager');
+const { logger } = require('../utils/logger');
 
 // So in the broadest sense middleware is any software that works between 
 // apps and services etc. Usually that means security, little "checkpoints"
@@ -18,7 +19,7 @@ async function requireApiKey(req, res) {
     const validApiKey = await getApiKey();
     
     if (!validApiKey) {
-      console.error('API key not configured in Secret Manager');
+      logger.critical('API key not configured in Secret Manager', new Error('Missing API key'));
       res.status(500).json({ 
         error: 'Server configuration error',
         message: 'API authentication is not properly configured'
@@ -31,7 +32,7 @@ async function requireApiKey(req, res) {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const providedKey = authHeader.substring(7); // Remove 'Bearer ' prefix
       if (providedKey === validApiKey) {
-        console.log('API key authentication successful (Authorization header)');
+        logger.debug('API key authentication successful', { method: 'Authorization header' });
         return true;
       }
     }
@@ -40,19 +41,24 @@ async function requireApiKey(req, res) {
     // x-api-key is if we want our own headers for the sake of ease
     const apiKeyHeader = req.headers['x-api-key'];
     if (apiKeyHeader === validApiKey) {
-      console.log('API key authentication successful (x-api-key header)');
+      logger.debug('API key authentication successful', { method: 'x-api-key header' });
       return true;
     }
 
     // valid key found not found
-    console.warn('Unauthorized sync attempt - invalid or missing API key');
+    const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    logger.warn('Unauthorized API access attempt', {
+      ip,
+      userAgent: req.headers['user-agent'],
+      path: req.path,
+    });
     res.status(401).json({ 
       error: 'Unauthorized',
       message: 'Valid API key required. Provide via Authorization: Bearer <key> or x-api-key: <key> header'
     });
     return false;
   } catch (error) {
-    console.error('Error verifying API key:', error);
+    logger.error('API key verification failed', error);
     res.status(500).json({ 
       error: 'Authentication error',
       message: 'Failed to verify API key'
@@ -68,7 +74,12 @@ async function requireApiKey(req, res) {
 function logRequest(req) {
   const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
   const userAgent = req.headers['user-agent'] || 'unknown';
-  console.log(`${req.method} ${req.path} from ${ip} (${userAgent})`);
+  logger.info('HTTP request received', {
+    method: req.method,
+    path: req.path,
+    ip,
+    userAgent,
+  });
 }
 
 module.exports = {

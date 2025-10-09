@@ -1,4 +1,5 @@
 const { FACEBOOK, FIRESTORE } = require('../utils/constants');
+const { logger } = require('../utils/logger');
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, firestore and
@@ -97,7 +98,11 @@ async function batchWriteEvents(db, events) {
     
     await batch.commit();
     totalWritten += chunk.length;
-    console.log(`Wrote batch of ${chunk.length} events (${totalWritten}/${events.length} total)`);
+    logger.debug('Wrote batch of events to Firestore', {
+      batchSize: chunk.length,
+      totalWritten,
+      totalEvents: events.length,
+    });
   }
   
   return totalWritten;

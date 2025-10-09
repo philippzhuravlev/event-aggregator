@@ -5,6 +5,7 @@ const { savePage, batchWriteEvents } = require('../services/firestore-service');
 const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
 const { normalizeEvent } = require('../utils/event-normalizer');
 const { URLS, ERROR_CODES } = require('../utils/constants');
+const { logger } = require('../utils/logger');
 
 // NB: "Handlers" execute business logic. "Services" connect something
 // an existing service, e.g. facebook or google secrets manager
@@ -38,28 +39,31 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
         const decodedState = decodeURIComponent(state);
         const stateUrl = new URL(decodedState);
         redirectBase = stateUrl.origin;
-        console.log('Using redirect URL from state parameter:', redirectBase);
+        logger.debug('Using redirect URL from state parameter', { redirectBase });
       } catch (e) {
-        console.warn('Failed to parse state parameter as URL:', state);
+        logger.warn('Failed to parse state parameter as URL', { state, error: e.message });
       }
     } else if (req.headers.referer) {
       // Fall back to referer header
       try {
         const refererUrl = new URL(req.headers.referer);
         redirectBase = refererUrl.origin;
-        console.log('Using redirect URL from referer header:', redirectBase);
+        logger.debug('Using redirect URL from referer header', { redirectBase });
       } catch (e) {
-        console.warn('Failed to parse referer header:', req.headers.referer);
+        logger.warn('Failed to parse referer header', { referer: req.headers.referer });
       }
     }
     
     // error handling
     if (error) {
-      console.error('Facebook OAuth error:', error);
+      logger.error('Facebook OAuth error from callback', null, { 
+        facebookError: error,
+        redirectBase 
+      });
       return res.redirect(`${redirectBase}/?error=oauth_failed`);
     }
     if (!code) {
-      console.error('Missing authorization code');
+      logger.error('Missing authorization code in OAuth callback', null, { redirectBase });
       return res.redirect(`${redirectBase}/?error=missing_code`);
     }
 
@@ -95,9 +99,11 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
     let storageBucket = null;
     try {
       storageBucket = initializeStorageBucket();
-      console.log('Storage bucket initialized for OAuth event image processing');
+      logger.info('Storage bucket initialized for OAuth event image processing');
     } catch (error) {
-      console.warn('Storage bucket not available during OAuth; will use original Facebook URLs:', error.message);
+      logger.warn('Storage bucket not available during OAuth - using Facebook URLs', { 
+        error: error.message 
+      });
     }
 
     // step 6: Fetch and store events for each page
@@ -109,7 +115,10 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
         // get token thru secret-manager service in /functions/service
         const accessToken = await getPageToken(page.id);
         if (!accessToken) {
-          console.warn(`Could not retrieve token for page ${page.id}`);
+          logger.warn('Could not retrieve token for page during OAuth', {
+            pageId: page.id,
+            pageName: page.name,
+          });
           continue;
         }
         // get events this time thru facebook-api (upcoming + last 30 days)
@@ -121,7 +130,11 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
           if (eventError.response && eventError.response.data && eventError.response.data.error) {
             const fbError = eventError.response.data.error;
             if (fbError.code === ERROR_CODES.FACEBOOK_TOKEN_INVALID) {
-              console.error(`Token expired for page ${page.name} (${page.id}) during OAuth. Marking as inactive.`);
+              logger.error('Token expired during OAuth - marking page inactive', eventError, {
+                pageId: page.id,
+                pageName: page.name,
+                facebookErrorCode: fbError.code,
+              });
               // Mark the page as inactive so it won't be synced until re-authorized
               await savePage(db, page.id, { active: false });
               continue; // Skip to next page
@@ -139,7 +152,11 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
             try {
               coverImageUrl = await processEventCoverImage(event, page.id, storageBucket);
             } catch (error) {
-              console.warn(`Image processing failed for event ${event.id} during OAuth:`, error.message);
+              logger.warn('Image processing failed during OAuth - using Facebook URL', {
+                eventId: event.id,
+                pageId: page.id,
+                error: error.message,
+              });
               // Fallback to original Facebook URL
               coverImageUrl = event.cover ? event.cover.source : undefined;
             }
@@ -158,21 +175,32 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
           totalEvents++;
         }
       } catch (eventError) {
-        console.warn(`Failed to fetch events for page ${page.id}:`, eventError.message);
+        logger.error('Failed to fetch events for page during OAuth', eventError, {
+          pageId: page.id,
+          pageName: page.name,
+        });
       }
     }
 
     if (eventData.length > 0) {
       await batchWriteEvents(db, eventData);
-      console.log(`Success. Stored ${totalEvents} events in Firestore`);
+      logger.info('OAuth callback completed - events stored', {
+        totalEvents,
+        totalPages: pages.length,
+      });
     }
 
     // redirect back upon success
+    logger.info('OAuth flow completed successfully', {
+      pages: pages.length,
+      events: totalEvents,
+      redirectBase,
+    });
     res.redirect(`${redirectBase}/?success=true&pages=${pages.length}&events=${totalEvents}`);
 
     // boilerplate catch statment
   } catch (error) {
-    console.error('Facebook OAuth callback error:', error.message || error);
+    logger.error('Facebook OAuth callback failed', error, { redirectBase });
     // Use the same redirectBase if it was determined earlier, otherwise fallback
     const fallbackRedirect = redirectBase || URLS.WEB_APP;
     res.redirect(`${fallbackRedirect}/?error=callback_failed`);
