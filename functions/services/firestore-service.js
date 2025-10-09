@@ -1,4 +1,3 @@
-const admin = require('firebase-admin');
 const { FACEBOOK, FIRESTORE } = require('../utils/constants');
 
 // this is a "service", which sounds vague but basically means a specific piece
@@ -38,14 +37,15 @@ async function getActivePages(db) {
  */
 async function savePage(db, pageId, pageData) {
   // i.e. in /page/ firebase collection 
+  const { FieldValue } = require('@google-cloud/firestore');
   const pageRef = db.collection('pages').doc(pageId);
   await pageRef.set({
     id: pageId,
     name: pageData.name,
     url: FACEBOOK.pageUrl(pageId),
     active: true,
-    connectedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    connectedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 }
 

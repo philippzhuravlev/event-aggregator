@@ -1,5 +1,5 @@
-const admin = require('firebase-admin');
 const { FACEBOOK } = require('./constants');
+const { FieldValue } = require('@google-cloud/firestore');
 
 // So this is a util, a helper function that is neither "what to do" (handler) nor 
 // "how to connect to an external service" (service). It just does pure logic that 
@@ -41,8 +41,8 @@ function normalizeEvent(facebookEvent, pageId, coverImageUrl = null) {
     place: placeData,
     coverImageUrl: finalCoverUrl,
     eventURL: FACEBOOK.eventUrl(facebookEvent.id),
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
 
   // while this section below looks very complicated, all it does is that it filters

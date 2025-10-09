@@ -60,13 +60,15 @@ async function storePageToken(pageId, accessToken, options = {}) {
 
   // Store token metadata in Firestore for expiry tracking
   if (db) {
-    const admin = require('firebase-admin');
-    const now = admin.firestore.Timestamp.now();
+    // Import at top-level to avoid re-initialization issues
+    const { Timestamp } = require('@google-cloud/firestore');
+    
+    const now = Timestamp.now();
     const expiresAt = new Date(now.toDate().getTime() + expiresInDays * 24 * 60 * 60 * 1000);
     
     await db.collection('pages').doc(pageId).set({
       tokenStoredAt: now,
-      tokenExpiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+      tokenExpiresAt: Timestamp.fromDate(expiresAt),
       tokenExpiresInDays: expiresInDays,
       tokenStatus: 'valid',
     }, { merge: true });
@@ -103,7 +105,7 @@ async function getPageToken(pageId) {
  */
 async function getApiKey() {
   const projectId = process.env.GCLOUD_PROJECT;
-  const secretName = 'api-sync-key';
+  const secretName = 'API_SYNC_KEY';
   
   try {
     const [version] = await secretClient.accessSecretVersion({
@@ -148,10 +150,10 @@ async function checkTokenExpiry(db, pageId, warningDays = 7) {
  * @returns {Promise<void>}
  */
 async function markTokenExpired(db, pageId) {
-  const admin = require('firebase-admin');
+  const { FieldValue } = require('@google-cloud/firestore');
   await db.collection('pages').doc(pageId).set({
     tokenStatus: 'expired',
-    tokenExpiredAt: admin.firestore.FieldValue.serverTimestamp(),
+    tokenExpiredAt: FieldValue.serverTimestamp(),
     active: false,
   }, { merge: true });
   
