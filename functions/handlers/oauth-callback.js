@@ -1,6 +1,6 @@
 const admin = require('firebase-admin');
 const { exchangeCodeForToken, exchangeForLongLivedToken, getUserPages, getPageEvents } = require('../services/facebook-api');
-const { storePageToken } = require('../services/secret-manager');
+const { storePageToken, getPageToken } = require('../services/secret-manager');
 const { savePage, batchWriteEvents } = require('../services/firestore-service');
 const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
 const { normalizeEvent } = require('../utils/event-normalizer');
@@ -26,17 +26,41 @@ const { URLS, ERROR_CODES } = require('../utils/constants');
  * @param {string} appSecret - Facebook App Secret (from secrets)
  */
 async function handleOAuthCallback(req, res, appId, appSecret) {
+  // this entire section is about figuring out which url "prefix" (localhost, dtuevent.dk etc)
+  // is used and then redirect back to that
+  let redirectBase = URLS.WEB_APP;
   try {
-    const { code, error } = req.query; // again, a request object
+    const { code, error, state } = req.query; // again, a request object
+    // state parameters ("state" below) are used to maintain state between the request and 
+    // callback so it doesnt get hijacked or messed up along the way
+    if (state) {
+      try {
+        const decodedState = decodeURIComponent(state);
+        const stateUrl = new URL(decodedState);
+        redirectBase = stateUrl.origin;
+        console.log('Using redirect URL from state parameter:', redirectBase);
+      } catch (e) {
+        console.warn('Failed to parse state parameter as URL:', state);
+      }
+    } else if (req.headers.referer) {
+      // Fall back to referer header
+      try {
+        const refererUrl = new URL(req.headers.referer);
+        redirectBase = refererUrl.origin;
+        console.log('Using redirect URL from referer header:', redirectBase);
+      } catch (e) {
+        console.warn('Failed to parse referer header:', req.headers.referer);
+      }
+    }
     
     // error handling
     if (error) {
       console.error('Facebook OAuth error:', error);
-      return res.redirect(`${URLS.WEB_APP}/?error=oauth_failed`);
+      return res.redirect(`${redirectBase}/?error=oauth_failed`);
     }
     if (!code) {
       console.error('Missing authorization code');
-      return res.redirect(`${URLS.WEB_APP}/?error=missing_code`);
+      return res.redirect(`${redirectBase}/?error=missing_code`);
     }
 
     // 1: get code for short-lived token
@@ -51,18 +75,15 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
     // this is now done thru firestore-service service
     const pages = await getUserPages(longLivedToken);
     if (pages.length === 0) {
-      return res.redirect(`${URLS.WEB_APP}/?error=no_pages`);
+      return res.redirect(`${redirectBase}/?error=no_pages`);
     }
 
     // Step 4: Store page tokens in Secret Manager and metadata in Firestore
     const db = admin.firestore(); // 'firebase-admin' 
 
     for (const page of pages) {
-      // store page token with expiry tracking
-      await storePageToken(page.id, page.access_token, { 
-        db, 
-        expiresInDays: 60 // Facebook long-lived tokens expire in 60 days
-      });
+      // store page also thru our firestore-service service
+      await storePageToken(page.id, page.access_token);
       
       // save page metadata to firestore also thru firebase service
       await savePage(db, page.id, {
@@ -85,10 +106,10 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
 
     for (const page of pages) {
       try {
-        // Use the access token we already have from getUserPages() instead of fetching again
-        const accessToken = page.access_token;
+        // get token thru secret-manager service in /functions/service
+        const accessToken = await getPageToken(page.id);
         if (!accessToken) {
-          console.warn(`No access token for page ${page.id}`);
+          console.warn(`Could not retrieve token for page ${page.id}`);
           continue;
         }
         // get events this time thru facebook-api
@@ -147,12 +168,14 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
     }
 
     // redirect back upon success
-    res.redirect(`${URLS.WEB_APP}/?success=true&pages=${pages.length}&events=${totalEvents}`);
+    res.redirect(`${redirectBase}/?success=true&pages=${pages.length}&events=${totalEvents}`);
 
     // boilerplate catch statment
   } catch (error) {
     console.error('Facebook OAuth callback error:', error.message || error);
-    res.redirect(`${URLS.WEB_APP}/?error=callback_failed`);
+    // Use the same redirectBase if it was determined earlier, otherwise fallback
+    const fallbackRedirect = redirectBase || URLS.WEB_APP;
+    res.redirect(`${fallbackRedirect}/?error=callback_failed`);
   }
 }
 

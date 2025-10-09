@@ -12,7 +12,7 @@ function App() {
   const [loading, setLoading] = useState(true);   // loading indicator
   const [error, setError] = useState<string>(''); // simple error string
 
-  // Facebook OAuth
+  // Facebook OAuth consts
   const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID;
   const FB_REDIRECT_URI = encodeURIComponent(
     import.meta.env.VITE_OAUTH_CALLBACK_URL || 
@@ -25,10 +25,20 @@ function App() {
   ].join(',');
 
   function buildFacebookLoginUrl() {
-    return `https://www.facebook.com/v23.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${FB_REDIRECT_URI}&scope=${FB_SCOPES}`;
+    // TODO: okay so first of all, this will be done in a separate file later
+
+    // here we actually make the url; arguments are passed and separated by "&"
+    // we pass things as "state parameters", i.e. just telling the origin/destination
+    // the state of things so it can't be hijacked/messed up along the way. This includes:
+    // - FB_APP_ID (which app is making the request)
+    // - FB_REDIRECT_URI (where to go back to after login)
+    // - FB_SCOPES (what permissions are being requested, for us just reading things)
+    // - currentOrigin (where the request came from, i.e. localhost, dtuevent.dk etc)
+    const currentOrigin = encodeURIComponent(window.location.origin);
+    return `https://www.facebook.com/v23.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${FB_REDIRECT_URI}&scope=${FB_SCOPES}&state=${currentOrigin}`;
   }
 
-  // Handle OAuth redirect back from Facebook
+  // handle OAuth redirect back from Facebook
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const success = params.get('success');
@@ -86,8 +96,7 @@ function App() {
     return () => clearTimeout(id); // cleanup if user keeps typing
   }, [query]);
 
-  // Apply text filter on title/description/place
- 
+  // apply text filter on title/description/place
   const textFiltered = debouncedQuery
     ? filtered.filter(event => {
         const haystack = (  // "haystack" = the text we're searching in
@@ -100,7 +109,7 @@ function App() {
     : filtered;
 
   // Date range filtering (from/to)
-  // input values are YYYY-MM-DD; we compare event startTime against day boundaries
+  // input values are YYYY-MM-DD; we compare event startTime 
   const [fromDate, setFromDate] = useState<string>(''); // inclusive
   const [toDate, setToDate] = useState<string>('');     // inclusive
 
