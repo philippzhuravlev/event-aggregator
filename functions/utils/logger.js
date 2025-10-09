@@ -12,11 +12,11 @@ const { ErrorReporting } = require('@google-cloud/error-reporting');
 // Begin Google Cloud Error Reporting
 // This automatically uses your Firebase project credentials 
 const errors = new ErrorReporting({
-  projectId: process.env.GCLOUD_PROJECT,
+  projectId: process.env.GCLOUD_PROJECT, // not .env, auto-detected by Google Cloud
   reportMode: 'production', // Set to 'always' for testing, 'production' for prod
   serviceContext: {
     service: 'dtuevent-functions',
-    version: process.env.K_REVISION || '1.0.0', // Cloud Functions provides this
+    version: process.env.K_REVISION || '1.0.0', // Cloud Functions also provides this
   },
 });
 
@@ -115,12 +115,20 @@ const logger = {
   },
 
   /**
-   * Log debug messages (only in development)
+   * Log debug messages (only in non-production environments)
+   * Auto-detects: emulator or local dev (no GCLOUD_PROJECT)
    * @param {string} message - Debug message
    * @param {Object} metadata - Additional context
    */
   debug(message, metadata = {}) {
-    if (process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'development') {
+    // Only log debug when NOT in Google Cloud production
+    // The easy and amazing way to do this is thru google's own env 
+    // vars which they autodetect; you don't need to set any in .env:
+    //   - Local/emulator: GCLOUD_PROJECT is undefined → logs enabled
+    //   - Production: GCLOUD_PROJECT is set → logs disabled
+    // Note: We use console.debug() directly here (not logger.debug) 
+    // because we **are** the logger - we can't call ourselves!
+    if (!process.env.GCLOUD_PROJECT || process.env.FUNCTIONS_EMULATOR === 'true') {
       console.debug(JSON.stringify({
         severity: 'DEBUG',
         message,

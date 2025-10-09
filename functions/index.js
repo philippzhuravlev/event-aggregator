@@ -20,7 +20,7 @@ const { handleTokenHealthCheck, handleScheduledTokenMonitoring } = require('./ha
 const { requireApiKey, logRequest } = require('./middleware/auth');
 
 // import constants
-const { SYNC } = require('./utils/constants');
+const { SYNC, region } = require('./utils/constants');
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -31,12 +31,10 @@ const FACEBOOK_APP_SECRET = defineSecret('FACEBOOK_APP_SECRET');
 
 /**
  * Manual sync facebook endpoints
- * GET/POST https://europe-west1-dtuevent-8105b.cloudfunctions.net/syncFacebook
- * Note: Changed to europe-west1 to match facebookCallback region
  * NOW REQUIRES API KEY AUTHENTICATION
  */
 exports.syncFacebook = onRequest({ 
-  region: 'europe-west1',
+  region: region,
   secrets: [] 
 }, async (req, res) => {
   logRequest(req);
@@ -48,7 +46,7 @@ exports.syncFacebook = onRequest({
  * What it does is that it syncs events from all active Facebook pages
  */
 exports.nightlySyncFacebook = onSchedule({
-  region: 'europe-west1',
+  region: region,
   schedule: SYNC.SCHEDULE,
   timeZone: SYNC.TIMEZONE,
   secrets: [],
@@ -56,11 +54,10 @@ exports.nightlySyncFacebook = onSchedule({
 
 /**
  * Token health check endpoint
- * GET https://europe-west1-dtuevent-8105b.cloudfunctions.net/checkTokenHealth
  * Requires API key authentication
  */
 exports.checkTokenHealth = onRequest({
-  region: 'europe-west1',
+  region: region,
   secrets: [],
 }, async (req, res) => {
   logRequest(req);
@@ -72,7 +69,7 @@ exports.checkTokenHealth = onRequest({
  * Runs every day at 9 AM UTC to check for expiring tokens
  */
 exports.dailyTokenMonitoring = onSchedule({
-  region: 'europe-west1',
+  region: region,
   schedule: 'every day 09:00',
   timeZone: 'Etc/UTC',
   secrets: [],
@@ -81,10 +78,9 @@ exports.dailyTokenMonitoring = onSchedule({
 /**
  * Facebook OAuth callback endpoint
  * Handles redirects from Facebook after user authorization
- * GET https://europe-west1-dtuevent-8105b.cloudfunctions.net/facebookCallback
  */
 exports.facebookCallback = onRequest({
-  region: 'europe-west1',
+  region: region,
   secrets: [FACEBOOK_APP_ID, FACEBOOK_APP_SECRET],
 }, async (req, res) => {
   await handleOAuthCallback( // this is the big file from /handlers/
