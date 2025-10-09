@@ -1,0 +1,235 @@
+const admin = require('firebase-admin');
+const axios = require('axios');
+const { pipeline } = require('stream/promises');
+const path = require('path');
+
+// this is a "service", which sounds vague but basically means a specific piece
+// of code that connects it to external elements like facebook, firestore and
+// google secret manager. The term could also mean like an internal service, e.g.
+// authentication or handling tokens, but here we've outsourced it to google/meta
+// Services should not be confused with "handlers" that do business logic
+
+// Having a service for images specifically is common and useful. It uses some 
+// advanced stuff like streaming and plenty of error handling and retry logic, 
+// but all it should really do is download an image from a url and upload it
+// to our firebase storage bucket. Again, a storage bucket is just a memory object
+// with methods and properties, similar to http req res objects or firebase
+
+/**
+ * Get file extension from content-type header with fallbacks
+ * @param {string} contentType - Content-Type header value
+ * @param {string} originalUrl - Original URL to extract extension from path
+ * @returns {string} File extension with dot (e.g., '.jpg')
+ */
+function getFileExtension(contentType, originalUrl) {
+  // "image/jpeg", "image/png", etc.; this is formally called "content detection"
+  if (contentType) {
+    const type = contentType.toLowerCase();
+    if (type.includes('jpeg') || type.includes('jpg')) return '.jpg';
+    if (type.includes('png')) return '.png';
+    if (type.includes('gif')) return '.gif';
+    if (type.includes('webp')) return '.webp';
+    if (type.includes('svg')) return '.svg';
+  }
+  
+  // just use the URL path as a fallback
+  if (originalUrl) {
+    try {
+      const urlPath = new URL(originalUrl).pathname;
+      const ext = path.extname(urlPath).toLowerCase();
+      if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'].includes(ext)) {
+        return ext === '.jpeg' ? '.jpg' : ext;
+      }
+    } catch (e) {
+      // Invalid URL, ignore
+    }
+  }
+  
+  // default
+  return '.jpg';
+}
+
+/**
+ * Sleep for a given number of milliseconds (for retry delays)
+ * @param {number} ms - Milliseconds to sleep
+ * @returns {Promise<void>}
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Download and upload an image from a URL to Firebase Storage with streaming
+ * @param {string} imageUrl - Source image URL (e.g., Facebook cover image)
+ * @param {string} storagePath - Destination path in Storage bucket (e.g., 'covers/pageId/eventId')
+ * @param {Object} options - Configuration options
+ * @param {admin.storage.Bucket} options.bucket - Firebase Storage bucket instance
+ * @param {number} [options.maxRetries=3] - Maximum retry attempts
+ * @param {number} [options.timeoutMs=30000] - Request timeout in milliseconds
+ * @param {boolean} [options.makePublic=true] - Whether to make the uploaded file publicly accessible
+ * @param {number} [options.signedUrlExpiryYears=1] - Years until signed URL expires (if not making public)
+ * @returns {Promise<string>} Public URL or signed URL of the uploaded image
+ */
+async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
+  const { // looks a bit complicated but we're just assigning many constants from options
+    bucket, // the fancy word for this is object destruturing in js. It just gets values
+    maxRetries = 3,
+    timeoutMs = 30000,
+    makePublic = true,
+    signedUrlExpiryYears = 1
+  } = options;
+
+  if (!bucket) {
+    throw new Error('Storage bucket is required');
+  }
+
+  if (!imageUrl || !storagePath) {
+    throw new Error('Image URL and storage path are required');
+  }
+
+  let lastError;
+  
+  // Here we retry the loop but delay the retries with exponential backoff, so e.g.:
+  // Attempt 1: immediate
+  // Attempt 2: after 2^1 * 1000ms = 2s
+  // Attempt 3: after 2^2 * 1000ms = 4s
+  // Attempt 4: after 2^3 * 1000ms = 8s
+  // etc
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Downloading image from ${imageUrl} (attempt ${attempt + 1}/${maxRetries + 1})`);
+      
+      // Download image with streaming
+      // remember streaming from programming 2? We can use this for images too to speed up the process;
+      // axios splits it up into chunks and we can directly pipe it to firebase storage
+      // instead of downloading the entire image first and then uploading it
+      const response = await axios.get(imageUrl, {
+        responseType: 'stream',
+        timeout: timeoutMs,
+        headers: {
+          'User-Agent': 'DTUEvent/1.0 (Event Management System)'
+        }
+      });
+
+      const contentType = response.headers['content-type'] || 'image/jpeg';
+      const fileExtension = getFileExtension(contentType, imageUrl);
+      const fullStoragePath = `${storagePath}${fileExtension}`;
+      
+      console.log(`Uploading to Storage: ${fullStoragePath} (Content-Type: ${contentType})`);
+      
+      // Storage bucket creation
+      const file = bucket.file(fullStoragePath);
+      
+      // Writestream is for uploading to storage bucket (destination)
+      // as opposed to response.data which is the readstream (source)
+      const writeStream = file.createWriteStream({
+        metadata: {
+          contentType,
+          cacheControl: 'public, max-age=31536000', // i.e. 1 year cache
+        },
+        resumable: false, // Use simple upload for smaller files
+      });
+
+      // the pipline is what connects the readstream to the writestream
+      await pipeline(response.data, writeStream);
+      
+      console.log(`Successfully uploaded image to ${fullStoragePath}`);
+      
+      // Generate public URL for the user to access the image in browser 
+      let publicUrl;
+      if (makePublic) {
+        await file.makePublic();
+        publicUrl = `https://storage.googleapis.com/${bucket.name}/${fullStoragePath}`;
+        console.log(`Made file public: ${publicUrl}`);
+      } else {
+        // or generate a signed URL valid for a certain time period if its not public
+        const expiryDate = new Date();
+        expiryDate.setFullYear(expiryDate.getFullYear() + signedUrlExpiryYears);
+        
+        const [signedUrl] = await file.getSignedUrl({
+          action: 'read',
+          expires: expiryDate,
+        });
+        publicUrl = signedUrl;
+        console.log(`Generated signed URL (expires: ${expiryDate.toISOString()})`);
+      }
+      
+      return publicUrl;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Upload attempt ${attempt + 1} failed:`, error.message);
+      
+      // Don't retry on certain errors
+      if (error.response && (error.response.status === 404 || error.response.status === 403)) {
+        throw new Error(`Image not accessible: ${error.response.status} ${error.response.statusText}`);
+      }
+      
+      // If this isn't the last attempt, wait before retrying
+      if (attempt < maxRetries) {
+        const delayMs = Math.min(1000 * Math.pow(2, attempt), 10000); // Exponential backoff, max 10s
+        console.log(`Waiting ${delayMs}ms before retry...`);
+        await sleep(delayMs);
+      }
+    }
+  }
+  
+  throw new Error(`Failed to upload image after ${maxRetries + 1} attempts. Last error: ${lastError.message}`);
+}
+
+/**
+ * Process Facebook event cover image and upload to Storage
+ * @param {Object} event - Facebook event object with cover.source
+ * @param {string} pageId - Facebook page ID
+ * @param {admin.storage.Bucket} bucket - Firebase Storage bucket
+ * @param {Object} [options] - Upload options (see uploadImageFromUrl)
+ * @returns {Promise<string|null>} Storage URL or null if no cover image
+ */
+async function processEventCoverImage(event, pageId, bucket, options = {}) {
+  if (!event.cover || !event.cover.source) {
+    console.log(`Event ${event.id} has no cover image`);
+    return null;
+  }
+
+  try {
+    const storagePath = `covers/${pageId}/${event.id}`;
+    const imageUrl = await uploadImageFromUrl(event.cover.source, storagePath, {
+      bucket,
+      ...options
+    });
+    
+    console.log(`Processed cover image for event ${event.id}: ${imageUrl}`);
+    return imageUrl;
+  } catch (error) {
+    console.error(`Failed to process cover image for event ${event.id}:`, error.message);
+    // return original URL as fallback
+    console.log(`Falling back to original Facebook URL: ${event.cover.source}`);
+    return event.cover.source;
+  }
+}
+
+/**
+ * Initialize Firebase Storage bucket for image operations
+ * @param {string} [bucketName] - Optional bucket name. If not provided, uses default
+ * @returns {admin.storage.Bucket} Storage bucket instance
+ */
+function initializeStorageBucket(bucketName = null) {
+  try {
+    const storage = admin.storage();
+    
+    if (bucketName) {
+      return storage.bucket(bucketName);
+    } else {
+      // Use default bucket
+      return storage.bucket();
+    }
+  } catch (error) {
+    throw new Error(`Failed to initialize Storage bucket: ${error.message}`);
+  }
+}
+
+module.exports = {
+  uploadImageFromUrl,
+  processEventCoverImage,
+  initializeStorageBucket,
+  getFileExtension,
+};

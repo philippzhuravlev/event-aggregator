@@ -2,6 +2,7 @@ const admin = require('firebase-admin');
 const { getPageEvents } = require('../services/facebook-api');
 const { getPageToken } = require('../services/secret-manager');
 const { getActivePages, batchWriteEvents } = require('../services/firestore-service');
+const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
 
 // NB: "Handlers" like execute business logic. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
@@ -20,6 +21,15 @@ async function syncAllPageEvents() {
   if (pages.length === 0) {
     console.log('No active pages; nothing to sync');
     return { syncedPages: 0, syncedEvents: 0 };
+  }
+
+  // Initialize Storage bucket for image processing
+  let storageBucket = null;
+  try {
+    storageBucket = initializeStorageBucket();
+    console.log('Storage bucket initialized for image processing');
+  } catch (error) {
+    console.warn('Storage bucket not available; will use original Facebook URLs:', error.message);
   }
 
   let totalEvents = 0;
@@ -43,7 +53,21 @@ async function syncAllPageEvents() {
 
       // Normalize and prepare for batch write
       for (const event of events) {
-        const nowIso = new Date().toISOString();
+        // Process cover image using the image service
+        let coverImageUrl = null;
+        if (storageBucket) {
+          try {
+            coverImageUrl = await processEventCoverImage(event, page.id, storageBucket);
+          } catch (error) {
+            console.warn(`Image processing failed for event ${event.id}:`, error.message);
+            // Fallback to original Facebook URL
+            coverImageUrl = event.cover ? event.cover.source : undefined;
+          }
+        } else {
+          // No storage available, use original URL
+          coverImageUrl = event.cover ? event.cover.source : undefined;
+        }
+
         // Safely extract place data if it exists
         const placeData = event.place ? {
           name: event.place.name,
@@ -59,10 +83,10 @@ async function syncAllPageEvents() {
             startTime: event.start_time,
             endTime: event.end_time,
             place: placeData,
-            coverImageUrl: event.cover ? event.cover.source : undefined,
+            coverImageUrl: coverImageUrl,
             eventURL: `https://facebook.com/events/${event.id}`,
-            createdAt: nowIso,
-            updatedAt: nowIso,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }).filter(([, v]) => v !== undefined)
         );
         eventData.push({
