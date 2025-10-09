@@ -20,10 +20,16 @@ function normalizeEvent(facebookEvent, pageId, coverImageUrl = null) {
   // handles the "place data", i.e. what the location is of the event (if at all)
   // facebookEvent.place is actually an object with name and location (which itself is an object)
   // if no place - which is v common - we just set it to undefined
-  const placeData = facebookEvent.place ? {
-    name: facebookEvent.place.name,
-    location: facebookEvent.place.location,
-  } : undefined;
+  let placeData = undefined;
+  if (facebookEvent.place) {
+    placeData = {
+      name: facebookEvent.place.name,
+    };
+    // Only include location if it exists and has properties
+    if (facebookEvent.place.location && Object.keys(facebookEvent.place.location).length > 0) {
+      placeData.location = facebookEvent.place.location;
+    }
+  }
 
   // use image URL if provided, otherwise fall back to Facebook's URL
   const finalCoverUrl = coverImageUrl ||

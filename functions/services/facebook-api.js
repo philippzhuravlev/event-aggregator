@@ -186,14 +186,14 @@ async function getPageEvents(pageId, accessToken, timeFilter = 'upcoming') {
   let allEvents = [];
   let nextUrl = `${FB_BASE_URL}/${pageId}/events`;
   
-  // Facebook actually splits up results, so we need to follow the "next" reference
+  // facebook actually splits up results, so we need to follow the "next" reference
   while (nextUrl) {
     const response = await withRetry(async () => {
       return await axios.get(nextUrl, {
         params: {
           access_token: accessToken,
           time_filter: timeFilter,
-          // Explicitly request cover{source} to ensure Facebook returns the image URL
+          // explicitly request cover{source} to ensure Facebook returns the image URL
           fields: 'id,name,description,start_time,end_time,place,cover{source}',
           limit: 100, // Max per page
         },
@@ -210,9 +210,44 @@ async function getPageEvents(pageId, accessToken, timeFilter = 'upcoming') {
   return allEvents;
 }
 
+/**
+ * Get all relevant events for a page: upcoming events + recent past events (last 30 days)
+ * @param {string} pageId - Facebook page ID
+ * @param {string} accessToken - Page access token
+ * @param {number} daysBack - How many days back to fetch past events (default: 30)
+ * @returns {Promise<Array>} Combined array of upcoming and recent past events, deduplicated
+ */
+async function getAllRelevantEvents(pageId, accessToken, daysBack = 30) {
+  // events **past** and **upcoming**
+  const upcomingEvents = await getPageEvents(pageId, accessToken, 'upcoming');
+  const pastEvents = await getPageEvents(pageId, accessToken, 'past');
+  
+  // filter **past** events to only include those within the specified time window (e.g., last 30 days)
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+  const cutoffTime = cutoffDate.getTime();
+  
+  const recentPastEvents = pastEvents.filter(event => {
+    if (!event.start_time) return false;
+    const eventTime = new Date(event.start_time).getTime();
+    return eventTime >= cutoffTime;
+  });
+  
+  // combine and remove duplicate (in case an event appears in both lists)
+  const allEvents = [...upcomingEvents, ...recentPastEvents];
+  const uniqueEvents = Array.from(
+    new Map(allEvents.map(event => [event.id, event])).values()
+  );
+  
+  console.log(`Found ${upcomingEvents.length} upcoming and ${recentPastEvents.length} recent past events (last ${daysBack} days)`);
+  
+  return uniqueEvents;
+}
+
 module.exports = {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
   getUserPages,
   getPageEvents,
+  getAllRelevantEvents,
 };

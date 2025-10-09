@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const { getPageEvents } = require('../services/facebook-api');
+const { getAllRelevantEvents } = require('../services/facebook-api');
 const { getPageToken, checkTokenExpiry, markTokenExpired } = require('../services/secret-manager');
 const { getActivePages, batchWriteEvents } = require('../services/firestore-service');
 const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
@@ -65,10 +65,10 @@ async function syncAllPageEvents() {
 
       console.log(`Syncing events for page ${page.name} (${page.id})`);
       
-      // Get events from Facebook-api service
+      // Get events from Facebook-api service (upcoming + last 30 days)
       let events;
       try {
-        events = await getPageEvents(page.id, accessToken);
+        events = await getAllRelevantEvents(page.id, accessToken, 30);
       } catch (error) {
         // Check if it's a token expiry error (Facebook error code 190)
         if (error.response && error.response.data && error.response.data.error) {

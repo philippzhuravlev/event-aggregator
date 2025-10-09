@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const { exchangeCodeForToken, exchangeForLongLivedToken, getUserPages, getPageEvents } = require('../services/facebook-api');
+const { exchangeCodeForToken, exchangeForLongLivedToken, getUserPages, getAllRelevantEvents } = require('../services/facebook-api');
 const { storePageToken, getPageToken } = require('../services/secret-manager');
 const { savePage, batchWriteEvents } = require('../services/firestore-service');
 const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
@@ -112,10 +112,10 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
           console.warn(`Could not retrieve token for page ${page.id}`);
           continue;
         }
-        // get events this time thru facebook-api
+        // get events this time thru facebook-api (upcoming + last 30 days)
         let events;
         try {
-          events = await getPageEvents(page.id, accessToken);
+          events = await getAllRelevantEvents(page.id, accessToken, 30);
         } catch (eventError) {
           // Check if it's a token expiry error (Facebook error code 190)
           if (eventError.response && eventError.response.data && eventError.response.data.error) {
