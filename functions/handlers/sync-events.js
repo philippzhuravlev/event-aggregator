@@ -1,7 +1,7 @@
 const admin = require('firebase-admin');
 const { getPageEvents } = require('../services/facebook-api');
-const { getPageToken } = require('../services/secret-manager');
-const { getActivePages, batchWriteEvents, savePage } = require('../services/firestore-service');
+const { getPageToken, checkTokenExpiry, markTokenExpired } = require('../services/secret-manager');
+const { getActivePages, batchWriteEvents } = require('../services/firestore-service');
 const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
 const { normalizeEvent } = require('../utils/event-normalizer');
 const { ERROR_CODES } = require('../utils/constants');
@@ -39,10 +39,23 @@ async function syncAllPageEvents() {
 
   let totalEvents = 0;
   const eventData = [];
+  const expiringTokens = [];
 
   // Sync each page
   for (const page of pages) { 
     try {
+      // Check if token is expiring soon (within 7 days)
+      const tokenStatus = await checkTokenExpiry(db, page.id, 7);
+      if (tokenStatus.isExpiring) {
+        console.warn(`Token for page ${page.name} (${page.id}) expires in ${tokenStatus.daysUntilExpiry} days!`);
+        expiringTokens.push({
+          pageId: page.id,
+          pageName: page.name,
+          daysUntilExpiry: tokenStatus.daysUntilExpiry,
+          expiresAt: tokenStatus.expiresAt,
+        });
+      }
+
       // Get access token from Secret Manager
       const accessToken = await getPageToken(page.id); // in secret-manager service
       if (!accessToken) {
@@ -62,8 +75,8 @@ async function syncAllPageEvents() {
           const fbError = error.response.data.error;
           if (fbError.code === ERROR_CODES.FACEBOOK_TOKEN_INVALID) {
             console.error(`Token expired for page ${page.name} (${page.id}). Marking as inactive.`);
-            // Mark the page as inactive so it won't be synced until re-authorized
-            await savePage(db, page.id, { active: false });
+            // Mark the page as inactive and token as expired
+            await markTokenExpired(db, page.id);
             continue; // Skip to next page
           }
         }
@@ -114,9 +127,19 @@ async function syncAllPageEvents() {
     console.log(`Synced ${totalEvents} events from ${pages.length} pages`);
   }
 
+  // Log expiring tokens summary
+  if (expiringTokens.length > 0) {
+    console.warn(`${expiringTokens.length} page(s) have expiring tokens:`);
+    expiringTokens.forEach(token => {
+      console.warn(`   - ${token.pageName} (${token.pageId}): ${token.daysUntilExpiry} days until expiry`);
+    });
+  }
+
   return {
     syncedPages: pages.length,
     syncedEvents: totalEvents,
+    expiringTokens: expiringTokens.length,
+    expiringTokenDetails: expiringTokens,
   };
 }
 
@@ -125,14 +148,34 @@ async function syncAllPageEvents() {
 
 /**
  * Manual sync request (HTTP endpoint) using syncAllPageEvents() funct
+ * Now requires authentication via API key
+ * @param {Object} req - HTTP request object
+ * @param {Object} res - HTTP response object
+ * @param {Function} authMiddleware - Authentication middleware function
  */
-async function handleManualSync(req, res) {
+async function handleManualSync(req, res, authMiddleware) {
+  // authenticate request
+  const isAuthenticated = await authMiddleware(req, res);
+  if (!isAuthenticated) {
+    return; // middleware already sent error
+  }
+
   try {
+    console.log('🔄 Starting manual sync...');
     const result = await syncAllPageEvents();
-    res.json(result);
+    console.log('Manual sync completed successfully');
+    res.json({ 
+      success: true,
+      ...result,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error('Sync error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
   }
 }
 

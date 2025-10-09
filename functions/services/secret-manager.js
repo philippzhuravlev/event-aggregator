@@ -9,10 +9,16 @@ const secretClient = new SecretManagerServiceClient();
 
 /**
  * Store a Facebook page access token in Google Secret Manager
+ * Also stores metadata about token expiry in Firestore for monitoring
  * @param {string} pageId - Facebook page ID
  * @param {string} accessToken - Facebook page access token
+ * @param {Object} options - Additional options
+ * @param {admin.firestore.Firestore} options.db - Firestore instance (optional, for metadata)
+ * @param {number} options.expiresInDays - Token validity period in days (default: 60)
+ * @returns {Promise<void>}
  */
-async function storePageToken(pageId, accessToken) {
+async function storePageToken(pageId, accessToken, options = {}) {
+  const { db = null, expiresInDays = 60 } = options;
   const projectId = process.env.GCLOUD_PROJECT; // i.e. stored in .env
   const secretName = `facebook-token-${pageId}`; 
   // before we called our secret facebook-[pageId] but that was ambiguous.
@@ -51,6 +57,22 @@ async function storePageToken(pageId, accessToken) {
   });
   
   console.log(`Stored token for page ${pageId}`);
+
+  // Store token metadata in Firestore for expiry tracking
+  if (db) {
+    const admin = require('firebase-admin');
+    const now = admin.firestore.Timestamp.now();
+    const expiresAt = new Date(now.toDate().getTime() + expiresInDays * 24 * 60 * 60 * 1000);
+    
+    await db.collection('pages').doc(pageId).set({
+      tokenStoredAt: now,
+      tokenExpiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+      tokenExpiresInDays: expiresInDays,
+      tokenStatus: 'valid',
+    }, { merge: true });
+    
+    console.log(`Stored token metadata for page ${pageId}, expires at ${expiresAt.toISOString()}`);
+  }
 }
 
 /**
@@ -75,7 +97,71 @@ async function getPageToken(pageId) {
   }
 }
 
+/**
+ * Get the API key for authenticating manual sync requests
+ * @returns {Promise<string|null>} The API key or null if not found
+ */
+async function getApiKey() {
+  const projectId = process.env.GCLOUD_PROJECT;
+  const secretName = 'api-sync-key';
+  
+  try {
+    const [version] = await secretClient.accessSecretVersion({
+      name: `projects/${projectId}/secrets/${secretName}/versions/latest`,
+    });
+    return version.payload.data.toString();
+  } catch (error) {
+    console.error(`Failed to get API key:`, error.message);
+    return null;
+  }
+}
+
+/**
+ * Check if a page's token is expiring soon and needs refresh
+ * @param {admin.firestore.Firestore} db - Firestore instance
+ * @param {string} pageId - Facebook page ID
+ * @param {number} warningDays - Days before expiry to start warning (default: 7)
+ * @returns {Promise<{isExpiring: boolean, daysUntilExpiry: number, expiresAt: Date}>}
+ */
+async function checkTokenExpiry(db, pageId, warningDays = 7) {
+  const pageDoc = await db.collection('pages').doc(pageId).get();
+  
+  if (!pageDoc.exists || !pageDoc.data().tokenExpiresAt) {
+    return { isExpiring: true, daysUntilExpiry: 0, expiresAt: null };
+  }
+  
+  const expiresAt = pageDoc.data().tokenExpiresAt.toDate();
+  const now = new Date();
+  const daysUntilExpiry = Math.floor((expiresAt - now) / (1000 * 60 * 60 * 24));
+  
+  return {
+    isExpiring: daysUntilExpiry <= warningDays,
+    daysUntilExpiry,
+    expiresAt,
+  };
+}
+
+/**
+ * Mark a page's token as expired in Firestore
+ * @param {admin.firestore.Firestore} db - Firestore instance
+ * @param {string} pageId - Facebook page ID
+ * @returns {Promise<void>}
+ */
+async function markTokenExpired(db, pageId) {
+  const admin = require('firebase-admin');
+  await db.collection('pages').doc(pageId).set({
+    tokenStatus: 'expired',
+    tokenExpiredAt: admin.firestore.FieldValue.serverTimestamp(),
+    active: false,
+  }, { merge: true });
+  
+  console.log(`Marked token as expired for page ${pageId}`);
+}
+
 module.exports = {
   storePageToken,
   getPageToken,
+  getApiKey,
+  checkTokenExpiry,
+  markTokenExpired,
 };

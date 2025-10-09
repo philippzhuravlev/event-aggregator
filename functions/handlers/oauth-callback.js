@@ -1,6 +1,6 @@
 const admin = require('firebase-admin');
 const { exchangeCodeForToken, exchangeForLongLivedToken, getUserPages, getPageEvents } = require('../services/facebook-api');
-const { storePageToken, getPageToken } = require('../services/secret-manager');
+const { storePageToken } = require('../services/secret-manager');
 const { savePage, batchWriteEvents } = require('../services/firestore-service');
 const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
 const { normalizeEvent } = require('../utils/event-normalizer');
@@ -58,8 +58,11 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
     const db = admin.firestore(); // 'firebase-admin' 
 
     for (const page of pages) {
-      // store page also thru our firestore-service service
-      await storePageToken(page.id, page.access_token);
+      // store page token with expiry tracking
+      await storePageToken(page.id, page.access_token, { 
+        db, 
+        expiresInDays: 60 // Facebook long-lived tokens expire in 60 days
+      });
       
       // save page metadata to firestore also thru firebase service
       await savePage(db, page.id, {
@@ -82,10 +85,10 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
 
     for (const page of pages) {
       try {
-        // get token thru secret-manager service in /functions/service
-        const accessToken = await getPageToken(page.id);
+        // Use the access token we already have from getUserPages() instead of fetching again
+        const accessToken = page.access_token;
         if (!accessToken) {
-          console.warn(`Could not retrieve token for page ${page.id}`);
+          console.warn(`No access token for page ${page.id}`);
           continue;
         }
         // get events this time thru facebook-api

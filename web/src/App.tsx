@@ -14,7 +14,10 @@ function App() {
 
   // Facebook OAuth
   const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID;
-  const FB_REDIRECT_URI = encodeURIComponent('https://europe-west1-dtuevent-8105b.cloudfunctions.net/facebookCallback');
+  const FB_REDIRECT_URI = encodeURIComponent(
+    import.meta.env.VITE_OAUTH_CALLBACK_URL || 
+    'https://europe-west1-dtuevent-8105b.cloudfunctions.net/facebookCallback'
+  );
   const FB_SCOPES = [
     'pages_show_list',
     'pages_read_engagement'
@@ -22,8 +25,30 @@ function App() {
   ].join(',');
 
   function buildFacebookLoginUrl() {
-    return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${FB_REDIRECT_URI}&scope=${FB_SCOPES}`;
+    return `https://www.facebook.com/v23.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${FB_REDIRECT_URI}&scope=${FB_SCOPES}`;
   }
+
+  // Handle OAuth redirect back from Facebook
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get('success');
+    const error = params.get('error');
+    const pagesCount = params.get('pages');
+    const eventsCount = params.get('events');
+    
+    if (success) {
+      console.log(`OAuth Success! Connected ${pagesCount} page(s), synced ${eventsCount} event(s)`);
+      alert(`Successfully connected ${pagesCount} Facebook page(s)! Synced ${eventsCount} events.`);
+      // Clean URL and reload data
+      window.history.replaceState({}, '', '/');
+      window.location.reload();
+    }
+    if (error) {
+      console.error(`OAuth Error: ${error}`);
+      alert(`OAuth failed: ${error}`);
+      window.history.replaceState({}, '', '/');
+    }
+  }, [])
 
   // load data on mount. "mount" = when the component is created/loaded. Done asynchronously. 
   useEffect(() => {

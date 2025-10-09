@@ -14,6 +14,10 @@ const admin = require('firebase-admin');
 // import handlers
 const { handleOAuthCallback } = require('./handlers/oauth-callback');
 const { handleManualSync, handleScheduledSync } = require('./handlers/sync-events');
+const { handleTokenHealthCheck, handleScheduledTokenMonitoring } = require('./handlers/token-monitor');
+
+// import middleware
+const { requireApiKey, logRequest } = require('./middleware/auth');
 
 // import constants
 const { SYNC } = require('./utils/constants');
@@ -29,11 +33,15 @@ const FACEBOOK_APP_SECRET = defineSecret('FACEBOOK_APP_SECRET');
  * Manual sync facebook endpoints
  * GET/POST https://europe-west1-dtuevent-8105b.cloudfunctions.net/syncFacebook
  * Note: Changed to europe-west1 to match facebookCallback region
+ * NOW REQUIRES API KEY AUTHENTICATION
  */
 exports.syncFacebook = onRequest({ 
   region: 'europe-west1',
   secrets: [] 
-}, handleManualSync);
+}, async (req, res) => {
+  logRequest(req);
+  await handleManualSync(req, res, requireApiKey);
+});
 
 /**
  * Cronjob sync, runs every 12 hours
@@ -45,6 +53,30 @@ exports.nightlySyncFacebook = onSchedule({
   timeZone: SYNC.TIMEZONE,
   secrets: [],
 }, handleScheduledSync);
+
+/**
+ * Token health check endpoint
+ * GET https://europe-west1-dtuevent-8105b.cloudfunctions.net/checkTokenHealth
+ * Requires API key authentication
+ */
+exports.checkTokenHealth = onRequest({
+  region: 'europe-west1',
+  secrets: [],
+}, async (req, res) => {
+  logRequest(req);
+  await handleTokenHealthCheck(req, res, requireApiKey);
+});
+
+/**
+ * Daily token health monitoring (cron job)
+ * Runs every day at 9 AM UTC to check for expiring tokens
+ */
+exports.dailyTokenMonitoring = onSchedule({
+  region: 'europe-west1',
+  schedule: 'every day 09:00',
+  timeZone: 'Etc/UTC',
+  secrets: [],
+}, handleScheduledTokenMonitoring);
 
 /**
  * Facebook OAuth callback endpoint
