@@ -9,7 +9,11 @@
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
     "deploy": "npm run build && firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:verbose": "jest --verbose"
   },
   "engines": {
     "node": "22"
@@ -23,11 +27,15 @@
     "firebase-functions": "^6.5.0"
   },
   "devDependencies": {
+    "@jest/globals": "^30.2.0",
     "@types/express": "^5.0.3",
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.7.1",
     "eslint": "^8.15.0",
     "eslint-config-google": "^0.14.0",
-    "firebase-functions-test": "^3.1.0",
+    "firebase-functions-test": "^3.4.1",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5",
     "typescript": "^5.9.3"
   },
   "private": true

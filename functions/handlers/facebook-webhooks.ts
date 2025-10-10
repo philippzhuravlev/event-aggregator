@@ -49,6 +49,15 @@ export function verifyWebhookSignature(
   hmac.update(payload);
   const calculatedHash = hmac.digest('hex');
 
+  // check lengths match before comparison (timingSafeEqual requires same length)
+  if (calculatedHash.length !== expectedHash.length) {
+    logger.warn('Webhook signature length mismatch', {
+      expectedLength: expectedHash.length,
+      calculatedLength: calculatedHash.length,
+    });
+    return false;
+  }
+
   // actual hash comparison
   const isValid = crypto.timingSafeEqual(
     Buffer.from(calculatedHash, 'hex'),
