@@ -1,4 +1,4 @@
-import { FACEBOOK, FACEBOOK_API, URLS, IMAGE_SERVICE, SYNC, FIRESTORE, ERROR_CODES, WEBHOOK, CLEANUP } from '../../utils/constants';
+import { FACEBOOK, FACEBOOK_API, URLS, IMAGE_SERVICE, SYNC, FIRESTORE, ERROR_CODES, WEBHOOK, CLEANUP, RATE_LIMITS } from '../../utils/constants';
 
 describe('constants', () => {
   describe('FACEBOOK', () => {
@@ -111,6 +111,35 @@ describe('constants', () => {
       expect(URLS.OAUTH_CALLBACK).toBeDefined();
       expect(URLS.OAUTH_CALLBACK).toContain('http');
       expect(URLS.OAUTH_CALLBACK).toContain('facebookCallback');
+    });
+  });
+
+  describe('RATE_LIMITS', () => {
+    it('should have standard rate limits', () => {
+      expect(RATE_LIMITS.STANDARD.WINDOW_MS).toBeGreaterThan(0);
+      expect(RATE_LIMITS.STANDARD.MAX_REQUESTS).toBeGreaterThan(0);
+      expect(RATE_LIMITS.STANDARD.MAX_REQUESTS).toBeLessThanOrEqual(1000); // Reasonable upper bound
+    });
+
+    it('should have webhook rate limits (more lenient)', () => {
+      expect(RATE_LIMITS.WEBHOOK.WINDOW_MS).toBeGreaterThan(0);
+      expect(RATE_LIMITS.WEBHOOK.MAX_REQUESTS).toBeGreaterThan(0);
+      // Webhook limits should be higher than standard
+      expect(RATE_LIMITS.WEBHOOK.MAX_REQUESTS).toBeGreaterThan(RATE_LIMITS.STANDARD.MAX_REQUESTS);
+    });
+
+    it('should have OAuth rate limits (more strict)', () => {
+      expect(RATE_LIMITS.OAUTH.WINDOW_MS).toBeGreaterThan(0);
+      expect(RATE_LIMITS.OAUTH.MAX_REQUESTS).toBeGreaterThan(0);
+      // OAuth limits should be stricter than standard
+      expect(RATE_LIMITS.OAUTH.MAX_REQUESTS).toBeLessThan(RATE_LIMITS.STANDARD.MAX_REQUESTS);
+    });
+
+    it('should have sensible time windows', () => {
+      // All windows should be at least 1 minute
+      expect(RATE_LIMITS.STANDARD.WINDOW_MS).toBeGreaterThanOrEqual(60 * 1000);
+      expect(RATE_LIMITS.WEBHOOK.WINDOW_MS).toBeGreaterThanOrEqual(60 * 1000);
+      expect(RATE_LIMITS.OAUTH.WINDOW_MS).toBeGreaterThanOrEqual(60 * 1000);
     });
   });
 });

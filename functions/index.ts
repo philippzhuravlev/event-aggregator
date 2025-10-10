@@ -20,6 +20,7 @@ import { handleManualCleanup, handleScheduledCleanup } from './handlers/cleanup-
 // import middleware
 import { requireApiKey, logRequest } from './middleware/auth';
 import { handleCORS } from './middleware/validation';
+import { standardRateLimiter, webhookRateLimiter, oauthRateLimiter } from './middleware/rate-limit';
 
 // import constants
 import { SYNC, region, WEBHOOK, CLEANUP } from './utils/constants';
@@ -33,7 +34,7 @@ const FACEBOOK_APP_SECRET = defineSecret('FACEBOOK_APP_SECRET');
 
 /**
  * Manual sync facebook endpoints
- * NOW REQUIRES API KEY AUTHENTICATION + CORS
+ * NOW REQUIRES API KEY AUTHENTICATION + CORS + RATE LIMITING
  */
 export const syncFacebook = onRequest({ 
   region: region,
@@ -41,6 +42,14 @@ export const syncFacebook = onRequest({
 }, async (req, res) => {
   // Handle CORS preflight and validate origin
   if (!handleCORS(req, res)) return;
+  
+  // Apply rate limiting
+  await new Promise<void>((resolve) => {
+    standardRateLimiter(req as any, res as any, () => resolve());
+  });
+  
+  // Check if rate limit was triggered (response already sent)
+  if (res.headersSent) return;
   
   logRequest(req);
   await handleManualSync(req, res, requireApiKey);
@@ -59,7 +68,7 @@ export const nightlySyncFacebook = onSchedule({
 
 /**
  * Token health check endpoint
- * Requires API key authentication + CORS
+ * Requires API key authentication + CORS + RATE LIMITING
  */
 export const checkTokenHealth = onRequest({
   region: region,
@@ -67,6 +76,13 @@ export const checkTokenHealth = onRequest({
 }, async (req, res) => {
   // Handle CORS preflight and validate origin
   if (!handleCORS(req, res)) return;
+  
+  // apply rate limiting
+  await new Promise<void>((resolve) => {
+    standardRateLimiter(req as any, res as any, () => resolve());
+  });
+  
+  if (res.headersSent) return;
   
   logRequest(req);
   await handleTokenHealthCheck(req, res, requireApiKey);
@@ -88,7 +104,7 @@ export const dailyTokenMonitoring = onSchedule({
 /**
  * Facebook OAuth callback endpoint
  * Handles redirects from Facebook after user authorization
- * WITH INPUT VALIDATION AND CORS
+ * WITH INPUT VALIDATION, CORS, AND RATE LIMITING
  */
 export const facebookCallback = onRequest({
   region: region,
@@ -96,6 +112,13 @@ export const facebookCallback = onRequest({
 }, async (req, res) => {
   // Handle CORS preflight and validate origin
   if (!handleCORS(req, res)) return;
+  
+  // apply OAuth rate limiting (strict)
+  await new Promise<void>((resolve) => {
+    oauthRateLimiter(req as any, res as any, () => resolve());
+  });
+  
+  if (res.headersSent) return;
   
   await handleOAuthCallback( // this is the big file from /handlers/
     req, // http request object that has extra functionality
@@ -110,11 +133,19 @@ export const facebookCallback = onRequest({
  * Receives real-time notifications when events are created/updated/deleted
  * GET - Webhook verification (Facebook sends this to verify the endpoint)
  * POST - Webhook events (Facebook sends these when events change)
+ * WITH RATE LIMITING (lenient for Facebook bursts)
  */
 export const facebookWebhook = onRequest({
   region: region,
   secrets: [FACEBOOK_APP_SECRET],
 }, async (req, res) => {
+  // apply webhook rate limiting (lenient for Facebook)
+  await new Promise<void>((resolve) => {
+    webhookRateLimiter(req as any, res as any, () => resolve());
+  });
+  
+  if (res.headersSent) return;
+  
   await handleFacebookWebhook(
     req,
     res,
@@ -126,7 +157,7 @@ export const facebookWebhook = onRequest({
 /**
  * Manual event cleanup endpoint
  * Deletes events older than specified days (default: 90)
- * Requires API key authentication + CORS
+ * Requires API key authentication + CORS + RATE LIMITING
  * Query params: ?daysToKeep=90&dryRun=true&archive=true
  */
 export const cleanupEvents = onRequest({
@@ -135,6 +166,13 @@ export const cleanupEvents = onRequest({
 }, async (req, res) => {
   // Handle CORS preflight and validate origin
   if (!handleCORS(req, res)) return;
+  
+  // apply rate limiting
+  await new Promise<void>((resolve) => {
+    standardRateLimiter(req as any, res as any, () => resolve());
+  });
+  
+  if (res.headersSent) return;
   
   logRequest(req);
   await handleManualCleanup(req, res, requireApiKey);

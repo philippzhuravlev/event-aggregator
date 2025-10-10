@@ -185,6 +185,17 @@ export interface ErrorCodes {
   FACEBOOK_RATE_LIMIT: number;
 }
 
+export interface RateLimitConfig {
+  WINDOW_MS: number;
+  MAX_REQUESTS: number;
+}
+
+export interface RateLimitsConstants {
+  STANDARD: RateLimitConfig;
+  WEBHOOK: RateLimitConfig;
+  OAUTH: RateLimitConfig;
+}
+
 
 // Facebook Webhooks Types
 export type WebhookEventVerb = 'create' | 'update' | 'delete';

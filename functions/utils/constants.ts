@@ -111,5 +111,24 @@ export const CLEANUP = {
   BATCH_SIZE: 500, // Firestore batch limit
 };
 
+// Rate Limiting Configuration
+export const RATE_LIMITS = {
+  // Standard endpoints (sync, token check, cleanup)
+  STANDARD: {
+    WINDOW_MS: 15 * 60 * 1000, // 15 minutes
+    MAX_REQUESTS: 100, // 100 requests per window
+  },
+  // Webhook endpoint (high traffic expected from Facebook)
+  WEBHOOK: {
+    WINDOW_MS: 1 * 60 * 1000, // 1 minute
+    MAX_REQUESTS: 1000, // 1000 requests per minute (Facebook can send bursts)
+  },
+  // OAuth callback (should be rarely used)
+  OAUTH: {
+    WINDOW_MS: 15 * 60 * 1000, // 15 minutes
+    MAX_REQUESTS: 10, // 10 OAuth attempts per 15 min (generous for retries)
+  },
+};
+
 export { region };
 
