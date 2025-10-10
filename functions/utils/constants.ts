@@ -96,5 +96,11 @@ export const ALLOWED_ORIGINS: string[] = [
   'http://localhost:5000', // Firebase hosting emulator
 ];
 
+// Webhook Configuration
+export const WEBHOOK = {
+  VERIFY_TOKEN: 'dtuevent_webhook_verify_token_2025', // change this to a secure random string
+  ENDPOINT_PATH: '/webhooks/facebook',
+};
+
 export { region };
 

@@ -14,13 +14,14 @@ import * as admin from 'firebase-admin';
 import { handleOAuthCallback } from './handlers/oauth-callback';
 import { handleManualSync, handleScheduledSync } from './handlers/sync-events';
 import { handleTokenHealthCheck, handleScheduledTokenMonitoring } from './handlers/token-monitor';
+import { handleFacebookWebhook } from './handlers/facebook-webhooks';
 
 // import middleware
 import { requireApiKey, logRequest } from './middleware/auth';
 import { handleCORS } from './middleware/validation';
 
 // import constants
-import { SYNC, region } from './utils/constants';
+import { SYNC, region, WEBHOOK } from './utils/constants';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -100,6 +101,24 @@ export const facebookCallback = onRequest({
     res, // http result object also with more functionality
     FACEBOOK_APP_ID.value(),
     FACEBOOK_APP_SECRET.value()
+  );
+});
+
+/**
+ * Facebook Webhook endpoint
+ * Receives real-time notifications when events are created/updated/deleted
+ * GET - Webhook verification (Facebook sends this to verify the endpoint)
+ * POST - Webhook events (Facebook sends these when events change)
+ */
+export const facebookWebhook = onRequest({
+  region: region,
+  secrets: [FACEBOOK_APP_SECRET],
+}, async (req, res) => {
+  await handleFacebookWebhook(
+    req,
+    res,
+    FACEBOOK_APP_SECRET.value(),
+    WEBHOOK.VERIFY_TOKEN
   );
 });
 

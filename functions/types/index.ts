@@ -1,14 +1,6 @@
 import { Timestamp } from '@google-cloud/firestore';
 
-/**
- * Core type definitions for DTUEvent backend
- * These types ensure consistency across the entire application
- */
-
-// ============================================================================
 // Facebook API Types
-// ============================================================================
-
 export interface FacebookEvent {
   id: string;
   name: string;
@@ -55,10 +47,8 @@ export interface FacebookErrorResponse {
   error: FacebookError;
 }
 
-// ============================================================================
-// Firestore Schema Types
-// ============================================================================
 
+// Firestore Schema Types
 export interface NormalizedEvent {
   id: string;
   pageId: string;
@@ -93,13 +83,11 @@ export interface PageDocument {
 }
 
 export interface EventDocument extends NormalizedEvent {
-  // Event as stored in Firestore
+  // Event as stored in firestore
 }
 
-// ============================================================================
-// Service Return Types
-// ============================================================================
 
+// Service Return Types
 export interface TokenExpiryStatus {
   isExpiring: boolean;
   daysUntilExpiry: number;
@@ -137,22 +125,18 @@ export interface PageTokenInfo {
   error?: string;
 }
 
-// ============================================================================
-// Image Service Types
-// ============================================================================
 
+// Image Service Types
 export interface ImageUploadOptions {
-  bucket: any; // Firebase Storage Bucket type is complex, using any for simplicity
+  bucket: any; // firebase storage bucket type is complex, using any for simplicity
   maxRetries?: number;
   timeoutMs?: number;
   makePublic?: boolean;
   signedUrlExpiryYears?: number;
 }
 
-// ============================================================================
-// Utility Types
-// ============================================================================
 
+// Utility Types
 export interface EventBatchItem {
   id: string;
   data: NormalizedEvent;
@@ -164,10 +148,7 @@ export interface PageInfo {
   data: any;
 }
 
-// ============================================================================
 // Constants Structure Types
-// ============================================================================
-
 export interface FacebookConstants {
   API_VERSION: string;
   BASE_URL: string;
@@ -202,5 +183,53 @@ export interface ErrorCodes {
   FACEBOOK_TOKEN_INVALID: number;
   FACEBOOK_PERMISSION_DENIED: number;
   FACEBOOK_RATE_LIMIT: number;
+}
+
+
+// Facebook Webhooks Types
+export type WebhookEventVerb = 'create' | 'update' | 'delete';
+
+export interface FacebookWebhookChange {
+  field: 'events' | 'feed' | 'live_videos' | string;
+  value: FacebookWebhookEventValue | any;
+}
+
+export interface FacebookWebhookEventValue {
+  event_id: string;
+  verb: WebhookEventVerb;
+  page_id?: string;
+  item?: 'event';
+}
+
+export interface FacebookWebhookEntry {
+  id: string; // Page ID
+  time: number; // timestamp
+  changes: FacebookWebhookChange[];
+}
+
+export interface FacebookWebhookPayload {
+  object: 'page';
+  entry: FacebookWebhookEntry[];
+}
+
+export interface WebhookVerificationQuery {
+  'hub.mode'?: string;
+  'hub.challenge'?: string;
+  'hub.verify_token'?: string;
+}
+
+export interface WebhookProcessingResult {
+  processed: number;
+  failed: number;
+  skipped: number;
+  details: WebhookEventDetail[];
+}
+
+export interface WebhookEventDetail {
+  eventId: string;
+  verb: WebhookEventVerb;
+  pageId: string;
+  status: 'success' | 'failed' | 'skipped';
+  reason?: string;
 }
 
