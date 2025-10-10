@@ -1,26 +1,26 @@
-const { onRequest } = require('firebase-functions/v2/https');
-const { onSchedule } = require('firebase-functions/v2/scheduler');
-const { defineSecret } = require('firebase-functions/params');
-const admin = require('firebase-admin');
+import { onRequest } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { defineSecret } from 'firebase-functions/params';
+import * as admin from 'firebase-admin';
 
 // this is the big file where the magic happens. It uses **handlers**, which 
 // execute business logic, and **services** which are connections to external
 // services supplied by google/meta, e.g. facebook api or firestore
 
-// also notice how this fle and the handlers/services are .js files instead of
-// .ts files. Firebase Functions just have better support with those.Also 
-// we're in backend so it doesnt matter much compared to /web/ frontend
+// also notice how this fle and the handlers/services are .ts files now instead of
+// .js files. TypeScript provides excellent type safety!
 
 // import handlers
-const { handleOAuthCallback } = require('./handlers/oauth-callback');
-const { handleManualSync, handleScheduledSync } = require('./handlers/sync-events');
-const { handleTokenHealthCheck, handleScheduledTokenMonitoring } = require('./handlers/token-monitor');
+import { handleOAuthCallback } from './handlers/oauth-callback';
+import { handleManualSync, handleScheduledSync } from './handlers/sync-events';
+import { handleTokenHealthCheck, handleScheduledTokenMonitoring } from './handlers/token-monitor';
 
 // import middleware
-const { requireApiKey, logRequest } = require('./middleware/auth');
+import { requireApiKey, logRequest } from './middleware/auth';
+import { handleCORS } from './middleware/validation';
 
 // import constants
-const { SYNC, region } = require('./utils/constants');
+import { SYNC, region } from './utils/constants';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -31,12 +31,15 @@ const FACEBOOK_APP_SECRET = defineSecret('FACEBOOK_APP_SECRET');
 
 /**
  * Manual sync facebook endpoints
- * NOW REQUIRES API KEY AUTHENTICATION
+ * NOW REQUIRES API KEY AUTHENTICATION + CORS
  */
-exports.syncFacebook = onRequest({ 
+export const syncFacebook = onRequest({ 
   region: region,
   secrets: [] 
 }, async (req, res) => {
+  // Handle CORS preflight and validate origin
+  if (!handleCORS(req, res)) return;
+  
   logRequest(req);
   await handleManualSync(req, res, requireApiKey);
 });
@@ -45,7 +48,7 @@ exports.syncFacebook = onRequest({
  * Cronjob sync, runs every 12 hours
  * What it does is that it syncs events from all active Facebook pages
  */
-exports.nightlySyncFacebook = onSchedule({
+export const nightlySyncFacebook = onSchedule({
   region: region,
   schedule: SYNC.SCHEDULE,
   timeZone: SYNC.TIMEZONE,
@@ -54,12 +57,15 @@ exports.nightlySyncFacebook = onSchedule({
 
 /**
  * Token health check endpoint
- * Requires API key authentication
+ * Requires API key authentication + CORS
  */
-exports.checkTokenHealth = onRequest({
+export const checkTokenHealth = onRequest({
   region: region,
   secrets: [],
 }, async (req, res) => {
+  // Handle CORS preflight and validate origin
+  if (!handleCORS(req, res)) return;
+  
   logRequest(req);
   await handleTokenHealthCheck(req, res, requireApiKey);
 });
@@ -68,21 +74,27 @@ exports.checkTokenHealth = onRequest({
  * Daily token health monitoring (cron job)
  * Runs every day at 9 AM UTC to check for expiring tokens
  */
-exports.dailyTokenMonitoring = onSchedule({
+export const dailyTokenMonitoring = onSchedule({
   region: region,
   schedule: 'every day 09:00',
   timeZone: 'Etc/UTC',
   secrets: [],
-}, handleScheduledTokenMonitoring);
+}, async () => {
+  await handleScheduledTokenMonitoring();
+});
 
 /**
  * Facebook OAuth callback endpoint
  * Handles redirects from Facebook after user authorization
+ * WITH INPUT VALIDATION AND CORS
  */
-exports.facebookCallback = onRequest({
+export const facebookCallback = onRequest({
   region: region,
   secrets: [FACEBOOK_APP_ID, FACEBOOK_APP_SECRET],
 }, async (req, res) => {
+  // Handle CORS preflight and validate origin
+  if (!handleCORS(req, res)) return;
+  
   await handleOAuthCallback( // this is the big file from /handlers/
     req, // http request object that has extra functionality
     res, // http result object also with more functionality
@@ -90,5 +102,4 @@ exports.facebookCallback = onRequest({
     FACEBOOK_APP_SECRET.value()
   );
 });
-
 

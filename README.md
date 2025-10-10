@@ -70,15 +70,16 @@ Or "TonkaProductions". Note that all contribute code.
 
 ## TODO: Backend
 
-- [ ] Add error monitoring & structured logging (Sentry/Winston)
 - [ ] Write tests (unit + integration, >80% coverage)
-- [ ] Add rate limiting & CORS to public endpoints
-- [ ] Migrate to TypeScript
+- [ ] Add rate limiting
+- [ ] Delete events older than X days/months
 - [ ] Implement automatic token refresh before expiry
 - [ ] Add pagination to database queries
 - [ ] Optimize images (resize, compress, WebP)
-- [ ] Add request validation middleware
-- [ ] Set up proper environment configs (dev/staging/prod)
+
+## TODO: Big Migrations
+- [ ] Typescript
+- [ ] Facebook Webhooks
 
 ## List
 

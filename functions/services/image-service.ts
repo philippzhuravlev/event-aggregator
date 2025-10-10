@@ -1,9 +1,10 @@
-const admin = require('firebase-admin');
-const axios = require('axios');
-const { pipeline } = require('stream/promises');
-const path = require('path');
-const { IMAGE_SERVICE } = require('../utils/constants');
-const { logger } = require('../utils/logger');
+import * as admin from 'firebase-admin';
+import axios from 'axios';
+import { pipeline } from 'stream/promises';
+import path from 'path';
+import { IMAGE_SERVICE } from '../utils/constants';
+import { logger } from '../utils/logger';
+import { FacebookEvent, ImageUploadOptions } from '../types';
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, firestore and
@@ -19,11 +20,11 @@ const { logger } = require('../utils/logger');
 
 /**
  * Get file extension from content-type header with fallbacks
- * @param {string} contentType - Content-Type header value
- * @param {string} originalUrl - Original URL to extract extension from path
- * @returns {string} File extension with dot (e.g., '.jpg')
+ * @param contentType - Content-Type header value
+ * @param originalUrl - Original URL to extract extension from path
+ * @returns File extension with dot (e.g., '.jpg')
  */
-function getFileExtension(contentType, originalUrl) {
+export function getFileExtension(contentType: string | undefined, originalUrl: string): string {
   // "image/jpeg", "image/png", etc.; this is formally called "content detection"
   if (contentType) {
     const type = contentType.toLowerCase();
@@ -53,26 +54,25 @@ function getFileExtension(contentType, originalUrl) {
 
 /**
  * Sleep for a given number of milliseconds (for retry delays)
- * @param {number} ms - Milliseconds to sleep
- * @returns {Promise<void>}
+ * @param ms - Milliseconds to sleep
+ * @returns Promise<void>
  */
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
  * Download and upload an image from a URL to Firebase Storage with streaming
- * @param {string} imageUrl - Source image URL (e.g., Facebook cover image)
- * @param {string} storagePath - Destination path in Storage bucket (e.g., 'covers/pageId/eventId')
- * @param {Object} options - Configuration options
- * @param {admin.storage.Bucket} options.bucket - Firebase Storage bucket instance
- * @param {number} [options.maxRetries=3] - Maximum retry attempts
- * @param {number} [options.timeoutMs=30000] - Request timeout in milliseconds
- * @param {boolean} [options.makePublic=true] - Whether to make the uploaded file publicly accessible
- * @param {number} [options.signedUrlExpiryYears=1] - Years until signed URL expires (if not making public)
- * @returns {Promise<string>} Public URL or signed URL of the uploaded image
+ * @param imageUrl - Source image URL (e.g., Facebook cover image)
+ * @param storagePath - Destination path in Storage bucket (e.g., 'covers/pageId/eventId')
+ * @param options - Configuration options
+ * @returns Public URL or signed URL of the uploaded image
  */
-async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
+export async function uploadImageFromUrl(
+  imageUrl: string, 
+  storagePath: string, 
+  options: Partial<ImageUploadOptions>
+): Promise<string> {
   const { // looks a bit complicated but we're just assigning many constants from options
     bucket, // the fancy word for this is object destruturing in js. It just gets values
     maxRetries = IMAGE_SERVICE.MAX_RETRIES,
@@ -89,7 +89,7 @@ async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
     throw new Error('Image URL and storage path are required');
   }
 
-  let lastError;
+  let lastError: Error | undefined;
   
   // Here we retry the loop but delay the retries with exponential backoff, so e.g.:
   // Attempt 1: immediate
@@ -146,7 +146,7 @@ async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
       logger.debug('Successfully uploaded image to Storage', { fullStoragePath });
       
       // Generate public URL for the user to access the image in browser 
-      let publicUrl;
+      let publicUrl: string;
       if (makePublic) {
         await file.makePublic();
         publicUrl = `https://storage.googleapis.com/${bucket.name}/${fullStoragePath}`;
@@ -167,7 +167,7 @@ async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
       }
       
       return publicUrl;
-    } catch (error) {
+    } catch (error: any) {
       lastError = error;
       logger.warn('Image upload attempt failed', {
         attempt: attempt + 1,
@@ -190,18 +190,23 @@ async function uploadImageFromUrl(imageUrl, storagePath, options = {}) {
     }
   }
   
-  throw new Error(`Failed to upload image after ${maxRetries + 1} attempts. Last error: ${lastError.message}`);
+  throw new Error(`Failed to upload image after ${maxRetries + 1} attempts. Last error: ${lastError?.message}`);
 }
 
 /**
  * Process Facebook event cover image and upload to Storage
- * @param {Object} event - Facebook event object with cover.source
- * @param {string} pageId - Facebook page ID
- * @param {admin.storage.Bucket} bucket - Firebase Storage bucket
- * @param {Object} [options] - Upload options (see uploadImageFromUrl)
- * @returns {Promise<string|null>} Storage URL or null if no cover image
+ * @param event - Facebook event object with cover.source
+ * @param pageId - Facebook page ID
+ * @param bucket - Firebase Storage bucket
+ * @param options - Upload options (see uploadImageFromUrl)
+ * @returns Storage URL or null if no cover image
  */
-async function processEventCoverImage(event, pageId, bucket, options = {}) {
+export async function processEventCoverImage(
+  event: FacebookEvent, 
+  pageId: string, 
+  bucket: any, 
+  options: Partial<ImageUploadOptions> = {}
+): Promise<string | null> {
   if (!event.cover || !event.cover.source) {
     logger.debug('Event has no cover image', { eventId: event.id });
     return null;
@@ -219,7 +224,7 @@ async function processEventCoverImage(event, pageId, bucket, options = {}) {
       imageUrl,
     });
     return imageUrl;
-  } catch (error) {
+  } catch (error: any) {
     logger.warn('Failed to process cover image - using Facebook URL', {
       eventId: event.id,
       error: error.message,
@@ -232,10 +237,10 @@ async function processEventCoverImage(event, pageId, bucket, options = {}) {
 
 /**
  * Initialize Firebase Storage bucket for image operations
- * @param {string} [bucketName] - Optional bucket name. If not provided, uses default
- * @returns {admin.storage.Bucket} Storage bucket instance
+ * @param bucketName - Optional bucket name. If not provided, uses default
+ * @returns Storage bucket instance
  */
-function initializeStorageBucket(bucketName = null) {
+export function initializeStorageBucket(bucketName: string | null = null): any {
   try {
     const storage = admin.storage();
     
@@ -245,14 +250,8 @@ function initializeStorageBucket(bucketName = null) {
       // Use default bucket
       return storage.bucket();
     }
-  } catch (error) {
+  } catch (error: any) {
     throw new Error(`Failed to initialize Storage bucket: ${error.message}`);
   }
 }
 
-module.exports = {
-  uploadImageFromUrl,
-  processEventCoverImage,
-  initializeStorageBucket,
-  getFileExtension,
-};

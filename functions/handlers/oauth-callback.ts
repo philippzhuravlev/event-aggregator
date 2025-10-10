@@ -1,16 +1,23 @@
-const admin = require('firebase-admin');
-const { exchangeCodeForToken, exchangeForLongLivedToken, getUserPages, getAllRelevantEvents } = require('../services/facebook-api');
-const { storePageToken, getPageToken } = require('../services/secret-manager');
-const { savePage, batchWriteEvents } = require('../services/firestore-service');
-const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
-const { normalizeEvent } = require('../utils/event-normalizer');
-const { URLS, ERROR_CODES } = require('../utils/constants');
-const { logger } = require('../utils/logger');
+import * as admin from 'firebase-admin';
+import { Request } from 'firebase-functions/v2/https';
+import { exchangeCodeForToken, exchangeForLongLivedToken, getUserPages, getAllRelevantEvents } from '../services/facebook-api';
+import { storePageToken, getPageToken } from '../services/secret-manager';
+import { savePage, batchWriteEvents } from '../services/firestore-service';
+import { processEventCoverImage, initializeStorageBucket } from '../services/image-service';
+import { normalizeEvent } from '../utils/event-normalizer';
+import { URLS, ERROR_CODES } from '../utils/constants';
+import { logger } from '../utils/logger';
+import { EventBatchItem } from '../types';
 
 // NB: "Handlers" execute business logic. "Services" connect something
 // an existing service, e.g. facebook or google secrets manager
 // here we use a lot of dedicated service scripts from our facebook service 
 // in /functions/services
+
+// So handlers "do something", in this case handle the oauth callback from facebook;
+// what this actually means is that you click "connect to facebook" on the web app, which
+// redirects you to facebook's page where you click "allow" to give access to your pages;
+// the process of reading facebook's link (response) is callback
 
 /**
  * Does the OAuth callback from Facebook after a user agrees to page access. It does:
@@ -21,17 +28,22 @@ const { logger } = require('../utils/logger');
  * 5. Puts page tokens securely in Secret Manager
  * 6. Puts page metadata in Firestore
  * 7. helpfully places data directly
- * @param {Object} req - HTTP request object (contains .query with Facebook's response)
- * @param {Object} res - HTTP response object (use .redirect() to send user back)
- * @param {string} appId - Facebook App ID (from secrets)
- * @param {string} appSecret - Facebook App Secret (from secrets)
+ * @param req - HTTP request object (contains .query with Facebook's response)
+ * @param res - HTTP response object (use .redirect() to send user back)
+ * @param appId - Facebook App ID (from secrets)
+ * @param appSecret - Facebook App Secret (from secrets)
  */
-async function handleOAuthCallback(req, res, appId, appSecret) {
+export async function handleOAuthCallback(
+  req: Request, 
+  res: any, 
+  appId: string, 
+  appSecret: string
+): Promise<void> {
   // this entire section is about figuring out which url "prefix" (localhost, dtuevent.dk etc)
   // is used and then redirect back to that
   let redirectBase = URLS.WEB_APP;
   try {
-    const { code, error, state } = req.query; // again, a request object
+    const { code, error, state } = req.query as { code?: string; error?: string; state?: string };
     // state parameters ("state" below) are used to maintain state between the request and 
     // callback so it doesnt get hijacked or messed up along the way
     if (state) {
@@ -40,7 +52,7 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
         const stateUrl = new URL(decodedState);
         redirectBase = stateUrl.origin;
         logger.debug('Using redirect URL from state parameter', { redirectBase });
-      } catch (e) {
+      } catch (e: any) {
         logger.warn('Failed to parse state parameter as URL', { state, error: e.message });
       }
     } else if (req.headers.referer) {
@@ -60,11 +72,13 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
         facebookError: error,
         redirectBase 
       });
-      return res.redirect(`${redirectBase}/?error=oauth_failed`);
+      res.redirect(`${redirectBase}/?error=oauth_failed`);
+      return;
     }
     if (!code) {
       logger.error('Missing authorization code in OAuth callback', null, { redirectBase });
-      return res.redirect(`${redirectBase}/?error=missing_code`);
+      res.redirect(`${redirectBase}/?error=missing_code`);
+      return;
     }
 
     // 1: get code for short-lived token
@@ -79,7 +93,8 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
     // this is now done thru firestore-service service
     const pages = await getUserPages(longLivedToken);
     if (pages.length === 0) {
-      return res.redirect(`${redirectBase}/?error=no_pages`);
+      res.redirect(`${redirectBase}/?error=no_pages`);
+      return;
     }
 
     // Step 4: Store page tokens in Secret Manager and metadata in Firestore
@@ -96,11 +111,11 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
     }
 
     // step 5: Initialize storage bucket for image processing
-    let storageBucket = null;
+    let storageBucket: any = null;
     try {
       storageBucket = initializeStorageBucket();
       logger.info('Storage bucket initialized for OAuth event image processing');
-    } catch (error) {
+    } catch (error: any) {
       logger.warn('Storage bucket not available during OAuth - using Facebook URLs', { 
         error: error.message 
       });
@@ -108,7 +123,7 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
 
     // step 6: Fetch and store events for each page
     let totalEvents = 0;
-    const eventData = [];
+    const eventData: EventBatchItem[] = [];
 
     for (const page of pages) {
       try {
@@ -125,7 +140,7 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
         let events;
         try {
           events = await getAllRelevantEvents(page.id, accessToken, 30);
-        } catch (eventError) {
+        } catch (eventError: any) {
           // Check if it's a token expiry error (Facebook error code 190)
           if (eventError.response && eventError.response.data && eventError.response.data.error) {
             const fbError = eventError.response.data.error;
@@ -147,22 +162,22 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
         // normalization before putting into Firestore
         for (const event of events) {
           // process cover image using the image service util inside /utils/ to connect between facebook and firestore
-          let coverImageUrl = null;
+          let coverImageUrl: string | null = null;
           if (storageBucket) {
             try {
               coverImageUrl = await processEventCoverImage(event, page.id, storageBucket);
-            } catch (error) {
+            } catch (error: any) {
               logger.warn('Image processing failed during OAuth - using Facebook URL', {
                 eventId: event.id,
                 pageId: page.id,
                 error: error.message,
               });
               // Fallback to original Facebook URL
-              coverImageUrl = event.cover ? event.cover.source : undefined;
+              coverImageUrl = event.cover ? event.cover.source : null;
             }
           } else {
             // No storage available, use original URL
-            coverImageUrl = event.cover ? event.cover.source : undefined;
+            coverImageUrl = event.cover ? event.cover.source : null;
           }
 
           // Use centralized normalizer for consistent schema
@@ -174,7 +189,7 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
           });
           totalEvents++;
         }
-      } catch (eventError) {
+      } catch (eventError: any) {
         logger.error('Failed to fetch events for page during OAuth', eventError, {
           pageId: page.id,
           pageName: page.name,
@@ -199,7 +214,7 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
     res.redirect(`${redirectBase}/?success=true&pages=${pages.length}&events=${totalEvents}`);
 
     // boilerplate catch statment
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Facebook OAuth callback failed', error, { redirectBase });
     // Use the same redirectBase if it was determined earlier, otherwise fallback
     const fallbackRedirect = redirectBase || URLS.WEB_APP;
@@ -207,4 +222,3 @@ async function handleOAuthCallback(req, res, appId, appSecret) {
   }
 }
 
-module.exports = { handleOAuthCallback };

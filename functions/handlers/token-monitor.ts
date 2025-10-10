@@ -1,7 +1,9 @@
-const admin = require('firebase-admin');
-const { checkTokenExpiry } = require('../services/secret-manager');
-const { getActivePages } = require('../services/firestore-service');
-const { logger } = require('../utils/logger');
+import * as admin from 'firebase-admin';
+import { Request } from 'firebase-functions/v2/https';
+import { checkTokenExpiry } from '../services/secret-manager';
+import { getActivePages } from '../services/firestore-service';
+import { logger } from '../utils/logger';
+import { TokenHealthReport, PageTokenInfo } from '../types';
 
 // NB: "Handlers" like execute business logic. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
@@ -14,13 +16,13 @@ const { logger } = require('../utils/logger');
 /**
  * Check all page tokens for expiry status
  * Returns a report of which tokens are expiring soon or already expired
- * @returns {Promise<Object>} Token health report
+ * @returns Token health report
  */
-async function checkAllTokenHealth() {
+export async function checkAllTokenHealth(): Promise<TokenHealthReport> {
   const db = admin.firestore();
   const pages = await getActivePages(db);
   
-  const report = {
+  const report: TokenHealthReport = {
     totalPages: pages.length,
     healthy: [],
     expiringSoon: [],
@@ -33,7 +35,7 @@ async function checkAllTokenHealth() {
     try {
       const status = await checkTokenExpiry(db, page.id, 7); // 7 days warning
       
-      const pageInfo = {
+      const pageInfo: PageTokenInfo = {
         pageId: page.id,
         pageName: page.name,
         daysUntilExpiry: status.daysUntilExpiry,
@@ -49,7 +51,7 @@ async function checkAllTokenHealth() {
       } else {
         report.unknown.push(pageInfo);
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error checking token expiry for page', error, {
         pageId: page.id,
         pageName: page.name,
@@ -63,18 +65,22 @@ async function checkAllTokenHealth() {
   }
 
   // sort the expiring tokens 
-  report.expiringSoon.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
+  report.expiringSoon.sort((a, b) => (a.daysUntilExpiry || 0) - (b.daysUntilExpiry || 0));
   
   return report;
 }
 
 /**
  * HTTP handler for token health check endpoint
- * @param {Object} req - HTTP request object
- * @param {Object} res - HTTP response object
- * @param {Function} authMiddleware - Authentication middleware function
+ * @param req - HTTP request object
+ * @param res - HTTP response object
+ * @param authMiddleware - Authentication middleware function
  */
-async function handleTokenHealthCheck(req, res, authMiddleware) {
+export async function handleTokenHealthCheck(
+  req: Request, 
+  res: any, 
+  authMiddleware: (req: Request, res: any) => Promise<boolean>
+): Promise<void> {
   // authenticate request first
   const isAuthenticated = await authMiddleware(req, res);
   if (!isAuthenticated) {
@@ -103,7 +109,7 @@ async function handleTokenHealthCheck(req, res, authMiddleware) {
       success: true,
       report,
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Token health check failed', error);
     res.status(500).json({
       success: false,
@@ -116,7 +122,7 @@ async function handleTokenHealthCheck(req, res, authMiddleware) {
  * Scheduled handler to monitor token health and log warnings
  * This should run daily to proactively identify expiring tokens
  */
-async function handleScheduledTokenMonitoring() {
+export async function handleScheduledTokenMonitoring(): Promise<TokenHealthReport> {
   try {
     logger.info('Scheduled token health monitoring started');
     const report = await checkAllTokenHealth();
@@ -146,14 +152,9 @@ async function handleScheduledTokenMonitoring() {
     }
     
     return report;
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Scheduled token monitoring failed', error);
     throw error;
   }
 }
 
-module.exports = {
-  checkAllTokenHealth,
-  handleTokenHealthCheck,
-  handleScheduledTokenMonitoring,
-};

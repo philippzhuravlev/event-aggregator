@@ -1,5 +1,6 @@
-const { getApiKey } = require('../services/secret-manager');
-const { logger } = require('../utils/logger');
+import { Request } from 'firebase-functions/v2/https';
+import { getApiKey } from '../services/secret-manager';
+import { logger } from '../utils/logger';
 
 // So in the broadest sense middleware is any software that works between 
 // apps and services etc. Usually that means security, little "checkpoints"
@@ -9,11 +10,11 @@ const { logger } = require('../utils/logger');
 
 /**
  * Verify that user has API key for manual sync endpoints
- * @param {Object} req - HTTP request object
- * @param {Object} res - HTTP response object
- * @returns {Promise<boolean>} True if authenticated, sends error response if not
+ * @param req - HTTP request object
+ * @param res - HTTP response object
+ * @returns True if authenticated, sends error response if not
  */
-async function requireApiKey(req, res) {
+export async function requireApiKey(req: Request, res: any): Promise<boolean> {
   try {
     // get the API key from Secret Manager
     const validApiKey = await getApiKey();
@@ -39,7 +40,7 @@ async function requireApiKey(req, res) {
 
     // check x-api-key header (simpler format)
     // x-api-key is if we want our own headers for the sake of ease
-    const apiKeyHeader = req.headers['x-api-key'];
+    const apiKeyHeader = req.headers['x-api-key'] as string | undefined;
     if (apiKeyHeader === validApiKey) {
       logger.debug('API key authentication successful', { method: 'x-api-key header' });
       return true;
@@ -57,7 +58,7 @@ async function requireApiKey(req, res) {
       message: 'Valid API key required. Provide via Authorization: Bearer <key> or x-api-key: <key> header'
     });
     return false;
-  } catch (error) {
+  } catch (error: any) {
     logger.error('API key verification failed', error);
     res.status(500).json({ 
       error: 'Authentication error',
@@ -69,9 +70,9 @@ async function requireApiKey(req, res) {
 
 /**
  * Middleware to log request details (for monitoring)
- * @param {Object} req - HTTP request object
+ * @param req - HTTP request object
  */
-function logRequest(req) {
+export function logRequest(req: Request): void {
   const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
   const userAgent = req.headers['user-agent'] || 'unknown';
   logger.info('HTTP request received', {
@@ -82,7 +83,3 @@ function logRequest(req) {
   });
 }
 
-module.exports = {
-  requireApiKey,
-  logRequest,
-};

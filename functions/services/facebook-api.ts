@@ -1,6 +1,7 @@
-const axios = require('axios');
-const { ERROR_CODES } = require('../utils/constants');
-const { logger } = require('../utils/logger');
+import axios, { AxiosError } from 'axios';
+import { ERROR_CODES, FACEBOOK, FACEBOOK_API } from '../utils/constants';
+import { logger } from '../utils/logger';
+import { FacebookEvent, FacebookPage, FacebookErrorResponse } from '../types';
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, firestore and
@@ -11,26 +12,20 @@ const { logger } = require('../utils/logger');
 // The following services use "axios" which is a http tool that lets us pull from http
 // endpoints. We're pulling from a facebook graph api link that lets us get info of interest
 
-// Constants
-const FB_API_VERSION = 'v23.0';
-const FB_BASE_URL = `https://graph.facebook.com/${FB_API_VERSION}`;
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 1000; // Base delay for exponential backoff
-
 /**
  * Sleep utility for retry delays
- * @param {number} ms - Milliseconds to sleep
+ * @param ms - Milliseconds to sleep
  */
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
  * Check if error is a token expiry error
- * @param {Error} error - Axios error object
- * @returns {boolean} True if token is expired/invalid
+ * @param error - Axios error object
+ * @returns True if token is expired/invalid
  */
-function isTokenExpiredError(error) {
+function isTokenExpiredError(error: AxiosError<FacebookErrorResponse>): boolean {
   if (error.response && error.response.data && error.response.data.error) {
     const fbError = error.response.data.error;
     return fbError.code === ERROR_CODES.FACEBOOK_TOKEN_INVALID;
@@ -40,10 +35,10 @@ function isTokenExpiredError(error) {
 
 /**
  * Check if error is retryable (rate limiting or server errors)
- * @param {Error} error - Axios error object
- * @returns {boolean} True if request should be retried
+ * @param error - Axios error object
+ * @returns True if request should be retried
  */
-function isRetryableError(error) {
+function isRetryableError(error: AxiosError): boolean {
   if (!error.response) return false;
   const status = error.response.status;
   return status === 429 || (status >= 500 && status < 600);
@@ -51,28 +46,30 @@ function isRetryableError(error) {
 
 /**
  * Wrapper for Facebook API calls with retry logic
- * @param {Function} apiCall - Async function that makes the API call
- * @param {number} maxRetries - Maximum retry attempts
- * @returns {Promise} API response
+ * @param apiCall - Async function that makes the API call
+ * @param maxRetries - Maximum retry attempts
+ * @returns API response
  */
-async function withRetry(apiCall, maxRetries = MAX_RETRIES) {
+async function withRetry<T>(apiCall: () => Promise<T>, maxRetries: number = FACEBOOK_API.MAX_RETRIES): Promise<T> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await apiCall();
     } catch (error) {
+      const axiosError = error as AxiosError<FacebookErrorResponse>;
+      
       // Don't retry if token is expired or invalid - send out the token
-      if (isTokenExpiredError(error)) {
-        const errorCode = error.response && error.response.data && error.response.data.error ?
-          error.response.data.error.code :
+      if (isTokenExpiredError(axiosError)) {
+        const errorCode = axiosError.response && axiosError.response.data && axiosError.response.data.error ?
+          axiosError.response.data.error.code :
           'unknown';
-        logger.error('Facebook token expired or invalid', error, { errorCode });
+        logger.error('Facebook token expired or invalid', axiosError as Error, { errorCode });
         throw error;
       }
       
       // retry on rate limiting or server errors
-      if (isRetryableError(error) && attempt < maxRetries) {
-        const delayMs = RETRY_DELAY_MS * Math.pow(2, attempt - 1); // Exponential backoff
-        const status = error.response ? error.response.status : 'unknown';
+      if (isRetryableError(axiosError) && attempt < maxRetries) {
+        const delayMs = FACEBOOK_API.RETRY_DELAY_MS * Math.pow(2, attempt - 1); // Exponential backoff
+        const status = axiosError.response ? axiosError.response.status : 'unknown';
         logger.warn('Facebook API error - retrying with backoff', {
           status,
           delayMs,
@@ -87,6 +84,7 @@ async function withRetry(apiCall, maxRetries = MAX_RETRIES) {
       throw error;
     }
   }
+  throw new Error('Unreachable code'); // TypeScript needs this
 } 
 
 // Unique params used across Facebook API calls:
@@ -102,15 +100,20 @@ async function withRetry(apiCall, maxRetries = MAX_RETRIES) {
 
 /**
  * Selfexplanatory: Gets auth code for short-lived user access token
- * @param {string} code - Authorization code from OAuth callback
- * @param {string} appId - Facebook App ID
- * @param {string} appSecret - Facebook App Secret
- * @param {string} redirectUri - OAuth redirect URI
- * @returns {Promise<string>} Short-lived access token
+ * @param code - Authorization code from OAuth callback
+ * @param appId - Facebook App ID
+ * @param appSecret - Facebook App Secret
+ * @param redirectUri - OAuth redirect URI
+ * @returns Short-lived access token
  */
-async function exchangeCodeForToken(code, appId, appSecret, redirectUri) {
+export async function exchangeCodeForToken(
+  code: string, 
+  appId: string, 
+  appSecret: string, 
+  redirectUri: string
+): Promise<string> {
   const response = await withRetry(async () => {
-    return await axios.get(`${FB_BASE_URL}/oauth/access_token`, {
+    return await axios.get(`${FACEBOOK.BASE_URL}/oauth/access_token`, {
       params: { // the actual info we're pulling
         client_id: appId,
         client_secret: appSecret,
@@ -130,14 +133,18 @@ async function exchangeCodeForToken(code, appId, appSecret, redirectUri) {
 
 /**
  * Exchange a short-lived user access token for a long-lived token (60 days). Simple as.
- * @param {string} shortLivedToken - Short-lived user access token from initial OAuth
- * @param {string} appId - Facebook App ID
- * @param {string} appSecret - Facebook App Secret
- * @returns {Promise<string>} Long-lived access token (valid for ~60 days)
+ * @param shortLivedToken - Short-lived user access token from initial OAuth
+ * @param appId - Facebook App ID
+ * @param appSecret - Facebook App Secret
+ * @returns Long-lived access token (valid for ~60 days)
  */
-async function exchangeForLongLivedToken(shortLivedToken, appId, appSecret) {
+export async function exchangeForLongLivedToken(
+  shortLivedToken: string, 
+  appId: string, 
+  appSecret: string
+): Promise<string> {
   const response = await withRetry(async () => {
-    return await axios.get(`${FB_BASE_URL}/oauth/access_token`, {
+    return await axios.get(`${FACEBOOK.BASE_URL}/oauth/access_token`, {
       params: { // the actual info we're pulling
         grant_type: 'fb_exchange_token',
         client_id: appId,
@@ -156,21 +163,21 @@ async function exchangeForLongLivedToken(shortLivedToken, appId, appSecret) {
 
 /**
  * Get all Facebook pages the user manages (with pagination support)
- * @param {string} accessToken - User access token
- * @returns {Promise<Array>} Array of page objects with id, name, and access_token
+ * @param accessToken - User access token
+ * @returns Array of page objects with id, name, and access_token
  */
-async function getUserPages(accessToken) {
-  let allPages = [];
-  let nextUrl = `${FB_BASE_URL}/me/accounts`;
+export async function getUserPages(accessToken: string): Promise<FacebookPage[]> {
+  let allPages: FacebookPage[] = [];
+  let nextUrl: string | null = `${FACEBOOK.BASE_URL}/me/accounts`;
   
   // Facebook actually splits up results, so we need to follow the "next" reference
   while (nextUrl) {
     const response = await withRetry(async () => {
-      return await axios.get(nextUrl, {
+      return await axios.get(nextUrl!, {
         params: {
           access_token: accessToken,
           fields: 'id,name,access_token',
-          limit: 100, // Max per page
+          limit: FACEBOOK_API.PAGINATION_LIMIT, // Max per page
         },
       });
     });
@@ -187,25 +194,29 @@ async function getUserPages(accessToken) {
 
 /**
  * Get events for a specific Facebook page (with pagination support)
- * @param {string} pageId - Facebook page ID
- * @param {string} accessToken - Page access token
- * @param {string} timeFilter - 'upcoming' or 'past' (default: 'upcoming')
- * @returns {Promise<Array>} Array of event objects
+ * @param pageId - Facebook page ID
+ * @param accessToken - Page access token
+ * @param timeFilter - 'upcoming' or 'past' (default: 'upcoming')
+ * @returns Array of event objects
  */
-async function getPageEvents(pageId, accessToken, timeFilter = 'upcoming') {
-  let allEvents = [];
-  let nextUrl = `${FB_BASE_URL}/${pageId}/events`;
+export async function getPageEvents(
+  pageId: string, 
+  accessToken: string, 
+  timeFilter: 'upcoming' | 'past' = 'upcoming'
+): Promise<FacebookEvent[]> {
+  let allEvents: FacebookEvent[] = [];
+  let nextUrl: string | null = `${FACEBOOK.BASE_URL}/${pageId}/events`;
   
   // facebook actually splits up results, so we need to follow the "next" reference
   while (nextUrl) {
     const response = await withRetry(async () => {
-      return await axios.get(nextUrl, {
+      return await axios.get(nextUrl!, {
         params: {
           access_token: accessToken,
           time_filter: timeFilter,
           // explicitly request cover{source} to ensure Facebook returns the image URL
           fields: 'id,name,description,start_time,end_time,place,cover{source}',
-          limit: 100, // Max per page
+          limit: FACEBOOK_API.PAGINATION_LIMIT, // Max per page
         },
       });
     });
@@ -222,12 +233,16 @@ async function getPageEvents(pageId, accessToken, timeFilter = 'upcoming') {
 
 /**
  * Get all relevant events for a page: upcoming events + recent past events (last 30 days)
- * @param {string} pageId - Facebook page ID
- * @param {string} accessToken - Page access token
- * @param {number} daysBack - How many days back to fetch past events (default: 30)
- * @returns {Promise<Array>} Combined array of upcoming and recent past events, deduplicated
+ * @param pageId - Facebook page ID
+ * @param accessToken - Page access token
+ * @param daysBack - How many days back to fetch past events (default: 30)
+ * @returns Combined array of upcoming and recent past events, deduplicated
  */
-async function getAllRelevantEvents(pageId, accessToken, daysBack = 30) {
+export async function getAllRelevantEvents(
+  pageId: string, 
+  accessToken: string, 
+  daysBack: number = 30
+): Promise<FacebookEvent[]> {
   // events **past** and **upcoming**
   const upcomingEvents = await getPageEvents(pageId, accessToken, 'upcoming');
   const pastEvents = await getPageEvents(pageId, accessToken, 'past');
@@ -260,10 +275,3 @@ async function getAllRelevantEvents(pageId, accessToken, daysBack = 30) {
   return uniqueEvents;
 }
 
-module.exports = {
-  exchangeCodeForToken,
-  exchangeForLongLivedToken,
-  getUserPages,
-  getPageEvents,
-  getAllRelevantEvents,
-};

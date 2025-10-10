@@ -1,5 +1,6 @@
-const { FACEBOOK } = require('./constants');
-const { FieldValue } = require('@google-cloud/firestore');
+import { FACEBOOK } from './constants';
+import { FieldValue } from '@google-cloud/firestore';
+import { FacebookEvent, NormalizedEvent, PlaceData } from '../types';
 
 // So this is a util, a helper function that is neither "what to do" (handler) nor 
 // "how to connect to an external service" (service). It just does pure logic that 
@@ -11,16 +12,20 @@ const { FieldValue } = require('@google-cloud/firestore');
 
 /**
  * Normalize a Facebook Graph API event object into our Firestore schema
- * @param {Object} facebookEvent - Raw event object from Facebook Graph API
- * @param {string} pageId - Facebook page ID this event belongs to
- * @param {string|null} [coverImageUrl] - Processed cover image URL (from image service). If null, uses Facebook's URL
- * @returns {Object} Normalized event object ready for Firestore
+ * @param facebookEvent - Raw event object from Facebook Graph API
+ * @param pageId - Facebook page ID this event belongs to
+ * @param coverImageUrl - Processed cover image URL (from image service). If null, uses Facebook's URL
+ * @returns Normalized event object ready for Firestore
  */
-function normalizeEvent(facebookEvent, pageId, coverImageUrl = null) {
+export function normalizeEvent(
+  facebookEvent: FacebookEvent, 
+  pageId: string, 
+  coverImageUrl: string | null = null
+): NormalizedEvent {
   // handles the "place data", i.e. what the location is of the event (if at all)
   // facebookEvent.place is actually an object with name and location (which itself is an object)
   // if no place - which is v common - we just set it to undefined
-  let placeData = undefined;
+  let placeData: PlaceData | undefined = undefined;
   if (facebookEvent.place) {
     placeData = {
       name: facebookEvent.place.name,
@@ -37,7 +42,7 @@ function normalizeEvent(facebookEvent, pageId, coverImageUrl = null) {
     undefined;
 
   // this is the complete, fully normalized event object that we'll place in firestore
-  const normalized = {
+  const normalized: Partial<NormalizedEvent> = {
     id: facebookEvent.id,
     pageId: pageId,
     title: facebookEvent.name,
@@ -47,17 +52,16 @@ function normalizeEvent(facebookEvent, pageId, coverImageUrl = null) {
     place: placeData,
     coverImageUrl: finalCoverUrl,
     eventURL: FACEBOOK.eventUrl(facebookEvent.id),
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp() as any,
+    updatedAt: FieldValue.serverTimestamp() as any,
   };
 
   // while this section below looks very complicated, all it does is that it filters
-  // out any undefined values from the normalized object. Firestore doesn't accept
-  return Object.fromEntries(
+  // out any undefined values from the normalized object. Firestore doesn't accept undefined
+  const filtered = Object.fromEntries(
     Object.entries(normalized).filter(([, v]) => v !== undefined)
   );
+  
+  return filtered as unknown as NormalizedEvent;
 }
 
-module.exports = {
-  normalizeEvent,
-};

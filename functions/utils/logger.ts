@@ -1,4 +1,4 @@
-const { ErrorReporting } = require('@google-cloud/error-reporting');
+import { ErrorReporting } from '@google-cloud/error-reporting';
 
 // So this is a util, a helper function that is neither "what to do" (handler) nor 
 // "how to connect to an external service" (service). It just does pure logic that 
@@ -8,6 +8,8 @@ const { ErrorReporting } = require('@google-cloud/error-reporting');
 // it's not really connecting to an external service (like facebook, firestore or
 // secret manager) but rather to Google Cloud's own monitoring stack, it feels
 // more like a util. It's also used many, many places across the codebase.
+
+// the error's general sturctures are info, warning, error, critical and debug
 
 // Begin Google Cloud Error Reporting
 // This automatically uses your Firebase project credentials 
@@ -20,13 +22,22 @@ const errors = new ErrorReporting({
   },
 });
 
-const logger = {
+interface LogMetadata {
+  [key: string]: any;
+}
+
+interface ErrorMetadata extends LogMetadata {
+  userId?: string;
+  pageId?: string;
+}
+
+export const logger = {
   /**
    * Log informational messages
-   * @param {string} message - Log message
-   * @param {Object} metadata - Additional context
+   * @param message - Log message
+   * @param metadata - Additional context
    */
-  info(message, metadata = {}) {
+  info(message: string, metadata: LogMetadata = {}): void {
     console.log(JSON.stringify({
       severity: 'INFO',
       message,
@@ -37,10 +48,10 @@ const logger = {
 
   /**
    * log warning messages
-   * @param {string} message - Warning message
-   * @param {Object} metadata - Additional context
+   * @param message - Warning message
+   * @param metadata - Additional context
    */
-  warn(message, metadata = {}) {
+  warn(message: string, metadata: LogMetadata = {}): void {
     console.warn(JSON.stringify({
       severity: 'WARNING',
       message,
@@ -51,12 +62,12 @@ const logger = {
 
   /**
    * log errors and report to Google Cloud Error Reporting
-   * @param {string} message - Error message
-   * @param {Error|Object} error - Error object or metadata
-   * @param {Object} metadata - Additional context
+   * @param message - Error message
+   * @param error - Error object or metadata
+   * @param metadata - Additional context
    */
-  error(message, error = null, metadata = {}) {
-    const errorData = {
+  error(message: string, error: Error | null = null, metadata: ErrorMetadata = {}): void {
+    const errorData: any = {
       severity: 'ERROR',
       message,
       ...metadata,
@@ -72,7 +83,7 @@ const logger = {
       };
       
       // do the actual report to Google Cloud Error Reporting
-      errors.report(error, {
+      (errors as any).report(error, {
         user: metadata.userId || metadata.pageId || 'unknown',
         context: JSON.stringify(metadata),
       });
@@ -85,12 +96,12 @@ const logger = {
 
   /**
    * Log critical errors that require immediate attention
-   * @param {string} message - Critical error message
-   * @param {Error} error - Error object
-   * @param {Object} metadata - Additional context
+   * @param message - Critical error message
+   * @param error - Error object
+   * @param metadata - Additional context
    */
-  critical(message, error, metadata = {}) {
-    const errorData = {
+  critical(message: string, error: Error, metadata: ErrorMetadata = {}): void {
+    const errorData: any = {
       severity: 'CRITICAL',
       message,
       ...metadata,
@@ -105,7 +116,7 @@ const logger = {
       };
       
       // Report critical errors with higher priority
-      errors.report(error, {
+      (errors as any).report(error, {
         user: metadata.userId || metadata.pageId || 'unknown',
         context: JSON.stringify({ ...metadata, priority: 'CRITICAL' }),
       });
@@ -117,10 +128,10 @@ const logger = {
   /**
    * Log debug messages (only in non-production environments)
    * Auto-detects: emulator or local dev (no GCLOUD_PROJECT)
-   * @param {string} message - Debug message
-   * @param {Object} metadata - Additional context
+   * @param message - Debug message
+   * @param metadata - Additional context
    */
-  debug(message, metadata = {}) {
+  debug(message: string, metadata: LogMetadata = {}): void {
     // Only log debug when NOT in Google Cloud production
     // The easy and amazing way to do this is thru google's own env 
     // vars which they autodetect; you don't need to set any in .env:
@@ -139,4 +150,3 @@ const logger = {
   },
 };
 
-module.exports = { logger };

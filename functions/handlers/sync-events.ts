@@ -1,11 +1,13 @@
-const admin = require('firebase-admin');
-const { getAllRelevantEvents } = require('../services/facebook-api');
-const { getPageToken, checkTokenExpiry, markTokenExpired } = require('../services/secret-manager');
-const { getActivePages, batchWriteEvents } = require('../services/firestore-service');
-const { processEventCoverImage, initializeStorageBucket } = require('../services/image-service');
-const { normalizeEvent } = require('../utils/event-normalizer');
-const { ERROR_CODES } = require('../utils/constants');
-const { logger } = require('../utils/logger');
+import * as admin from 'firebase-admin';
+import { Request } from 'firebase-functions/v2/https';
+import { getAllRelevantEvents } from '../services/facebook-api';
+import { getPageToken, checkTokenExpiry, markTokenExpired } from '../services/secret-manager';
+import { getActivePages, batchWriteEvents } from '../services/firestore-service';
+import { processEventCoverImage, initializeStorageBucket } from '../services/image-service';
+import { normalizeEvent } from '../utils/event-normalizer';
+import { ERROR_CODES } from '../utils/constants';
+import { logger } from '../utils/logger';
+import { EventBatchItem, SyncResult, ExpiringToken } from '../types';
 
 // NB: "Handlers" like execute business logic. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
@@ -15,7 +17,7 @@ const { logger } = require('../utils/logger');
 /**
  * Sync events, simple as. We have a manual and cron version
  */
-async function syncAllPageEvents() {
+export async function syncAllPageEvents(): Promise<SyncResult> {
   const db = admin.firestore();
   
   // get all active pages from our firestore service in /functions/services/
@@ -23,26 +25,26 @@ async function syncAllPageEvents() {
   
   if (pages.length === 0) {
     logger.info('No active pages to sync');
-    return { syncedPages: 0, syncedEvents: 0 };
+    return { syncedPages: 0, syncedEvents: 0, expiringTokens: 0, expiringTokenDetails: [] };
   }
 
   // Storage bucket is googles way of passing data thru objects, often images. It's quite
   // similar to e.g. http req res objects, firebase's snapshots or reaally any object that
   // has methods and properties. If it fails, we just use the original facebook url
   // instead of downloading and reuploading it to our own storage bucket
-  let storageBucket = null;
+  let storageBucket: any = null;
   try {
     storageBucket = initializeStorageBucket();
     logger.info('Storage bucket initialized for image processing');
-  } catch (error) {
+  } catch (error: any) {
     logger.warn('Storage bucket not available; using original Facebook URLs', { 
       error: error.message 
     });
   }
 
   let totalEvents = 0;
-  const eventData = [];
-  const expiringTokens = [];
+  const eventData: EventBatchItem[] = [];
+  const expiringTokens: ExpiringToken[] = [];
 
   // Sync each page
   for (const page of pages) { 
@@ -83,7 +85,7 @@ async function syncAllPageEvents() {
       let events;
       try {
         events = await getAllRelevantEvents(page.id, accessToken, 30);
-      } catch (error) {
+      } catch (error: any) {
         // Check if it's a token expiry error (Facebook error code 190)
         if (error.response && error.response.data && error.response.data.error) {
           const fbError = error.response.data.error;
@@ -114,22 +116,22 @@ async function syncAllPageEvents() {
       for (const event of events) {
         // Start with image processing
         // Process cover image using the image service
-        let coverImageUrl = null;
+        let coverImageUrl: string | null = null;
         if (storageBucket) {
           try {
             coverImageUrl = await processEventCoverImage(event, page.id, storageBucket);
-          } catch (error) {
+          } catch (error: any) {
             logger.warn('Image processing failed - using Facebook URL', {
               eventId: event.id,
               pageId: page.id,
               error: error.message,
             });
             // Fallback to original Facebook URL
-            coverImageUrl = event.cover ? event.cover.source : undefined;
+            coverImageUrl = event.cover ? event.cover.source : null;
           }
         } else {
           // No storage available, use original URL
-          coverImageUrl = event.cover ? event.cover.source : undefined;
+          coverImageUrl = event.cover ? event.cover.source : null;
         }
 
         // here we use our "normalizer" util in /functions/utils which basically matches
@@ -142,7 +144,7 @@ async function syncAllPageEvents() {
         });
         totalEvents++;
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to sync events for page', error, {
         pageId: page.id,
         pageName: page.name,
@@ -182,11 +184,15 @@ async function syncAllPageEvents() {
 /**
  * Manual sync request (HTTP endpoint) using syncAllPageEvents() funct
  * Now requires authentication via API key
- * @param {Object} req - HTTP request object
- * @param {Object} res - HTTP response object
- * @param {Function} authMiddleware - Authentication middleware function
+ * @param req - HTTP request object
+ * @param res - HTTP response object
+ * @param authMiddleware - Authentication middleware function
  */
-async function handleManualSync(req, res, authMiddleware) {
+export async function handleManualSync(
+  req: Request, 
+  res: any, 
+  authMiddleware: (req: Request, res: any) => Promise<boolean>
+): Promise<void> {
   // authenticate request
   const isAuthenticated = await authMiddleware(req, res);
   if (!isAuthenticated) {
@@ -202,7 +208,7 @@ async function handleManualSync(req, res, authMiddleware) {
       ...result,
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Manual sync failed', error);
     res.status(500).json({ 
       success: false,
@@ -215,18 +221,13 @@ async function handleManualSync(req, res, authMiddleware) {
 /**
  * Handle scheduled sync (cron job)
  */
-async function handleScheduledSync() {
+export async function handleScheduledSync(): Promise<void> {
   try {
     logger.info('Scheduled sync started');
     const result = await syncAllPageEvents();
     logger.info('Scheduled sync completed', result);
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Scheduled sync failed', error);
   }
 }
 
-module.exports = {
-  syncAllPageEvents,
-  handleManualSync,
-  handleScheduledSync,
-};
