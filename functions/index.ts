@@ -15,13 +15,14 @@ import { handleOAuthCallback } from './handlers/oauth-callback';
 import { handleManualSync, handleScheduledSync } from './handlers/sync-events';
 import { handleTokenHealthCheck, handleScheduledTokenMonitoring } from './handlers/token-monitor';
 import { handleFacebookWebhook } from './handlers/facebook-webhooks';
+import { handleManualCleanup, handleScheduledCleanup } from './handlers/cleanup-events';
 
 // import middleware
 import { requireApiKey, logRequest } from './middleware/auth';
 import { handleCORS } from './middleware/validation';
 
 // import constants
-import { SYNC, region, WEBHOOK } from './utils/constants';
+import { SYNC, region, WEBHOOK, CLEANUP } from './utils/constants';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -121,4 +122,33 @@ export const facebookWebhook = onRequest({
     WEBHOOK.VERIFY_TOKEN
   );
 });
+
+/**
+ * Manual event cleanup endpoint
+ * Deletes events older than specified days (default: 90)
+ * Requires API key authentication + CORS
+ * Query params: ?daysToKeep=90&dryRun=true&archive=true
+ */
+export const cleanupEvents = onRequest({
+  region: region,
+  secrets: [],
+}, async (req, res) => {
+  // Handle CORS preflight and validate origin
+  if (!handleCORS(req, res)) return;
+  
+  logRequest(req);
+  await handleManualCleanup(req, res, requireApiKey);
+});
+
+/**
+ * Scheduled event cleanup (cron job)
+ * Runs weekly on Sundays at 3 AM UTC
+ * Deletes events older than 90 days and archives them to Cloud Storage
+ */
+export const weeklyEventCleanup = onSchedule({
+  region: region,
+  schedule: CLEANUP.SCHEDULE,
+  timeZone: CLEANUP.TIMEZONE,
+  secrets: [],
+}, handleScheduledCleanup);
 

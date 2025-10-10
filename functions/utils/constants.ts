@@ -102,5 +102,14 @@ export const WEBHOOK = {
   ENDPOINT_PATH: '/webhooks/facebook',
 };
 
+// Cleanup Configuration
+export const CLEANUP = {
+  DAYS_TO_KEEP: 90, // Keep events for 90 days
+  SCHEDULE: 'every sunday 03:00', // Run weekly at 3 AM on Sundays
+  TIMEZONE: 'Etc/UTC',
+  ARCHIVE_BEFORE_DELETE: true, // Archive to Cloud Storage before deleting
+  BATCH_SIZE: 500, // Firestore batch limit
+};
+
 export { region };
 

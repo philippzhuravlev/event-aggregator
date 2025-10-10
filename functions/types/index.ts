@@ -233,3 +233,20 @@ export interface WebhookEventDetail {
   reason?: string;
 }
 
+// Event Cleanup Types
+export interface CleanupResult {
+  deletedCount: number;
+  archivedCount: number;
+  failedCount: number;
+  cutoffDate: string;
+  duration: number; // milliseconds
+  errors?: string[];
+}
+
+export interface CleanupOptions {
+  daysToKeep: number;
+  dryRun?: boolean;
+  archiveBeforeDelete?: boolean;
+  batchSize?: number;
+}
+
