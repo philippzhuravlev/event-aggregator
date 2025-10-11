@@ -3,12 +3,9 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import * as admin from 'firebase-admin';
 
-// this is the big file where the magic happens. It uses **handlers**, which 
-// execute business logic, and **services** which are connections to external
-// services supplied by google/meta, e.g. facebook api or firestore
-
-// also notice how this fle and the handlers/services are .ts files now instead of
-// .js files. TypeScript provides excellent type safety!
+// this is the big file where the magic happens. We've made a lot of handlers that "do stuff",
+// middleware that guards front- and backend, and constants that are used by both (and more).
+// then we just pass them to firebase functions and let them do their magic.
 
 // import handlers
 import { handleOAuthCallback } from './handlers/oauth-callback';
@@ -16,6 +13,7 @@ import { handleManualSync, handleScheduledSync } from './handlers/sync-events';
 import { handleTokenHealthCheck, handleScheduledTokenMonitoring } from './handlers/token-monitor';
 import { handleFacebookWebhook } from './handlers/facebook-webhooks';
 import { handleManualCleanup, handleScheduledCleanup } from './handlers/cleanup-events';
+import { handleHealthCheck } from './handlers/health-check';
 
 // import middleware
 import { requireApiKey, logRequest } from './middleware/auth';
@@ -189,4 +187,16 @@ export const weeklyEventCleanup = onSchedule({
   timeZone: CLEANUP.TIMEZONE,
   secrets: [],
 }, handleScheduledCleanup);
+
+/**
+ * Health check endpoint
+ * Returns http status code "200" if healthy, "503" if unhealthy
+ * Checks: Firestore, Storage, Secret Manager connectivity
+ */
+export const health = onRequest({
+  region: region,
+  secrets: [],
+}, async (req, res) => {
+  await handleHealthCheck(req, res);
+});
 

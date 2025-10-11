@@ -11,7 +11,8 @@ import { TokenHealthReport, PageTokenInfo } from '../types';
 // in /functions/services
 
 // This handler handles "token health", a fancy work for anything related
-// to token renewing etc etc
+// to token renewing etc etc. note there might be some overlap with "health-check.ts"
+// handler, but that's for the whole damn system, not just the tokens/events
 
 /**
  * Check all page tokens for expiry status

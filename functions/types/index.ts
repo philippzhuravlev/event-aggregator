@@ -1,4 +1,19 @@
 import { Timestamp } from '@google-cloud/firestore';
+import type { Bucket as StorageBucket } from '@google-cloud/storage';
+
+// Typescript is called that because its an upgraded version of javascript that has
+// types (and much much more). Types (str, bool, null) are structured like interfaces in
+// java/c#, but they're just used for "type checking", i.e. the compiler checks that the
+// types are correct; the object that is a string is indeed supposed to be a string, etc.
+
+// Notice that this file is called "index.ts"; also notice that in root, we also have an
+// index.ts file. That's because the name index usually just means the main "entry point" 
+// for a system. The root index is for firebase functions, but this one is the main entry
+// point for something completely different - our types. Ones for events, places, locations etc
+
+// Re-export handler types
+export * from './handlers';
+export type { StorageBucket };
 
 // Facebook API Types
 export interface FacebookEvent {
@@ -128,7 +143,7 @@ export interface PageTokenInfo {
 
 // Image Service Types
 export interface ImageUploadOptions {
-  bucket: any; // firebase storage bucket type is complex, using any for simplicity
+  bucket: StorageBucket;
   maxRetries?: number;
   timeoutMs?: number;
   makePublic?: boolean;
