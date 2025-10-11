@@ -3,7 +3,7 @@ import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 
 // Firebase vars
 const appId = import.meta.env.VITE_FIREBASE_APP_ID;
-const projectId = process.env.GCLOUD_PROJECT; 
+const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'dtuevent-8105b'; 
 // the firebase and gcp project ID aren't necessarily the same but often are
 
 const firebaseConfig = {

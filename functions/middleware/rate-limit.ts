@@ -28,10 +28,8 @@ export const standardRateLimiter = rateLimit({
   standardHeaders: true, // Return rate limit info into the HTTP `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers. This is used by older browsers.
   
-  // Custom key generator (uses IP address)
-  keyGenerator: (req) => {
-    return req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
-  },
+  // Use default keyGenerator (automatically handles IPv6)
+  // It uses req.ip which is set by Express and properly handles IPv6
   
   // Log when rate limit is hit
   handler: (req, res) => {
@@ -65,10 +63,8 @@ export const webhookRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   
-  keyGenerator: (req) => {
-    // For webhooks, we trust Facebook's IP but still track it
-    return req.ip || req.headers['x-forwarded-for'] as string || 'facebook-webhook';
-  },
+  // Use default keyGenerator for IPv6 safety
+  // Webhooks from Facebook will be tracked by their IP
   
   handler: (req, res) => {
     const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
@@ -100,9 +96,7 @@ export const oauthRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   
-  keyGenerator: (req) => {
-    return req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
-  },
+  // Use default keyGenerator (IPv6 safe)
   
   handler: (req, res) => {
     const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';

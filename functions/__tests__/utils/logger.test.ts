@@ -20,6 +20,9 @@ describe('logger utility', () => {
     // Save original env
     originalEnv = { ...process.env };
     
+    // Set GCLOUD_PROJECT so Error Reporting gets initialized
+    process.env.GCLOUD_PROJECT = 'test-project';
+    
     // Spy on console methods
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
     consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();

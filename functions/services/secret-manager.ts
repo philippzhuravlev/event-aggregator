@@ -154,7 +154,7 @@ export async function checkTokenExpiry(
   
   const expiresAt = pageDoc.data()!.tokenExpiresAt.toDate();
   const now = new Date();
-  const daysUntilExpiry = Math.floor((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const daysUntilExpiry = Math.round((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   
   return {
     isExpiring: daysUntilExpiry <= warningDays,

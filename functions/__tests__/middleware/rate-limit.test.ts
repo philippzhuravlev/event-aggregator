@@ -52,37 +52,8 @@ describe('rate-limit middleware', () => {
       expect(standardConfig.legacyHeaders).toBe(false);
     });
 
-    it('should generate key from IP address', () => {
-      const mockReq = {
-        ip: '192.168.1.1',
-        headers: {},
-      };
-
-      const key = standardConfig.keyGenerator(mockReq);
-      expect(key).toBe('192.168.1.1');
-    });
-
-    it('should fallback to x-forwarded-for header when no IP', () => {
-      const mockReq = {
-        ip: undefined,
-        headers: {
-          'x-forwarded-for': '10.0.0.1',
-        },
-      };
-
-      const key = standardConfig.keyGenerator(mockReq);
-      expect(key).toBe('10.0.0.1');
-    });
-
-    it('should use "unknown" when no IP or header', () => {
-      const mockReq = {
-        ip: undefined,
-        headers: {},
-      };
-
-      const key = standardConfig.keyGenerator(mockReq);
-      expect(key).toBe('unknown');
-    });
+    // keyGenerator tests removed - using default IPv6-safe generator
+    // The default keyGenerator from express-rate-limit properly handles IPv6
 
     it('should handle rate limit exceeded with proper response', () => {
       const mockReq = {
@@ -150,15 +121,7 @@ describe('rate-limit middleware', () => {
       });
     });
 
-    it('should generate key with facebook-webhook fallback', () => {
-      const mockReq = {
-        ip: undefined,
-        headers: {},
-      };
-
-      const key = webhookConfig.keyGenerator(mockReq);
-      expect(key).toBe('facebook-webhook');
-    });
+    // keyGenerator test removed - using default IPv6-safe generator
 
     it('should log critical error when webhook rate limit exceeded', () => {
       const { logger } = require('../../utils/logger');
@@ -223,15 +186,7 @@ describe('rate-limit middleware', () => {
       });
     });
 
-    it('should generate key from IP or x-forwarded-for', () => {
-      const mockReq = {
-        ip: '192.168.1.1',
-        headers: {},
-      };
-
-      const key = oauthConfig.keyGenerator(mockReq);
-      expect(key).toBe('192.168.1.1');
-    });
+    // keyGenerator test removed - using default IPv6-safe generator
 
     it('should log OAuth rate limit with state parameter', () => {
       const { logger } = require('../../utils/logger');

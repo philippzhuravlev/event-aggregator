@@ -70,16 +70,10 @@ Or "TonkaProductions". Note that all contribute code.
 
 ## TODO: Backend
 
-- [ ] Write tests (unit + integration, >80% coverage)
-- [ ] Add rate limiting
-- [ ] Delete events older than X days/months
+- [ ] Write tests (>80% coverage)
 - [ ] Implement automatic token refresh before expiry
 - [ ] Add pagination to database queries
 - [ ] Optimize images (resize, compress, WebP)
-
-## TODO: Big Migrations
-- [ ] Typescript
-- [ ] Facebook Webhooks
 
 ## List
 

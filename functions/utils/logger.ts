@@ -13,14 +13,37 @@ import { ErrorReporting } from '@google-cloud/error-reporting';
 
 // Begin Google Cloud Error Reporting
 // This automatically uses your Firebase project credentials 
-const errors = new ErrorReporting({
-  projectId: process.env.GCLOUD_PROJECT, // not .env, auto-detected by Google Cloud
-  reportMode: 'production', // Set to 'always' for testing, 'production' for prod
-  serviceContext: {
-    service: 'dtuevent-functions',
-    version: process.env.K_REVISION || '1.0.0', // Cloud Functions also provides this
-  },
-});
+// Only initialize Error Reporting in production or when explicitly requested
+let errors: any = null;
+
+function getErrorReporting() {
+  if (!errors && process.env.GCLOUD_PROJECT) {
+    // Suppress the NODE_ENV warning in test environments
+    const originalEnv = process.env.NODE_ENV;
+    if (process.env.NODE_ENV !== 'production') {
+      process.env.NODE_ENV = 'production';
+    }
+    
+    try {
+      errors = new ErrorReporting({
+        projectId: process.env.GCLOUD_PROJECT, // not .env, auto-detected by Google Cloud
+        reportMode: 'production', // Set to 'always' for testing, 'production' for prod
+        serviceContext: {
+          service: 'dtuevent-functions',
+          version: process.env.K_REVISION || '1.0.0', // Cloud Functions also provides this
+        },
+      });
+    } finally {
+      // Restore original NODE_ENV
+      if (originalEnv !== undefined) {
+        process.env.NODE_ENV = originalEnv;
+      } else {
+        delete process.env.NODE_ENV;
+      }
+    }
+  }
+  return errors;
+}
 
 interface LogMetadata {
   [key: string]: any;
@@ -83,10 +106,13 @@ export const logger = {
       };
       
       // do the actual report to Google Cloud Error Reporting
-      (errors as any).report(error, {
-        user: metadata.userId || metadata.pageId || 'unknown',
-        context: JSON.stringify(metadata),
-      });
+      const errorReporting = getErrorReporting();
+      if (errorReporting) {
+        errorReporting.report(error, {
+          user: metadata.userId || metadata.pageId || 'unknown',
+          context: JSON.stringify(metadata),
+        });
+      }
     } else if (error) {
       errorData.errorDetails = error;
     }
@@ -116,10 +142,13 @@ export const logger = {
       };
       
       // Report critical errors with higher priority
-      (errors as any).report(error, {
-        user: metadata.userId || metadata.pageId || 'unknown',
-        context: JSON.stringify({ ...metadata, priority: 'CRITICAL' }),
-      });
+      const errorReporting = getErrorReporting();
+      if (errorReporting) {
+        errorReporting.report(error, {
+          user: metadata.userId || metadata.pageId || 'unknown',
+          context: JSON.stringify({ ...metadata, priority: 'CRITICAL' }),
+        });
+      }
     }
 
     console.error(JSON.stringify(errorData));
