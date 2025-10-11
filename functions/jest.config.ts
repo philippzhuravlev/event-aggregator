@@ -1,4 +1,6 @@
-module.exports = {
+import type { Config } from '@jest/types';
+
+const config: Config.InitialOptions = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>'],
@@ -15,6 +17,7 @@ module.exports = {
     '!**/node_modules/**',
     '!**/lib/**',
     '!**/coverage/**',
+    '!jest.config.ts',
     '!jest.config.js'
   ],
   coverageThreshold: {
@@ -27,4 +30,6 @@ module.exports = {
   },
   moduleFileExtensions: ['ts', 'js', 'json']
 };
+
+export default config;
 

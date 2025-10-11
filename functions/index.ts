@@ -193,7 +193,7 @@ export const weeklyEventCleanup = onSchedule({
  * Returns http status code "200" if healthy, "503" if unhealthy
  * Checks: Firestore, Storage, Secret Manager connectivity
  */
-export const health = onRequest({
+export const checkHealth = onRequest({
   region: region,
   secrets: [],
 }, async (req, res) => {

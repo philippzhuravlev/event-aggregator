@@ -10,9 +10,9 @@
     "start": "npm run shell",
     "deploy": "npm run build && firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test": "jest",
+    "test": "jest --maxWorkers=50%",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
+    "test:coverage": "jest --coverage --maxWorkers=50%",
     "test:verbose": "jest --verbose"
   },
   "engines": {
@@ -37,6 +37,7 @@
     "firebase-functions-test": "^3.4.1",
     "jest": "^30.2.0",
     "ts-jest": "^29.4.5",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   },
   "private": true

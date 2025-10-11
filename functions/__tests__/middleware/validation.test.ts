@@ -1,4 +1,4 @@
-import { isAllowedOrigin, validateOAuthState, sanitizeErrorMessage } from '../../middleware/validation';
+import { isAllowedOrigin, validateOAuthState, validateOAuthCallback, handleCORS, sanitizeErrorMessage } from '../../middleware/validation';
 
 describe('validation middleware', () => {
   describe('isAllowedOrigin', () => {
@@ -57,6 +57,170 @@ describe('validation middleware', () => {
 
       expect(result.isValid).toBe(false);
       expect(result.error).toBe('Invalid state parameter format');
+    });
+  });
+
+  describe('validateOAuthCallback', () => {
+    it('should validate callback with code', () => {
+      const query = { code: 'valid-code-123' };
+      const result = validateOAuthCallback(query);
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('should validate callback with error param', () => {
+      const query = { error: 'access_denied' };
+      const result = validateOAuthCallback(query);
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('should reject callback without code or error', () => {
+      const query = {};
+      const result = validateOAuthCallback(query);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Missing authorization code or error parameter');
+    });
+
+    it('should reject invalid code format', () => {
+      const query = { code: 'invalid code with spaces!' };
+      const result = validateOAuthCallback(query);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid authorization code format');
+    });
+
+    it('should validate code with allowed characters', () => {
+      const query = { code: 'valid-code_123.abc~xyz' };
+      const result = validateOAuthCallback(query);
+
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should validate state if present', () => {
+      const state = encodeURIComponent('http://localhost:5173');
+      const query = { code: 'abc123', state };
+      const result = validateOAuthCallback(query);
+
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should reject invalid state', () => {
+      const query = { code: 'abc123', state: 'invalid-url' };
+      const result = validateOAuthCallback(query);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid state parameter format');
+    });
+
+    it('should validate without state parameter', () => {
+      const query = { code: 'abc123' };
+      const result = validateOAuthCallback(query);
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+  });
+
+  describe('handleCORS', () => {
+    let mockRes: any;
+
+    beforeEach(() => {
+      mockRes = {
+        set: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+    });
+
+    it('should set CORS headers for allowed origin', () => {
+      const mockReq = {
+        headers: { origin: 'http://localhost:5173' },
+        method: 'POST',
+      } as any;
+
+      const result = handleCORS(mockReq, mockRes);
+
+      expect(result).toBe(true);
+      expect(mockRes.set).toHaveBeenCalledWith('Access-Control-Allow-Origin', 'http://localhost:5173');
+      expect(mockRes.set).toHaveBeenCalledWith('Access-Control-Allow-Credentials', 'true');
+      expect(mockRes.set).toHaveBeenCalledWith('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    });
+
+    it('should use referer as fallback for origin', () => {
+      const mockReq = {
+        headers: { referer: 'http://localhost:5173/page' },
+        method: 'GET',
+      } as any;
+
+      const result = handleCORS(mockReq, mockRes);
+
+      expect(result).toBe(true);
+      expect(mockRes.set).toHaveBeenCalledWith('Access-Control-Allow-Origin', 'http://localhost:5173');
+    });
+
+    it('should reject unauthorized origin', () => {
+      const mockReq = {
+        headers: { origin: 'https://evil-site.com' },
+        method: 'POST',
+        path: '/api/sync',
+      } as any;
+
+      const result = handleCORS(mockReq, mockRes);
+
+      expect(result).toBe(true);
+      expect(mockRes.set).not.toHaveBeenCalled();
+    });
+
+    it('should handle missing origin gracefully', () => {
+      const mockReq = {
+        headers: {},
+        method: 'POST',
+      } as any;
+
+      const result = handleCORS(mockReq, mockRes);
+
+      expect(result).toBe(true);
+      expect(mockRes.set).not.toHaveBeenCalled();
+    });
+
+    it('should handle invalid origin URL', () => {
+      const mockReq = {
+        headers: { origin: 'not-a-valid-url' },
+        method: 'POST',
+      } as any;
+
+      const result = handleCORS(mockReq, mockRes);
+
+      expect(result).toBe(true);
+    });
+
+    it('should handle OPTIONS preflight request', () => {
+      const mockReq = {
+        headers: { origin: 'http://localhost:5173' },
+        method: 'OPTIONS',
+      } as any;
+
+      const result = handleCORS(mockReq, mockRes);
+
+      expect(result).toBe(false);
+      expect(mockRes.status).toHaveBeenCalledWith(204);
+      expect(mockRes.send).toHaveBeenCalledWith('');
+    });
+
+    it('should handle non-OPTIONS request normally', () => {
+      const mockReq = {
+        headers: { origin: 'http://localhost:5173' },
+        method: 'GET',
+      } as any;
+
+      const result = handleCORS(mockReq, mockRes);
+
+      expect(result).toBe(true);
+      expect(mockRes.status).not.toHaveBeenCalled();
     });
   });
 
