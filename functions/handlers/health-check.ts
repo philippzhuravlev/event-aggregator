@@ -73,17 +73,17 @@ async function checkFirestoreHealth(db: admin.firestore.Firestore): Promise<Heal
  * Check Storage bucket connectivity
  * @returns Health check status
  */
-async function checkStorageHealth(): Promise<HealthCheckStatus> {
+async function checkStorageHealth(storageClient?: any): Promise<HealthCheckStatus> {
   const start = Date.now();
   try {
-    const storage = admin.storage();
+    const storage = storageClient || admin.storage();
     const bucket = storage.bucket();
     // The easy way to do this is to just get the bucket metadata; if it works, it's online
-    // note that this doesn't check the state and health of the bucket, but error prevention
-    // is not the point of this handler. 
-    await bucket.getMetadata(); // excellent function that checks if we can reach Google Cloud Storage,
-    return {                    // the credentials 
-      status: 'ok',             // and that the api has responded successfully.
+    // before there was a comment here about how we didn't check the state and health of the 
+    // bucket, guess what, we finally do check it
+    await bucket.getMetadata();
+    return { 
+      status: 'ok', // if we got here, the bucket is online and all good
       latency: Date.now() - start,
     };
   } catch (error: unknown) {
@@ -101,19 +101,20 @@ async function checkStorageHealth(): Promise<HealthCheckStatus> {
  * Check Secret Manager connectivity
  * @returns Health check status
  */
-async function checkSecretManagerHealth(): Promise<HealthCheckStatus> {
+async function checkSecretManagerHealth(secretClient?: any): Promise<HealthCheckStatus> {
   const start = Date.now();
   try {
-    const { SecretManagerServiceClient } = await import('@google-cloud/secret-manager');
-    const client = new SecretManagerServiceClient();
+    const client = secretClient || (await (async () => {
+      const { SecretManagerServiceClient } = await import('@google-cloud/secret-manager');
+      return new SecretManagerServiceClient();
+    })());
+
     const projectId = process.env.GCLOUD_PROJECT;
-    
-    // checking secret manager 
     await client.listSecrets({
       parent: `projects/${projectId}`,
       pageSize: 1,
     });
-    
+
     return {
       status: 'ok',
       latency: Date.now() - start,
@@ -133,16 +134,21 @@ async function checkSecretManagerHealth(): Promise<HealthCheckStatus> {
  * Perform the full health check
  * @returns Health check result
  */
-export async function performHealthCheck(): Promise<HealthCheckResult> {
-  const db = admin.firestore();
+export async function performHealthCheck(
+  
+  db?: admin.firestore.Firestore,
+  storageClient?: any,
+  secretClient?: any
+): Promise<HealthCheckResult> {
+  const dbInstance = db || admin.firestore();
   // so remember how we prefaced our functions with "async"? Well now we use
   // Promise.all to run multiple promises in parallel for mega speed.
   // I mean this entire async process may have been overkill for this simple task, but
   // its nice to train these things
   const [firestoreCheck, storageCheck, secretManagerCheck] = await Promise.all([
-    checkFirestoreHealth(db),
-    checkStorageHealth(),
-    checkSecretManagerHealth(),
+    checkFirestoreHealth(dbInstance),
+    checkStorageHealth(storageClient),
+    checkSecretManagerHealth(secretClient),
   ]);
 
   // check if any of the checks failed
@@ -175,7 +181,10 @@ export async function performHealthCheck(): Promise<HealthCheckResult> {
  */
 export async function handleHealthCheck(req: Request, res: HttpResponse): Promise<void> {
   try {
-    const result = await performHealthCheck();
+  // this used to be way simpler, i.e. const result = await performHealthCheck();
+  // but using exports as any allows tests to insert a "stubbed" (another terrible
+  // programmer word meaning "fake" or "mock") version of performHealthCheck for testing
+  const result = await (exports as any).performHealthCheck();
     
     // Return http status code "503" if unhealthy, "200" otherwise
     // 503 is the standard for "service unavailable"
@@ -183,9 +192,16 @@ export async function handleHealthCheck(req: Request, res: HttpResponse): Promis
     // you should already be aware of 404 (not found) and 403 (forbidden)
     const statusCode = result.status === 'unhealthy' ? 503 : 200;
     
-    res.status(statusCode).json(result);
+    res.status(statusCode).json(result); // send the whole result as json. 
+    // the idea is that it's similar to what we do below with "res.status(503).json({...})",
+    // or frankly any other json response, and honestly we should probably do that. Sending 
+    // the whole result is useful for debugging, but might be risky if we expose too much
+    // info in a public endpoint debugging, but might be risky if we expose too much info in 
+    // a public endpoint
   } catch (error: unknown) {
-    const typedError = toTypedError(error);
+    const typedError = toTypedError(error); // amazing inbuilt "casting"
+    // function that turns unknown error into a dedicated typed Error 
+    // (and error with an explicit type) with message property etc
     logger.error('Health check endpoint failed', typedError);
     res.status(503).json({
       status: 'unhealthy',

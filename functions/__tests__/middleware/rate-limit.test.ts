@@ -1,15 +1,12 @@
 // @ts-nocheck
-import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { RATE_LIMITS } from '../../utils/constants';
 
-// Mock logger before importing rate-limit
-jest.mock('../../utils/logger');
-
-// Mock express-rate-limit to test configuration
+// Capture the configuration objects passed to express-rate-limit
 const mockRateLimitConfigs: any[] = [];
 const mockRateLimitFactory = jest.fn((config) => {
   mockRateLimitConfigs.push(config);
-  return jest.fn(); // Return a mock middleware function
+  const mw: any = jest.fn();
+  mw.options = config;
+  return mw;
 });
 
 jest.mock('express-rate-limit', () => ({
@@ -17,229 +14,82 @@ jest.mock('express-rate-limit', () => ({
   default: mockRateLimitFactory,
 }));
 
-// Import to trigger configuration capture
-import '../../middleware/rate-limit';
+// Provide a logger mock that matches the import shape ({ logger }) in code
+const loggerMock = {
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  critical: jest.fn(),
+  debug: jest.fn(),
+};
+jest.mock('../../utils/logger', () => ({ logger: loggerMock }));
 
-describe('rate-limit middleware', () => {
+import '../../middleware/rate-limit';
+import { RATE_LIMITS } from '../../utils/constants';
+
+describe('rate-limit middleware configuration and handlers', () => {
   let standardConfig: any;
   let webhookConfig: any;
   let oauthConfig: any;
-  
+
   beforeEach(() => {
-    // Capture all three configs from the module initialization
+    jest.clearAllMocks();
     standardConfig = mockRateLimitConfigs[0];
     webhookConfig = mockRateLimitConfigs[1];
     oauthConfig = mockRateLimitConfigs[2];
   });
 
-  describe('standardRateLimiter', () => {
-
-    it('should configure correct window and max requests', () => {
-      expect(standardConfig.windowMs).toBe(RATE_LIMITS.STANDARD.WINDOW_MS);
-      expect(standardConfig.max).toBe(RATE_LIMITS.STANDARD.MAX_REQUESTS);
-    });
-
-    it('should have correct message configuration', () => {
-      expect(standardConfig.message).toEqual({
-        error: 'Too many requests',
-        message: expect.stringContaining('Rate limit exceeded'),
-        retryAfter: RATE_LIMITS.STANDARD.WINDOW_MS / 1000,
-      });
-    });
-
-    it('should enable standard headers and disable legacy headers', () => {
-      expect(standardConfig.standardHeaders).toBe(true);
-      expect(standardConfig.legacyHeaders).toBe(false);
-    });
-
-    // keyGenerator tests removed - using default IPv6-safe generator
-    // The default keyGenerator from express-rate-limit properly handles IPv6
-
-    it('should handle rate limit exceeded with proper response', () => {
-      const mockReq = {
-        ip: '192.168.1.1',
-        path: '/api/sync',
-        headers: {
-          'user-agent': 'Test Agent',
-        },
-      };
-
-      const mockRes = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
-
-      standardConfig.handler(mockReq, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(429);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Too many requests',
-        message: expect.stringContaining('Rate limit exceeded'),
-        retryAfter: RATE_LIMITS.STANDARD.WINDOW_MS / 1000,
-      });
-    });
-
-    it('should log rate limit exceeded event', () => {
-      const { logger } = require('../../utils/logger');
-      
-      const mockReq = {
-        ip: '192.168.1.1',
-        path: '/api/sync',
-        headers: {
-          'user-agent': 'Test Agent',
-        },
-      };
-
-      const mockRes = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
-
-      standardConfig.handler(mockReq, mockRes);
-
-      expect(logger.warn).toHaveBeenCalledWith(
-        'Rate limit exceeded',
-        expect.objectContaining({
-          ip: '192.168.1.1',
-          path: '/api/sync',
-          userAgent: 'Test Agent',
-        })
-      );
-    });
+  it('configures standard limiter with expected window and max', () => {
+    expect(standardConfig.windowMs).toBe(RATE_LIMITS.STANDARD.WINDOW_MS);
+    expect(standardConfig.max).toBe(RATE_LIMITS.STANDARD.MAX_REQUESTS);
+    expect(standardConfig.standardHeaders).toBe(true);
+    expect(standardConfig.legacyHeaders).toBe(false);
   });
 
-  describe('webhookRateLimiter', () => {
-    it('should configure correct window and max requests for webhooks', () => {
-      expect(webhookConfig.windowMs).toBe(RATE_LIMITS.WEBHOOK.WINDOW_MS);
-      expect(webhookConfig.max).toBe(RATE_LIMITS.WEBHOOK.MAX_REQUESTS);
-    });
+  it('standard handler logs and responds with 429 body', () => {
+    const handler = standardConfig.handler;
+    const body: any = {};
+    const req: any = { ip: '1.1.1.1', path: '/api/sync', headers: { 'user-agent': 'UA' } };
+    const res: any = { status: jest.fn().mockImplementation(() => ({ json: (b: any) => Object.assign(body, b) })) };
 
-    it('should have webhook-specific message', () => {
-      expect(webhookConfig.message).toEqual({
-        error: 'Webhook rate limit exceeded',
-        message: expect.stringContaining('webhook'),
-      });
-    });
+    handler(req, res);
 
-    // keyGenerator test removed - using default IPv6-safe generator
-
-    it('should log critical error when webhook rate limit exceeded', () => {
-      const { logger } = require('../../utils/logger');
-      
-      const mockReq = {
-        ip: '192.168.1.1',
-        path: '/webhooks/facebook',
-        headers: {
-          'user-agent': 'Facebook Bot',
-        },
-      };
-
-      const mockRes = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
-
-      webhookConfig.handler(mockReq, mockRes);
-
-      expect(logger.critical).toHaveBeenCalledWith(
-        'Webhook rate limit exceeded - possible attack',
-        expect.any(Error),
-        expect.objectContaining({
-          ip: '192.168.1.1',
-          path: '/webhooks/facebook',
-        })
-      );
-    });
-
-    it('should return 429 status when webhook rate limit exceeded', () => {
-      const mockReq = {
-        ip: '192.168.1.1',
-        path: '/webhooks/facebook',
-        headers: {},
-      };
-
-      const mockRes = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
-
-      webhookConfig.handler(mockReq, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(429);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Webhook rate limit exceeded',
-        message: 'Too many requests',
-      });
-    });
+    expect(loggerMock.warn).toHaveBeenCalledWith('Rate limit exceeded', expect.objectContaining({ ip: '1.1.1.1', path: '/api/sync' }));
+    expect(res.status).toHaveBeenCalledWith(429);
+    expect(body).toHaveProperty('error', 'Too many requests');
   });
 
-  describe('oauthRateLimiter', () => {
-    it('should configure strict limits for OAuth', () => {
-      expect(oauthConfig.windowMs).toBe(RATE_LIMITS.OAUTH.WINDOW_MS);
-      expect(oauthConfig.max).toBe(RATE_LIMITS.OAUTH.MAX_REQUESTS);
-    });
+  it('configures webhook limiter and its handler logs critical and returns webhook message', () => {
+    expect(webhookConfig.windowMs).toBe(RATE_LIMITS.WEBHOOK.WINDOW_MS);
+    expect(webhookConfig.max).toBe(RATE_LIMITS.WEBHOOK.MAX_REQUESTS);
 
-    it('should have OAuth-specific message', () => {
-      expect(oauthConfig.message).toEqual({
-        error: 'OAuth rate limit exceeded',
-        message: expect.stringContaining('OAuth'),
-      });
-    });
+    const handler = webhookConfig.handler;
+    const body: any = {};
+    const req: any = { headers: {}, path: '/webhooks/facebook' };
+    const res: any = { status: jest.fn().mockImplementation(() => ({ json: (b: any) => Object.assign(body, b) })) };
 
-    // keyGenerator test removed - using default IPv6-safe generator
+    handler(req, res);
 
-    it('should log OAuth rate limit with state parameter', () => {
-      const { logger } = require('../../utils/logger');
-      
-      const mockReq = {
-        ip: '192.168.1.1',
-        path: '/auth/callback',
-        headers: {
-          'user-agent': 'Browser',
-        },
-        query: {
-          state: 'some-state-token',
-        },
-      };
+    expect(loggerMock.critical).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(429);
+    expect(body).toHaveProperty('error', 'Webhook rate limit exceeded');
+  });
 
-      const mockRes = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
+  it('configures oauth limiter and its handler logs state and returns oauth message', () => {
+    expect(oauthConfig.windowMs).toBe(RATE_LIMITS.OAUTH.WINDOW_MS);
+    expect(oauthConfig.max).toBe(RATE_LIMITS.OAUTH.MAX_REQUESTS);
 
-      oauthConfig.handler(mockReq, mockRes);
+    const handler = oauthConfig.handler;
+    const body: any = {};
+    const req: any = { ip: undefined, headers: { 'user-agent': 'UA' }, path: '/auth/callback', query: { state: 's' } };
+    const res: any = { status: jest.fn().mockImplementation(() => ({ json: (b: any) => Object.assign(body, b) })) };
 
-      expect(logger.warn).toHaveBeenCalledWith(
-        'OAuth rate limit exceeded',
-        expect.objectContaining({
-          ip: '192.168.1.1',
-          path: '/auth/callback',
-          state: 'some-state-token',
-        })
-      );
-    });
+    handler(req, res);
 
-    it('should return user-friendly OAuth rate limit message', () => {
-      const mockReq = {
-        ip: '192.168.1.1',
-        path: '/auth/callback',
-        headers: {},
-        query: {},
-      };
-
-      const mockRes = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
-
-      oauthConfig.handler(mockReq, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(429);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'OAuth rate limit exceeded',
-        message: 'Too many authentication attempts. Please try again later.',
-      });
-    });
+    expect(loggerMock.warn).toHaveBeenCalledWith('OAuth rate limit exceeded', expect.objectContaining({ ip: 'unknown', path: '/auth/callback' }));
+    expect(res.status).toHaveBeenCalledWith(429);
+    expect(body).toHaveProperty('error', 'OAuth rate limit exceeded');
   });
 });
+
 

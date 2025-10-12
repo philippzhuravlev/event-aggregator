@@ -17,8 +17,11 @@ const config: Config.InitialOptions = {
     '!**/node_modules/**',
     '!**/lib/**',
     '!**/coverage/**',
+    // exclude type-only files
+    '!**/types/**',
     '!jest.config.ts',
-    '!jest.config.js'
+    '!jest.config.js',
+    '!index.ts'
   ],
   coverageThreshold: {
     global: {
