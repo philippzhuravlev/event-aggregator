@@ -3,7 +3,7 @@
     "module": "Node16",
     "moduleResolution": "Node16",
     "target": "ES2022",
-  "isolatedModules": true,
+    "isolatedModules": true,
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "outDir": "lib",
