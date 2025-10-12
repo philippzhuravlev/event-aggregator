@@ -5,14 +5,21 @@ import { getPageToken, checkTokenExpiry, markTokenExpired } from '../services/se
 import { getActivePages, batchWriteEvents } from '../services/firestore-service';
 import { processEventCoverImage, initializeStorageBucket } from '../services/image-service';
 import { normalizeEvent } from '../utils/event-normalizer';
-import { ERROR_CODES } from '../utils/constants';
+import { ERROR_CODES, TOKEN_REFRESH } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { EventBatchItem, SyncResult, ExpiringToken } from '../types';
 
-// NB: "Handlers" like execute business logic. Meanwhile "Services" connect 
+// NB: "Handlers" like execute business logic; they "do something", like
+// // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
-// here we use a lot of dedicated service scripts from our facebook service 
-// in /functions/services
+
+// Syncing events means getting events from facebook and putting them
+// into our firestore database. We have two ways of doing this: manually
+// via an http endpoint (handleManualSync) or automatically via a cron
+// job (handleScheduledSync). Both use the same underlying function
+// syncAllPageEvents which does the actual work, which also includes 
+// processing event cover images and normalizing event data - could have
+// been split into separate functions honestly
 
 /**
  * Sync events, simple as. We have a manual and cron version
@@ -50,7 +57,7 @@ export async function syncAllPageEvents(): Promise<SyncResult> {
   for (const page of pages) { 
     try {
       // Check if token is expiring soon (within 7 days)
-      const tokenStatus = await checkTokenExpiry(db, page.id, 7);
+  const tokenStatus = await checkTokenExpiry(db, page.id, TOKEN_REFRESH.WARNING_DAYS);
       if (tokenStatus.isExpiring) {
         logger.warn('Token expiring soon', {
           pageId: page.id,

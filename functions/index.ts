@@ -99,6 +99,42 @@ export const dailyTokenMonitoring = onSchedule({
   await handleScheduledTokenMonitoring();
 });
 
+// Scheduled token refresh (daily at 03:00 UTC) - automatically refresh tokens nearing expiry
+const FACEBOOK_APP_ID_SECRET = defineSecret('FACEBOOK_APP_ID');
+const FACEBOOK_APP_SECRET_SECRET = defineSecret('FACEBOOK_APP_SECRET');
+const MAIL_SMTP_HOST = defineSecret('MAIL_SMTP_HOST');
+const MAIL_SMTP_USER = defineSecret('MAIL_SMTP_USER');
+const MAIL_SMTP_PASS = defineSecret('MAIL_SMTP_PASS');
+
+export const dailyTokenRefresh = onSchedule({
+  region: region,
+  schedule: 'every day 03:00',
+  timeZone: 'Etc/UTC',
+  secrets: [
+    FACEBOOK_APP_ID_SECRET, 
+    FACEBOOK_APP_SECRET_SECRET,
+    MAIL_SMTP_HOST,
+    MAIL_SMTP_USER,
+    MAIL_SMTP_PASS,
+  ],
+}, async () => {
+  // yeah this means that we're importing this function only when needed, something programmers
+  // call "lazy loading" or if they're full of themselves (like me), "dynamic import". It's 
+  // actually quite helpful because it's efficient and prevents "circular dependencies" issues
+  const { handleScheduledTokenRefresh } = await import('./handlers/token-refresh.js');
+  await handleScheduledTokenRefresh(
+    FACEBOOK_APP_ID_SECRET.value(), 
+    FACEBOOK_APP_SECRET_SECRET.value(),
+    {
+      host: MAIL_SMTP_HOST.value(),
+      user: MAIL_SMTP_USER.value(),
+      pass: MAIL_SMTP_PASS.value(),
+      port: 587, // Gmail SMTP with STARTTLS
+      from: 'no-reply@dtuevent.dk', // Your desired from address
+    }
+  );
+});
+
 /**
  * Facebook OAuth callback endpoint
  * Handles redirects from Facebook after user authorization

@@ -4,11 +4,11 @@ import { checkTokenExpiry } from '../services/secret-manager';
 import { getActivePages } from '../services/firestore-service';
 import { logger } from '../utils/logger';
 import { TokenHealthReport, PageTokenInfo } from '../types';
+import { TOKEN_REFRESH } from '../utils/constants';
 
-// NB: "Handlers" like execute business logic. Meanwhile "Services" connect 
+// NB: "Handlers" like execute business logic; they "do something", like
+// // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
-// here we use a lot of dedicated service scripts from our facebook service 
-// in /functions/services
 
 // This handler handles "token health", a fancy work for anything related
 // to token renewing etc etc. note there might be some overlap with "health-check.ts"
@@ -34,7 +34,7 @@ export async function checkAllTokenHealth(): Promise<TokenHealthReport> {
 
   for (const page of pages) {
     try {
-      const status = await checkTokenExpiry(db, page.id, 7); // 7 days warning
+  const status = await checkTokenExpiry(db, page.id, TOKEN_REFRESH.WARNING_DAYS); // configured warning days
       
       const pageInfo: PageTokenInfo = {
         pageId: page.id,

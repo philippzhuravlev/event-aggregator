@@ -3,10 +3,9 @@ import { Request } from 'firebase-functions/v2/https';
 import { logger } from '../utils/logger';
 import { HttpResponse, toTypedError } from '../types/handlers';
 
-// NB: "Handlers" execute business logic. "Services" connect something
-// an existing service, e.g. facebook or google secrets manager
-// here we use a lot of dedicated service scripts from our facebook service 
-// in /functions/services
+// NB: "Handlers" like execute business logic; they "do something", like
+// // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
+// something to an existing service, e.g. facebook or google secrets manager
 
 // This handler does "health check", so just checking that the services are indeed
 // running. One might ask if this isn't related to "token-minotir.ts" handler, and 

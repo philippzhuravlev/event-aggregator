@@ -3,10 +3,9 @@ import { Request } from 'firebase-functions/v2/https';
 import { CleanupResult, CleanupOptions } from '../types';
 import { logger } from '../utils/logger';
 
-// NB: "Handlers" execute business logic. "Services" connect something
-// an existing service, e.g. facebook or google secrets manager
-// here we use a lot of dedicated service scripts from our facebook service 
-// in /functions/services
+// NB: "Handlers" like execute business logic; they "do something", like
+// // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
+// something to an existing service, e.g. facebook or google secrets manager
 
 // This handler cleans up old events to prevent database bloat
 // events older than X days are deleted (or archived)

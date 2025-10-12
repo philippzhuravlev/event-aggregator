@@ -102,7 +102,7 @@ export const WEBHOOK = {
   ENDPOINT_PATH: '/webhooks/facebook',
 };
 
-// Cleanup Configuration
+// Cleanup, i.e. deleting old events
 export const CLEANUP = {
   DAYS_TO_KEEP: 90, // Keep events for 90 days
   SCHEDULE: 'every sunday 03:00', // Run weekly at 3 AM on Sundays
@@ -111,7 +111,15 @@ export const CLEANUP = {
   BATCH_SIZE: 500, // Firestore batch limit
 };
 
-// Rate Limiting Configuration
+// Token refresh
+export const TOKEN_REFRESH = {
+  SCHEDULE: 'every day 03:00', // when the scheduled refresh runs
+  WARNING_DAYS: 7, // days before expiry to attempt refresh
+  DEFAULT_EXPIRES_DAYS: 60, // when storing refreshed token assume 60 days validity
+  ALERT_EMAIL: 'philippzhuravlev@gmail.com', // who to alert on failures
+};
+
+// Rate Limiting, i.e. limiting how often http endpoints can be called
 export const RATE_LIMITS = {
   // Standard endpoints (sync, token check, cleanup)
   STANDARD: {

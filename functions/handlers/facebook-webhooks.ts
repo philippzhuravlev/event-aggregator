@@ -9,10 +9,9 @@ import { processEventCoverImage, initializeStorageBucket } from '../services/ima
 import { normalizeEvent } from '../utils/event-normalizer';
 import { logger } from '../utils/logger';
 
-// NB: "Handlers" execute business logic. "Services" connect something
-// an existing service, e.g. facebook or google secrets manager
-// here we use a lot of dedicated service scripts from our facebook service 
-// in /functions/services
+// NB: "Handlers" like execute business logic; they "do something", like
+// // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
+// something to an existing service, e.g. facebook or google secrets manager
 
 // What this handler does is that it receives real-time notifications from Facebook when events change
 // instead of polling every 12 hours. This is done thru facebook's dedicated Facebook App Webhooks service

@@ -9,10 +9,9 @@ import { URLS, ERROR_CODES } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { EventBatchItem } from '../types';
 
-// NB: "Handlers" execute business logic. "Services" connect something
-// an existing service, e.g. facebook or google secrets manager
-// here we use a lot of dedicated service scripts from our facebook service 
-// in /functions/services
+// NB: "Handlers" like execute business logic; they "do something", like
+// // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
+// something to an existing service, e.g. facebook or google secrets manager
 
 // So handlers "do something", in this case handle the oauth callback from facebook;
 // what this actually means is that you click "connect to facebook" on the web app, which
