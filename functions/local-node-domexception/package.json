@@ -1,0 +1,7 @@
+{
+  "name": "node-domexception",
+  "version": "1.0.0",
+  "description": "Local shim for node-domexception to provide DOMException without deprecation warnings",
+  "main": "index.js",
+  "private": true
+}

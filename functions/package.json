@@ -24,21 +24,28 @@
     "@google-cloud/secret-manager": "^6.1.0",
     "axios": "^1.12.2",
     "express-rate-limit": "^8.1.0",
-    "firebase-admin": "^12.6.0",
+    "firebase-admin": "^13.5.0",
     "firebase-functions": "^6.5.0"
   },
   "devDependencies": {
     "@jest/globals": "^30.2.0",
     "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
-    "@types/node": "^24.7.1",
-    "eslint": "^8.15.0",
+    "@types/node": "^24.7.2",
+    "eslint": "^9.37.0",
     "eslint-config-google": "^0.14.0",
     "firebase-functions-test": "^3.4.1",
     "jest": "^30.2.0",
     "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "punycode": "^2.3.1",
+    "gtoken": "^8.0.0",
+    "test-exclude": "^7.0.1",
+    "node-domexception": "file:./local-node-domexception",
+    "domexception": "file:./local-node-domexception"
   },
   "private": true
 }
