@@ -44,7 +44,7 @@ export function getFileExtension(contentType: string | undefined, originalUrl: s
         return ext === '.jpeg' ? '.jpg' : ext;
       }
     } catch (e) {
-      // Invalid URL, ignore
+      logger.debug('Could not parse original URL for extension fallback', { originalUrl, error: String(e) });
     }
   }
   

@@ -61,8 +61,8 @@ export async function handleOAuthCallback(
         const refererUrl = new URL(req.headers.referer);
         redirectBase = refererUrl.origin;
         logger.debug('Using redirect URL from referer header', { redirectBase });
-      } catch (e) {
-        logger.warn('Failed to parse referer header', { referer: req.headers.referer });
+      } catch (e: any) {
+        logger.warn('Failed to parse referer header', { referer: req.headers.referer, error: e?.message });
       }
     }
     

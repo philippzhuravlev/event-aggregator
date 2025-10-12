@@ -75,7 +75,7 @@ export function validateOAuthState(state: string): OAuthStateValidation {
   } catch (error: any) {
     logger.warn('Invalid state parameter format', { 
       state: state.substring(0, 50), // Log first 50 chars only
-      error: error.message,
+      error: sanitizeErrorMessage(error.message || String(error)),
     });
 
     // state is invalid
@@ -158,8 +158,8 @@ export function handleCORS(req: Request, res: any): boolean {
           path: req.path,
         });
       }
-    } catch (error) {
-      logger.debug('Invalid origin header', { origin });
+    } catch (error: any) {
+      logger.debug('Invalid origin header', { origin, error: sanitizeErrorMessage(error?.message || String(error)) });
     }
   }
 

@@ -97,9 +97,7 @@ export interface PageDocument {
   tokenExpiredAt?: Timestamp;
 }
 
-export interface EventDocument extends NormalizedEvent {
-  // Event as stored in firestore
-}
+export type EventDocument = NormalizedEvent
 
 
 // Service Return Types
