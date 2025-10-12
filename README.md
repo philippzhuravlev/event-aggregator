@@ -70,10 +70,12 @@ Or "TonkaProductions". Note that all contribute code.
 
 ## TODO: Backend
 
-- [ ] Write tests (>80% coverage)
-- [ ] Implement automatic token refresh before expiry
-- [ ] Add pagination to database queries
-- [ ] Optimize images (resize, compress, WebP)
+- [ ] enforce webhook signature verification, sanitize error responses, validate inputs, rate limit headers
+- [ ] centralize token expiry logic
+- [ ] Sanitize our error responses which are currently jsons
+- [ ] add metrics (sync success/failure, token refresh counts) and lightweight health checks for mail + secrets
+- [ ] coverage > 90% (handlers + services)
+- [ ] pagination for large queries, image optimization (resize/compress/WebP)
 
 ## List
 
