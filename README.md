@@ -70,7 +70,6 @@ Or "TonkaProductions". Note that all contribute code.
 
 ## TODO: Backend
 
-- [ ] enforce webhook signature verification, sanitize error responses, validate inputs, rate limit headers
 - [ ] centralize token expiry logic
 - [ ] Sanitize our error responses which are currently jsons
 - [ ] add metrics (sync success/failure, token refresh counts) and lightweight health checks for mail + secrets

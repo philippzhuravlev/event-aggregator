@@ -1,4 +1,4 @@
-import { verifyWebhookSignature, handleWebhookVerification } from '../../handlers/facebook-webhooks';
+import { verifyWebhookSignature, handleWebhookVerification, validateWebhookPayload } from '../../handlers/facebook-webhooks';
 import crypto from 'crypto';
 
 describe('facebook-webhooks', () => {
@@ -119,6 +119,347 @@ describe('facebook-webhooks', () => {
       const result = handleWebhookVerification(query, verifyToken);
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('validateWebhookPayload', () => {
+    it('should validate correct webhook payload', () => {
+      const payload = {
+        object: 'page',
+        entry: [
+          {
+            id: '123456789',
+            time: 1234567890,
+            changes: [
+              {
+                field: 'events',
+                value: {
+                  event_id: 'event_123',
+                  verb: 'create',
+                  page_id: '123456789',
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should reject null payload', () => {
+      const result = validateWebhookPayload(null);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid payload: must be an object');
+    });
+
+    it('should reject non-object payload', () => {
+      const result = validateWebhookPayload('string');
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid payload: must be an object');
+    });
+
+    it('should reject payload with wrong object type', () => {
+      const payload = {
+        object: 'user',
+        entry: [],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid payload: object must be "page"');
+    });
+
+    it('should reject payload with missing entry array', () => {
+      const payload = {
+        object: 'page',
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid payload: entry must be an array');
+    });
+
+    it('should reject payload with non-array entry', () => {
+      const payload = {
+        object: 'page',
+        entry: 'not an array',
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid payload: entry must be an array');
+    });
+
+    it('should reject entry with missing id', () => {
+      const payload = {
+        object: 'page',
+        entry: [
+          {
+            changes: [],
+          },
+        ],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid entry[0]: missing or invalid id');
+    });
+
+    it('should reject entry with non-array changes', () => {
+      const payload = {
+        object: 'page',
+        entry: [
+          {
+            id: '123',
+            changes: 'not an array',
+          },
+        ],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid entry[0]: changes must be an array');
+    });
+
+    it('should reject change with missing field', () => {
+      const payload = {
+        object: 'page',
+        entry: [
+          {
+            id: '123',
+            changes: [
+              {
+                value: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid entry[0].changes[0]: missing or invalid field');
+    });
+
+    it('should reject change with missing value', () => {
+      const payload = {
+        object: 'page',
+        entry: [
+          {
+            id: '123',
+            changes: [
+              {
+                field: 'events',
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid entry[0].changes[0]: missing or invalid value');
+    });
+
+    it('should reject event change with missing event_id', () => {
+      const payload = {
+        object: 'page',
+        entry: [
+          {
+            id: '123',
+            changes: [
+              {
+                field: 'events',
+                value: {
+                  verb: 'create',
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid entry[0].changes[0].value: missing or invalid event_id');
+    });
+
+    it('should reject event change with invalid verb', () => {
+      const payload = {
+        object: 'page',
+        entry: [
+          {
+            id: '123',
+            changes: [
+              {
+                field: 'events',
+                value: {
+                  event_id: 'event_123',
+                  verb: 'invalid_verb',
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain('Invalid entry[0].changes[0].value: invalid verb (must be create/update/delete)');
+    });
+
+    it('should accept valid update verb', () => {
+      const payload = {
+        object: 'page',
+        entry: [
+          {
+            id: '123',
+            changes: [
+              {
+                field: 'events',
+                value: {
+                  event_id: 'event_123',
+                  verb: 'update',
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should accept valid delete verb', () => {
+      const payload = {
+        object: 'page',
+        entry: [
+          {
+            id: '123',
+            changes: [
+              {
+                field: 'events',
+                value: {
+                  event_id: 'event_123',
+                  verb: 'delete',
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should skip validation of non-event fields', () => {
+      const payload = {
+        object: 'page',
+        entry: [
+          {
+            id: '123',
+            changes: [
+              {
+                field: 'feed',
+                value: {
+                  // Non-event field, should not validate event-specific fields
+                  some_data: 'value',
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should handle multiple entries and changes', () => {
+      const payload = {
+        object: 'page',
+        entry: [
+          {
+            id: '123',
+            changes: [
+              {
+                field: 'events',
+                value: {
+                  event_id: 'event_1',
+                  verb: 'create',
+                },
+              },
+              {
+                field: 'events',
+                value: {
+                  event_id: 'event_2',
+                  verb: 'update',
+                },
+              },
+            ],
+          },
+          {
+            id: '456',
+            changes: [
+              {
+                field: 'events',
+                value: {
+                  event_id: 'event_3',
+                  verb: 'delete',
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should collect multiple errors', () => {
+      const payload = {
+        object: 'user', // Wrong object type
+        entry: [
+          {
+            // Missing id
+            changes: 'not an array', // Invalid changes
+          },
+        ],
+      };
+
+      const result = validateWebhookPayload(payload);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(1);
+      expect(result.errors).toContain('Invalid payload: object must be "page"');
+      expect(result.errors).toContain('Invalid entry[0]: missing or invalid id');
+      expect(result.errors).toContain('Invalid entry[0]: changes must be an array');
     });
   });
 });

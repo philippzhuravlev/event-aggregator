@@ -8,13 +8,99 @@ import { batchWriteEvents } from '../services/firestore-service';
 import { processEventCoverImage, initializeStorageBucket } from '../services/image-service';
 import { normalizeEvent } from '../utils/event-normalizer';
 import { logger } from '../utils/logger';
+import { sanitizeErrorMessage } from '../middleware/validation';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
 
 // What this handler does is that it receives real-time notifications from Facebook when events change
-// instead of polling every 12 hours. This is done thru facebook's dedicated Facebook App Webhooks service
+// instead of polling every 12 hours. This is done thru facebook's dedicated Facebook App Webhooks service.
+// A webhook is just a fancy word for an HTTP endpoint that receives POST requests whenever something happens
+// on a page we subscribed to (like event created/updated/deleted). What's sent is a "payload", just a json
+// object with details about what changed. 
+
+/**
+ * Validate webhook payload structure
+ * Ensures the payload conforms to expected Facebook webhook format
+ * @param payload - Webhook payload to validate
+ * @returns Validation result with errors if invalid
+ */
+export function validateWebhookPayload(payload: any): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  // Again, the webhook itself is a POST http endpoint request (sent automatically whenever
+  // something __changes__); what's sent is a "payload", again just a object, this time a 
+  // json with details about what changed. We need to validate that this payload is correct and not some
+  // random stuff or actual malicious links. 
+  // This method right here is later used by our "handler", the part that actually "does something"
+
+  // Check if payload exists
+  if (!payload || typeof payload !== 'object') {
+    errors.push('Invalid payload: must be an object');
+    return { isValid: false, errors };
+  }
+
+  // Check object type
+  if (payload.object !== 'page') { // the payload must be of the type "page"
+    errors.push('Invalid payload: object must be "page"');
+  }
+
+  // Check entry array
+  // the "entry" is a specific function inside our helpful payload object
+  // that's just an array of changes that happened
+  if (!Array.isArray(payload.entry)) { 
+    errors.push('Invalid payload: entry must be an array');
+    return { isValid: false, errors };
+  }
+
+  // Validate each entry
+  // Pretty straightforward. Because the payload is just an object, we can
+  // for loop through each entr/field/method and validate it that way
+  for (let i = 0; i < payload.entry.length; i++) {
+    const entry = payload.entry[i];
+    
+    if (!entry.id || typeof entry.id !== 'string') {
+      errors.push(`Invalid entry[${i}]: missing or invalid id`);
+    }
+    
+    if (!Array.isArray(entry.changes)) {
+      errors.push(`Invalid entry[${i}]: changes must be an array`);
+      continue;
+    }
+
+    // validates only changes
+    for (let j = 0; j < entry.changes.length; j++) {
+      const change = entry.changes[j];
+      
+      if (!change.field || typeof change.field !== 'string') {
+        errors.push(`Invalid entry[${i}].changes[${j}]: missing or invalid field`);
+      }
+      
+      if (!change.value || typeof change.value !== 'object') {
+        errors.push(`Invalid entry[${i}].changes[${j}]: missing or invalid value`);
+        continue;
+      }
+
+      // validate only event changes
+      if (change.field === 'events') {
+        const value = change.value;
+        
+        if (!value.event_id || typeof value.event_id !== 'string') {
+          errors.push(`Invalid entry[${i}].changes[${j}].value: missing or invalid event_id`);
+        }
+        
+        if (!value.verb || !['create', 'update', 'delete'].includes(value.verb)) {
+          errors.push(`Invalid entry[${i}].changes[${j}].value: invalid verb (must be create/update/delete)`);
+        }
+      }
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+}
 
 /**
  * Verify webhook signature to ensure request is from Facebook
@@ -226,12 +312,16 @@ async function handleEventChange(
       verb,
       pageId,
     });
+    
+    // Sanitize error message before storing in result
+    const sanitizedReason = sanitizeErrorMessage(error.message || String(error));
+    
     return {
       eventId,
       verb,
       pageId,
       status: 'failed',
-      reason: error.message,
+      reason: sanitizedReason,
     };
   }
 }
@@ -318,6 +408,9 @@ export async function handleFacebookWebhook(
   appSecret: string,
   verifyToken: string
 ): Promise<void> {
+  // The method above this one was just for validating the payload and signature. 
+  // This time, we're actually "doing something" - a handler - which uses the methods above
+
   // GET request - webhook verification
   if (req.method === 'GET') {
     const challenge = handleWebhookVerification(
@@ -328,37 +421,67 @@ export async function handleFacebookWebhook(
     if (challenge) {
       res.status(200).send(challenge);
     } else {
-      res.status(403).json({ error: 'Verification failed' });
+      // Sanitized error response - don't reveal verification details
+      res.status(403).json({ error: 'Forbidden' });
     }
     return;
   }
 
   // POST request - webhook event
   if (req.method === 'POST') {
-    // verify signature
+    // Step 1: Verify signature
+    // crucial. A signature here is the "code" that facebook sends to verify that it's
+    // indeed from facebook, and not somebody else. It's sent thru the http headers, 
+    // which is a special part of the http system ("protocol") that usually contains metadata
+    // about the request itself, like who sent it, when, etc. We're just using one of
+    // those headers to verify the request is legit thru this signaature
     const signature = req.headers['x-hub-signature-256'] as string | undefined;
     const rawBody = req.rawBody?.toString() || JSON.stringify(req.body);
     
     if (!verifyWebhookSignature(rawBody, signature, appSecret)) {
-      logger.warn('Webhook signature verification failed');
-      res.status(403).json({ error: 'Invalid signature' });
+      logger.warn('Webhook signature verification failed', {
+        hasSignature: !!signature,
+        bodyLength: rawBody.length,
+      });
+      // here the error is reworked not to show any details for security; it's been "sanitized"
+      res.status(403).json({ error: 'Forbidden' });
       return;
     }
 
-    // process webhook
+    // Step 2: Validate payload structure
+    const validation = validateWebhookPayload(req.body);
+    if (!validation.isValid) {
+      logger.warn('Invalid webhook payload structure', {
+        errors: validation.errors,
+      });
+      // here the error is reworked not to show any details for security
+      res.status(400).json({ error: 'Bad Request' });
+      return;
+    }
+
+    // Step 3: Process webhook
     try {
       const payload = req.body as FacebookWebhookPayload;
       const result = await processWebhookPayload(payload);
 
+      // Success response - minimal information given over to avoid leaking details
       res.status(200).json({
         success: true,
-        result,
+        processed: result.processed,
+        skipped: result.skipped,
       });
     } catch (error: any) {
-      logger.error('Webhook processing error', error);
+      logger.error('Webhook processing error', error, {
+        entryCount: req.body?.entry?.length || 0,
+      });
+      
+      // here the error has again been reworked not to show any details for security
+      const sanitizedError = sanitizeErrorMessage(error.message || String(error));
       res.status(500).json({
         success: false,
-        error: error.message,
+        error: 'Internal server error',
+        // and lastly, we also sanitize this error here
+        ...(process.env.NODE_ENV === 'development' && { details: sanitizedError }),
       });
     }
     return;
