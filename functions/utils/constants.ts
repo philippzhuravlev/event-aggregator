@@ -119,6 +119,13 @@ export const TOKEN_REFRESH = {
   ALERT_EMAIL: 'philippzhuravlev@gmail.com', // who to alert on failures
 };
 
+// Token expiry util
+export const TOKEN_EXPIRY_CONFIG = {
+  warningDays: TOKEN_REFRESH.WARNING_DAYS,
+  defaultExpiresDays: TOKEN_REFRESH.DEFAULT_EXPIRES_DAYS,
+  alertEmail: TOKEN_REFRESH.ALERT_EMAIL,
+} as const;
+
 // Rate Limiting, i.e. limiting how often http endpoints can be called
 export const RATE_LIMITS = {
   // Standard endpoints (sync, token check, cleanup)

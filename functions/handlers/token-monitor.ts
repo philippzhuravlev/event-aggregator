@@ -4,7 +4,7 @@ import { checkTokenExpiry } from '../services/secret-manager';
 import { getActivePages } from '../services/firestore-service';
 import { logger } from '../utils/logger';
 import { TokenHealthReport, PageTokenInfo } from '../types';
-import { TOKEN_REFRESH } from '../utils/constants';
+import { TOKEN_EXPIRY_CONFIG } from '../utils/constants';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -34,7 +34,7 @@ export async function checkAllTokenHealth(): Promise<TokenHealthReport> {
 
   for (const page of pages) {
     try {
-  const status = await checkTokenExpiry(db, page.id, TOKEN_REFRESH.WARNING_DAYS); // configured warning days
+      const status = await checkTokenExpiry(db, page.id, TOKEN_EXPIRY_CONFIG.warningDays);
       
       const pageInfo: PageTokenInfo = {
         pageId: page.id,

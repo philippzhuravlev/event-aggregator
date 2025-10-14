@@ -3,8 +3,9 @@ import { getActivePages } from '../services/firestore-service';
 import { getPageToken, storePageToken, checkTokenExpiry, markTokenExpired } from '../services/secret-manager';
 import { exchangeForLongLivedToken } from '../services/facebook-api';
 import { logger } from '../utils/logger';
-import { ERROR_CODES, TOKEN_REFRESH } from '../utils/constants';
+import { ERROR_CODES } from '../utils/constants';
 import { sendAlertEmail, createMailTransporter, type MailConfig } from '../services/mail-service';
+import { TOKEN_EXPIRY_CONFIG } from '../utils/constants';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -55,7 +56,7 @@ export async function handleScheduledTokenRefresh(
           continue;
         }
 
-  const expiry = await checkTokenExpiry(db, page.id, TOKEN_REFRESH.WARNING_DAYS);
+        const expiry = await checkTokenExpiry(db, page.id, TOKEN_EXPIRY_CONFIG.warningDays);
         if (!expiry.isExpiring) {
           logger.debug('Token not expiring yet; skipping', { pageId: page.id, daysUntilExpiry: expiry.daysUntilExpiry });
           continue;
@@ -67,7 +68,7 @@ export async function handleScheduledTokenRefresh(
         try {
           const newToken = await exchangeForLongLivedToken(token, appId, appSecret);
           // store new token and update metadata (defaults to configured days)
-          await storePageToken(page.id, newToken, { db, expiresInDays: TOKEN_REFRESH.DEFAULT_EXPIRES_DAYS });
+          await storePageToken(page.id, newToken, { db, expiresInDays: TOKEN_EXPIRY_CONFIG.defaultExpiresDays });
           logger.info('Token refreshed and stored', { pageId: page.id });
         } catch (err: any) {
           // if Facebook reports the token as invalid, we in turn mark it as expired
@@ -84,7 +85,7 @@ export async function handleScheduledTokenRefresh(
             await sendAlertEmail(
               `DTUEvent: Token refresh failed for page ${page.name} (${page.id})`,
               `Failed to refresh token for page ${page.name} (id: ${page.id}). Error: ${err?.message || String(err)}`,
-              TOKEN_REFRESH.ALERT_EMAIL,
+              TOKEN_EXPIRY_CONFIG.alertEmail,
               mailer
             );
           } catch (emailErr: any) {
