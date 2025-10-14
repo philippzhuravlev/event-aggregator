@@ -1,6 +1,7 @@
 import { Request } from 'firebase-functions/v2/https';
-import { ALLOWED_ORIGINS } from '../utils/constants';
+import { ALLOWED_ORIGINS, FACEBOOK_ORIGIN } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { sanitizeErrorMessage } from '../utils/error-sanitizer';
 
 // So in the broadest sense middleware is any software that works between 
 // apps and services etc. Usually that means security, little "checkpoints"
@@ -143,7 +144,7 @@ export function handleCORS(req: Request, res: any): boolean {
       const originUrl = new URL(origin);
       const originBase = originUrl.origin; // e.g. "http://localhost:3000", "dtuevent.dk"
       
-      if (isAllowedOrigin(originBase)) {
+      if (isAllowedOrigin(originBase) || originBase === FACEBOOK_ORIGIN) {
         // set CORS headers for allowed origin. Headers are part of the http "protocol" (system)
         // and are usually hidden from ordinary view, but are passed alongside what you see (the url)
         // the headers below are the classic way of telling the browser that CORS is allowed
@@ -174,22 +175,5 @@ export function handleCORS(req: Request, res: any): boolean {
   }
 
   return true; // continue
-}
-
-/**
- * Sanitize error messages to prevent information leakage
- * @param message - Original error message
- * @returns Sanitized error message
- */
-export function sanitizeErrorMessage(message: string): string {
-  // Self-explanatory. How this actually works is by trying to match text ("regex")
-  // to find sensitive information in the error message and replace it with a placeholder.
-  const sanitized = message
-    .replace(/token[=:]\s*[\w\-._~]+/gi, 'token=REDACTED')
-    .replace(/key[=:]\s*[\w\-._~]+/gi, 'key=REDACTED')
-    .replace(/secret[=:]\s*[\w\-._~]+/gi, 'secret=REDACTED')
-    .replace(/password[=:]\s*[\w\-._~]+/gi, 'password=REDACTED');
-  
-  return sanitized;
 }
 

@@ -1,4 +1,5 @@
-import { isAllowedOrigin, validateOAuthState, validateOAuthCallback, handleCORS, sanitizeErrorMessage } from '../../middleware/validation';
+import { isAllowedOrigin, validateOAuthState, validateOAuthCallback, handleCORS } from '../../middleware/validation';
+import { sanitizeErrorMessage } from '../../utils/error-sanitizer';
 
 describe('validation middleware', () => {
   describe('isAllowedOrigin', () => {

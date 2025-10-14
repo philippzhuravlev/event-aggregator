@@ -1,6 +1,10 @@
+import express from 'express'; // a node js web app "framework" (a bunch of tools in a system)
 import rateLimit from 'express-rate-limit';
-import { RATE_LIMITS } from '../utils/constants';
+import { RATE_LIMITS, TRUSTED_PROXIES } from '../utils/constants';
 import { logger } from '../utils/logger';
+
+const app = express(); // here we create the express app. It's a surprise too that'll help us later with proxies and rate limiting
+app.set('trust proxy', TRUSTED_PROXIES); // and here's what we're using express for, to trust only specific proxies
 
 // So in the broadest sense middleware is any software that works between 
 // apps and services etc. Usually that means security, little "checkpoints"
@@ -27,9 +31,17 @@ export const standardRateLimiter = rateLimit({
   },
   standardHeaders: true, // Return rate limit info into the HTTP `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers. This is used by older browsers.
-  
-  // Use default keyGenerator (automatically handles IPv6)
-  // It uses req.ip which is set by Express and properly handles IPv6
+  keyGenerator: (req) => {
+    // so the key generateor is what identifies a user - each user has its own key whenever it makes
+    // a http request. This is important because it means that if one user abuses the system (e.g. 
+    // by sending too many requests), we can block just that user without affecting others. Usually
+    // it's the IP address, but if they're using proxies (e.g. cloudflare, firebase), then it can be
+    // so easily bypassed that it's not even funny. And so, we use express with trusted proxies and
+    // pull x-forwareded-for header first, then the usual request IP ("req.ip")
+    const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';
+    return Array.isArray(ip) ? ip[0] : ip; // Use the first IP in the chain. Note the ? : notation,
+    // which is just "if then", i.e. "if ip is an array, use the first element ([0]), else use ip as is" 
+  },
   
   // Log when rate limit is hit
   handler: (req, res) => {

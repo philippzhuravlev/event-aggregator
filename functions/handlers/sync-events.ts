@@ -8,6 +8,7 @@ import { normalizeEvent } from '../utils/event-normalizer';
 import { ERROR_CODES, TOKEN_REFRESH } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { EventBatchItem, SyncResult, ExpiringToken } from '../types';
+import { createErrorResponse } from '../utils/error-sanitizer';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -217,11 +218,8 @@ export async function handleManualSync(
     });
   } catch (error: any) {
     logger.error('Manual sync failed', error);
-    res.status(500).json({ 
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    res.status(500).json(createErrorResponse(error, isDevelopment));
   }
 }
 

@@ -8,7 +8,7 @@ import { batchWriteEvents } from '../services/firestore-service';
 import { processEventCoverImage, initializeStorageBucket } from '../services/image-service';
 import { normalizeEvent } from '../utils/event-normalizer';
 import { logger } from '../utils/logger';
-import { sanitizeErrorMessage } from '../middleware/validation';
+import { sanitizeErrorMessage } from '../utils/error-sanitizer';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 

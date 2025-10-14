@@ -96,7 +96,16 @@ export const ALLOWED_ORIGINS: string[] = [
   'http://localhost:5000', // Firebase hosting emulator
 ];
 
+// Facebook origin
+// yk could very well just have been hardcoded as a string in the methods that use it (rate-limiter) 
+// but this way it's more consistent; besides, hardcoding strings just feels wrong
+export const FACEBOOK_ORIGIN = 'https://www.facebook.com';
+
 // Webhook Configuration
+// so webhooks are a way for facebook to notify us when something changes, principally events, 
+// so that we don't have to keep asking facebook "has anything changed?" (which is inefficient and
+// could get us rate limited). Instead, facebook just tells us "hey something changed" and then we
+// can go and fetch only the __changed__ data - how efficient !
 export const WEBHOOK = {
   VERIFY_TOKEN: 'dtuevent_webhook_verify_token_2025', // change this to a secure random string
   ENDPOINT_PATH: '/webhooks/facebook',
@@ -144,6 +153,13 @@ export const RATE_LIMITS = {
     MAX_REQUESTS: 10, // 10 OAuth attempts per 15 min (generous for retries)
   },
 };
+
+// Trusted proxies for Express
+// check out rate-limit.ts for explanation, but basically we only want to trust requests coming 
+// from google/fb/firebase etc, not random proxies on the internet (cloudflare, heroku) that could
+// be used to spoof (fake) IP addresses and bypass our rate limits
+// "loopback" = localhost (127.0.0.1)
+export const TRUSTED_PROXIES = ['loopback', 'linklocal', 'uniquelocal'];
 
 export { region };
 

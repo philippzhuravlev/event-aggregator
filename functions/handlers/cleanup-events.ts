@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { Request } from 'firebase-functions/v2/https';
 import { CleanupResult, CleanupOptions } from '../types';
 import { logger } from '../utils/logger';
+import { createErrorResponse } from '../utils/error-sanitizer';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -222,11 +223,8 @@ export async function handleManualCleanup(
     });
   } catch (error: any) {
     logger.error('Manual cleanup failed', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString(),
-    });
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    res.status(500).json(createErrorResponse(error, isDevelopment));
   }
 }
 

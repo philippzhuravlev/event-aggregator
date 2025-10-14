@@ -5,6 +5,7 @@ import { getActivePages } from '../services/firestore-service';
 import { logger } from '../utils/logger';
 import { TokenHealthReport, PageTokenInfo } from '../types';
 import { TOKEN_EXPIRY_CONFIG } from '../utils/constants';
+import { createErrorResponse } from '../utils/error-sanitizer';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -112,10 +113,8 @@ export async function handleTokenHealthCheck(
     });
   } catch (error: any) {
     logger.error('Token health check failed', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    res.status(500).json(createErrorResponse(error, isDevelopment));
   }
 }
 

@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { Request } from 'firebase-functions/v2/https';
 import { logger } from '../utils/logger';
 import { HttpResponse, toTypedError } from '../types/handlers';
+import { sanitizeErrorMessage } from '../utils/error-sanitizer';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -207,7 +208,7 @@ export async function handleHealthCheck(req: Request, res: HttpResponse): Promis
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
       error: 'Health check failed',
-      message: typedError.message,
+      message: sanitizeErrorMessage(typedError.message),
     });
   }
 }
