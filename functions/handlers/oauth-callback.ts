@@ -10,7 +10,7 @@ import { logger } from '../utils/logger';
 import { EventBatchItem } from '../types';
 
 // NB: "Handlers" like execute business logic; they "do something", like
-// // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
+// syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
 
 // So handlers "do something", in this case handle the oauth callback from facebook;

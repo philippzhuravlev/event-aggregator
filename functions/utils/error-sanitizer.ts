@@ -120,7 +120,8 @@ export function createErrorResponse(
     details?: string;
   } = {             // ... → in here
     success: false,
-    error: 'An error occurred',
+    // Return the sanitized message so tests (and callers) receive a meaningful error
+    error: sanitized.message || 'An error occurred',
     timestamp: new Date().toISOString(),
   };
 

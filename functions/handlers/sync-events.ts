@@ -11,7 +11,7 @@ import { EventBatchItem, SyncResult, ExpiringToken } from '../types';
 import { createErrorResponse } from '../utils/error-sanitizer';
 
 // NB: "Handlers" like execute business logic; they "do something", like
-// // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
+// syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
 
 // Syncing events means getting events from facebook and putting them

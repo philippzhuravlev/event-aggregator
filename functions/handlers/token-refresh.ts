@@ -8,7 +8,7 @@ import { sendAlertEmail, createMailTransporter, type MailConfig } from '../servi
 import { TOKEN_EXPIRY_CONFIG } from '../utils/constants';
 
 // NB: "Handlers" like execute business logic; they "do something", like
-// // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
+// syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
 
 // It is known that facebook tokens exist in a short-lived (hours) and long-lived

@@ -8,7 +8,7 @@ import { TOKEN_EXPIRY_CONFIG } from '../utils/constants';
 import { createErrorResponse } from '../utils/error-sanitizer';
 
 // NB: "Handlers" like execute business logic; they "do something", like
-// // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
+// syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
 
 // This handler handles "token health", a fancy work for anything related

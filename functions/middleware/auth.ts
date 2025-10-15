@@ -16,19 +16,18 @@ import { logger } from '../utils/logger';
  */
 export async function requireApiKey(req: Request, res: any): Promise<boolean> {
   try {
-    // get the API key from Secret Manager
-    const validApiKey = await getApiKey();
+    const validApiKey = await getApiKey(); // get the API key from Google Secret Manager service
     
     if (!validApiKey) {
       logger.critical('API key not configured in Secret Manager', new Error('Missing API key'));
-      res.status(500).json({ 
+      res.status(500).json({  // 500 = server error
         error: 'Server configuration error',
         message: 'API authentication is not properly configured'
       });
       return false;
     }
 
-    // Check Authorization header (Bearer token format)
+    // here we check the http headers (metadata) for the authorization to pull out the api key:)
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const providedKey = authHeader.substring(7); // Remove 'Bearer ' prefix
@@ -53,14 +52,14 @@ export async function requireApiKey(req: Request, res: any): Promise<boolean> {
       userAgent: req.headers['user-agent'],
       path: req.path,
     });
-    res.status(401).json({ 
+    res.status(401).json({ // 401 = unauthorized
       error: 'Unauthorized',
       message: 'Valid API key required. Provide via Authorization: Bearer <key> or x-api-key: <key> header'
     });
     return false;
   } catch (error: any) {
     logger.error('API key verification failed', error);
-    res.status(500).json({ 
+    res.status(500).json({ // 500 = server error
       error: 'Authentication error',
       message: 'Failed to verify API key'
     });

@@ -40,17 +40,6 @@ Or "TonkaProductions". Note that all contribute code.
 - Lilian - Design & Agile facilitation
 - Ollie - Outreach (Facebook page admin liaison) & dev support
 
-## Dev Diary
-
-1. Added "types" in web/src/types.ts to "mold" our data when we get it from our DB
-2. Generated mock data
-3. Created first draft of main page
-4. Added firebase integration
-5. Added structured README + CONTRIBUTING guide
-6. Put firebase config in /firebase directory
-7. Added Facebook ingestion script
-8. Added token to Firestore
-
 ## Planned Features
 
 - User favorites and personalization
@@ -67,14 +56,6 @@ Or "TonkaProductions". Note that all contribute code.
 - Event moderation and approval system
 - Analytics dashboard for event engagement
 - Notification system for page admins (event sync status, token expiration)
-
-## TODO: Backend
-
-- [ ] centralize token expiry logic
-- [ ] Sanitize our error responses which are currently jsons
-- [ ] add metrics (sync success/failure, token refresh counts) and lightweight health checks for mail + secrets
-- [ ] coverage > 90% (handlers + services)
-- [ ] pagination for large queries, image optimization (resize/compress/WebP)
 
 ## List
 

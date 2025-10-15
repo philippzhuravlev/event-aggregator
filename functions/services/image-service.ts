@@ -1,7 +1,8 @@
 import * as admin from 'firebase-admin';
 import axios from 'axios';
-import { pipeline } from 'stream/promises';
+import { Readable } from 'stream';
 import path from 'path';
+import sharp from 'sharp'; // sharp is a node js lib for image processing, very powerful and fast
 import { IMAGE_SERVICE } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { FacebookEvent, ImageUploadOptions } from '../types';
@@ -62,7 +63,70 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Download and upload an image from a URL to Firebase Storage with streaming
+ * Optimize image using Sharp: resize, compress, and convert to WebP
+ * @param imageStream - Input image stream
+ * @param maxWidth - Maximum width (default: 1200px)
+ * @param maxHeight - Maximum height (default: 800px)
+ * @param quality - WebP quality 1-100 (default: 85)
+ * @returns Optimized image buffer and metadata
+ */
+async function optimizeImage(
+  imageStream: Readable,
+  maxWidth: number = 1200,
+  maxHeight: number = 800,
+  quality: number = 85
+): Promise<{ buffer: Buffer; metadata: sharp.Metadata }> {
+  // as mentioned, Sharp is an amazing library for image processing (resizing, cropping,
+  // converting to WebP, compressing, etc). So yes that means that we're converting to WebP
+  // even if its a terrible horrible format. Still, its small, fast and widely supported;
+  // most importantly, facebook uses it for their images so its probably the best choice rn
+  // and besides, webp sucks because it isnt supported well, but nobody's gonna download
+  // images from our site and open them in paint or something
+
+  try {
+    const transformer = sharp()      // here we create a sharp instance
+      .resize(maxWidth, maxHeight, { // and here we use it to resize the image
+        fit: 'inside',               // maintain aspect ratio, fit within bounds
+        withoutEnlargement: true,    // don't upscale smaller images
+      })
+      .webp({ quality })             // convert to WebP with specified quality
+      .withMetadata({                // preserve orientation metadata
+        orientation: undefined,      // auto-rotate based on EXIF
+      });
+
+    // This is a bit complex because we're using streams and async/await
+    // but basically we're reading the image in chunks, transforming it,
+    // and then putting the chunks back together into a single "buffer"
+    // a buffer is just a chunk of memory that holds binary data
+    // and is way easier to upload directly to firestore
+    const buffer = await new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      imageStream // using several streams here for efficiency
+        .pipe(transformer) // piping means connecting two streams together
+        .on('data', (chunk: Buffer) => chunks.push(chunk))
+        .on('end', () => resolve(Buffer.concat(chunks)))
+        .on('error', reject);
+    });
+
+    // Get metadata about the optimized image
+    const metadata = await sharp(buffer).metadata();
+
+    logger.debug('Image optimized successfully', {
+      originalFormat: metadata.format,
+      width: metadata.width,
+      height: metadata.height,
+      size: buffer.length,
+    });
+
+    return { buffer, metadata };
+  } catch (error: any) {
+    logger.error('Image optimization failed', error);
+    throw new Error(`Image optimization failed: ${error.message}`);
+  }
+}
+
+/**
+ * Download and upload an image from a URL to Firebase Storage with optimization
  * @param imageUrl - Source image URL (e.g., Facebook cover image)
  * @param storagePath - Destination path in Storage bucket (e.g., 'covers/pageId/eventId')
  * @param options - Configuration options
@@ -108,7 +172,7 @@ export async function uploadImageFromUrl(
       
       // Download image with streaming
       // remember streaming from programming 2? We can use this for images too to speed up the process;
-      // axios splits it up into chunks and we can directly pipe it to firebase storage
+      // axios splits it up into chunks and we can directly "pipe" it (combine streams) to firebase storage
       // instead of downloading the entire image first and then uploading it
       const response = await axios.get(imageUrl, {
         responseType: 'stream',
@@ -118,30 +182,36 @@ export async function uploadImageFromUrl(
         }
       });
 
-      const contentType = response.headers['content-type'] || 'image/jpeg';
-      const fileExtension = getFileExtension(contentType, imageUrl);
-      const fullStoragePath = `${storagePath}${fileExtension}`;
+      // Optimize the image: resize, compress, convert to WebP
+      // again, the buffer here is just a chunk of memory that holds binary data
+      // and is way easier to upload directly to firestore. The "optimizedBuffer"
+      // is just the entire image in one piece, instead of many little chunks
+      logger.debug('Optimizing image', { imageUrl });
+      const { buffer: optimizedBuffer } = await optimizeImage(
+        response.data,
+        1200,  // max width
+        800,   // max height
+        85     // WebP quality
+      );
+
+      const fullStoragePath = `${storagePath}.webp`; // Always use .webp extension since we're converting to WebP
       
-      logger.debug('Uploading image to Storage', {
+      logger.debug('Uploading optimized image to Storage', {
         fullStoragePath,
-        contentType,
+        size: optimizedBuffer.length,
       });
       
       // Storage bucket creation
       const file = bucket.file(fullStoragePath);
       
-      // Writestream is for uploading to storage bucket (destination)
-      // as opposed to response.data which is the readstream (source)
-      const writeStream = file.createWriteStream({
+      // 
+      await file.save(optimizedBuffer, {
         metadata: {
-          contentType,
+          contentType: 'image/webp',
           cacheControl: `public, max-age=${IMAGE_SERVICE.CACHE_MAX_AGE}`, // i.e. 1 year cache
         },
         resumable: false, // Use simple upload for smaller files
       });
-
-      // the pipline is what connects the readstream to the writestream
-      await pipeline(response.data, writeStream);
       
       logger.debug('Successfully uploaded image to Storage', { fullStoragePath });
       

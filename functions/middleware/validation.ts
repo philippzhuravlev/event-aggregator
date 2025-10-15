@@ -27,7 +27,7 @@ export function isAllowedOrigin(origin: string | undefined): boolean {
   return ALLOWED_ORIGINS.includes(origin);
 }
 
-interface OAuthStateValidation {
+interface OAuthStateValidation { // note that in js/ts, interfaces are just for type checking
   isValid: boolean;
   origin: string | null;
   error: string | null;

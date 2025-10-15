@@ -5,11 +5,12 @@ import { logger } from '../utils/logger';
 import { createErrorResponse } from '../utils/error-sanitizer';
 
 // NB: "Handlers" like execute business logic; they "do something", like
-// // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
+// syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
 // something to an existing service, e.g. facebook or google secrets manager
 
-// This handler cleans up old events to prevent database bloat
-// events older than X days are deleted (or archived)
+// This handler cleans up old events to prevent database bloat events older than X
+// days are deleted (or archived). Archiving is important because of GDPR compliance, 
+// cuz the user has a right to get all their stored data back even after deletion
 
 /**
  * Clean up old events from Firestore
@@ -17,28 +18,36 @@ import { createErrorResponse } from '../utils/error-sanitizer';
  * @returns Cleanup result with counts and details
  */
 export async function cleanupOldEvents(options: CleanupOptions): Promise<CleanupResult> {
+  // the "options: " part means that the function takes a single argument "options"
+  // which is of type CleanupOptions, defined in ../types/index.ts. Now the "options" 
+  // object itself has properties like daysToKeep, whether to dryRun (actually do cleanup
+  // or just simulate), archiveBeforeDelete, etc. which we use in the function. This is a
+  // common pattern in typescript, whose fancy term is called "object destructuring" to
+  // pass many little params into one function as a single object - like, imagine doing 5-10
+  // params manually for each function
   const startTime = Date.now();
   const db = admin.firestore();
   
   const {
     daysToKeep,
-    dryRun = false,
+    dryRun = false, // dry run means we just simulate the cleanup without actually deleting anything
     archiveBeforeDelete = false,
-    batchSize = 500, // Firestore batch limit
+    batchSize = 500, // firestore batch limit. 500 cleanups per batch
   } = options;
 
   // calculate cutoff date
+  // We do this because events are organized by startTime, so we use that to determine if an event is old enough
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
   const cutoffISO = cutoffDate.toISOString();
 
+  // log and prepare results
   logger.info('Starting event cleanup', {
     daysToKeep,
     cutoffDate: cutoffISO,
     dryRun,
     archiveBeforeDelete,
   });
-
   const result: CleanupResult = {
     deletedCount: 0,
     archivedCount: 0,
@@ -48,6 +57,7 @@ export async function cleanupOldEvents(options: CleanupOptions): Promise<Cleanup
     errors: [],
   };
 
+  // and here, we do the actual cleanup - or at least try to hehe
   try {
     // Query events older than cutoff date
     // we use endTime if available, otherwise startTime
@@ -57,6 +67,7 @@ export async function cleanupOldEvents(options: CleanupOptions): Promise<Cleanup
 
     const snapshot = await oldEventsQuery.get();
 
+    // if no more older events than last batch, we're done
     if (snapshot.empty) {
       logger.info('No old events found to clean up');
       result.duration = Date.now() - startTime;
@@ -111,22 +122,22 @@ export async function cleanupOldEvents(options: CleanupOptions): Promise<Cleanup
         }
       }
     } else {
-      // "Dry run", i.e. just count what would be deleted, without actually deleting anything;
-      // its a good way to test the cleanup process without actually deleting anything
+      // Again, just to repeat myself, "Dry run" is just simulate what would be deleted, without
+      // actually deleting anything; its the certified best way to test cleanup without risk
       result.deletedCount = snapshot.size;
       logger.info('Dry run - would delete events', { count: snapshot.size });
     }
 
-    result.duration = Date.now() - startTime;
+    result.duration = Date.now() - startTime; // here it sure helped having the results be an object, huh
 
     logger.info('Event cleanup completed', {
       ...result,
-      durationSeconds: (result.duration / 1000).toFixed(2),
+      durationSeconds: (result.duration / 1000).toFixed(2), // convert ms to seconds
     });
 
-    return result;
+    return result; // wuw we did it
   } catch (error: any) {
-    logger.error('Event cleanup failed', error);
+    logger.error('Event cleanup failed', error); // aww we didnt
     result.duration = Date.now() - startTime;
     result.errors?.push(`Cleanup failed: ${error.message}`);
     throw error;
@@ -140,14 +151,16 @@ export async function cleanupOldEvents(options: CleanupOptions): Promise<Cleanup
  */
 async function archiveEvents(docs: FirebaseFirestore.DocumentSnapshot[]): Promise<void> {
   if (docs.length === 0) return;
+  // note well: Archiving is actually super important because if we just delete stuff,
+  // we might not be able to give the data back if the user wants (GDPR complicance)
 
   try {
+    // lets start by initializing things, principally the storage bucket
     const storage = admin.storage();
     const bucket = storage.bucket();
-    
-    // create archive filename with timestamp
     const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const filename = `archives/events-${timestamp}.json`;
+    const filename = `archives/events-${timestamp}.json`; // in the "archives" folder
+    // the name will be e.g. "events-2023-10-05.json"
     
     // prepare archive data
     const archiveData = docs.map(doc => ({
@@ -192,14 +205,25 @@ export async function handleManualCleanup(
   res: any,
   authMiddleware: (req: Request, res: any) => Promise<boolean>
 ): Promise<void> {
-  // authenticate request
+  // manual cleanup means we call this function via HTTP request (a full on object)
+  // with authentication as a parameter, so only authorized users can do it. The 
+  // confusing notation is just because authMiddleware is itself a function that takes
+  // req and res as params and returns a boolean promise (true if authenticated). Again,
+  // promise means async operations work or nah. This chaotic mess of a function is indeed
+  // just how ts works: the pattern is called "higher order functions" - functions that take
+  // other functions as params. Welcome to real programming
+  
+  // authenticate request with our amazing middleware function that we passed as a whole param
   const isAuthenticated = await authMiddleware(req, res);
   if (!isAuthenticated) {
-    return; // Middleware already sent error
+    return; // don't worry about logging - Middleware already sent error
   }
 
   try {
     // get options from query params
+    // again, options is the object we passed earlier thru cleanupOldEvents() function far above which
+    // had all those little params like daysToKeep, dryRun, archiveBeforeDelete, etc., the point of it
+    // being that you don't need to pass 5-10 params manually each time ("object destructuring")
     const daysToKeep = parseInt(req.query.daysToKeep as string || '90');
     const dryRun = req.query.dryRun === 'true';
     const archiveBeforeDelete = req.query.archive === 'true';
@@ -210,17 +234,23 @@ export async function handleManualCleanup(
       archiveBeforeDelete,
     });
 
-    const result = await cleanupOldEvents({
+    // do the cleanup with the original function we wrote above.
+    const result = await cleanupOldEvents({ // remember - cleanupOldEvents() sends back a promise
       daysToKeep,
       dryRun,
       archiveBeforeDelete,
     });
+    // See that "await" keyword above? It means "wait for this async function to complete before continuing
+    // with any other code". So yes, this function sits and waits for cleanupOldEvents() to finish and send
+    // back the result as a promise. When done, we can proceed with the rest of the code below
 
-    res.json({
+    res.json({ // send the http response object back when we've received the result as a promise object
       success: true,
       result,
       timestamp: new Date().toISOString(),
     });
+
+    // async programming truly is magical isn't it
   } catch (error: any) {
     logger.error('Manual cleanup failed', error);
     const isDevelopment = process.env.NODE_ENV === 'development';

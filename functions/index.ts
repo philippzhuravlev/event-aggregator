@@ -14,6 +14,7 @@ import { handleTokenHealthCheck, handleScheduledTokenMonitoring } from './handle
 import { handleFacebookWebhook } from './handlers/facebook-webhooks';
 import { handleManualCleanup, handleScheduledCleanup } from './handlers/cleanup-events';
 import { handleHealthCheck } from './handlers/health-check';
+import { handleGetEvents } from './handlers/get-events';
 
 // import middleware
 import { requireApiKey, logRequest } from './middleware/auth';
@@ -234,5 +235,29 @@ export const checkHealth = onRequest({
   secrets: [],
 }, async (req, res) => {
   await handleHealthCheck(req, res);
+});
+
+/**
+ * Get events with pagination
+ * GET /getEvents?limit=50&pageToken=xyz&pageId=123&upcoming=true&search=party
+ * No authentication required - public read access
+ * CORS enabled for web app access
+ */
+export const getEvents = onRequest({
+  region: region,
+  secrets: [],
+}, async (req, res) => {
+  // Do CORS stuff first
+  if (!handleCORS(req, res)) return;
+  
+  // Now do rate limiting
+  await new Promise<void>((resolve) => {
+    standardRateLimiter(req as any, res as any, () => resolve());
+  });
+  
+  if (res.headersSent) return;
+  
+  // Now handle the actual request
+  await handleGetEvents(req, res); 
 });
 

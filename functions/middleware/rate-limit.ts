@@ -1,5 +1,5 @@
 import express from 'express'; // a node js web app "framework" (a bunch of tools in a system)
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { RATE_LIMITS, TRUSTED_PROXIES } from '../utils/constants';
 import { logger } from '../utils/logger';
 
@@ -11,7 +11,7 @@ app.set('trust proxy', TRUSTED_PROXIES); // and here's what we're using express 
 
 // Rate limiting is also classic middleware. It prevents abuse by limiting how many
 // requests someone can make in a given time window. This protects against:
-// - DDoS attacks
+// - DDoS attacks (distributed denial of service attacks, basically bombarding the server with requests so it crashes)
 // - Brute force attempts
 // - API abuse
 // - Accidental infinite loops in client code
@@ -22,13 +22,15 @@ app.set('trust proxy', TRUSTED_PROXIES); // and here's what we're using express 
  * Used for: manual sync, token health check, cleanup
  */
 export const standardRateLimiter = rateLimit({
-  windowMs: RATE_LIMITS.STANDARD.WINDOW_MS,
-  max: RATE_LIMITS.STANDARD.MAX_REQUESTS,
+  windowMs: RATE_LIMITS.STANDARD.WINDOW_MS, // 15 minutes. this is how long the "window" is, i.e. how long we count requests for
+  max: RATE_LIMITS.STANDARD.MAX_REQUESTS, // 100 requests per window. 
   message: {
     error: 'Too many requests',
     message: `Rate limit exceeded. Maximum ${RATE_LIMITS.STANDARD.MAX_REQUESTS} requests per ${RATE_LIMITS.STANDARD.WINDOW_MS / 60000} minutes.`,
     retryAfter: RATE_LIMITS.STANDARD.WINDOW_MS / 1000, // seconds
   },
+  // so the HTTP "headers" are little pieces of info that go with every HTTP request/response, cuz
+  // http requests and responses are objects. In that way, the headers are like the object's metadata
   standardHeaders: true, // Return rate limit info into the HTTP `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers. This is used by older browsers.
   keyGenerator: (req) => {
@@ -38,9 +40,11 @@ export const standardRateLimiter = rateLimit({
     // it's the IP address, but if they're using proxies (e.g. cloudflare, firebase), then it can be
     // so easily bypassed that it's not even funny. And so, we use express with trusted proxies and
     // pull x-forwareded-for header first, then the usual request IP ("req.ip")
+    // Using ipKeyGenerator to properly handle IPv6 addresses
     const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';
-    return Array.isArray(ip) ? ip[0] : ip; // Use the first IP in the chain. Note the ? : notation,
-    // which is just "if then", i.e. "if ip is an array, use the first element ([0]), else use ip as is" 
+    const actualIp = Array.isArray(ip) ? ip[0] : ip; // Use the first IP in the chain. Note the ? : notation,
+    // which is just "if then", i.e. "if ip is an array, use the first element ([0]), else use ip as is"
+    return ipKeyGenerator(actualIp);
   },
   
   // Log when rate limit is hit
@@ -52,7 +56,7 @@ export const standardRateLimiter = rateLimit({
       userAgent: req.headers['user-agent'],
     });
     
-    res.status(429).json({
+    res.status(429).json({ // 429 = too many requests
       error: 'Too many requests',
       message: `Rate limit exceeded. Maximum ${RATE_LIMITS.STANDARD.MAX_REQUESTS} requests per ${RATE_LIMITS.STANDARD.WINDOW_MS / 60000} minutes.`,
       retryAfter: RATE_LIMITS.STANDARD.WINDOW_MS / 1000,
@@ -66,8 +70,8 @@ export const standardRateLimiter = rateLimit({
  * More lenient because Facebook controls the rate
  */
 export const webhookRateLimiter = rateLimit({
-  windowMs: RATE_LIMITS.WEBHOOK.WINDOW_MS,
-  max: RATE_LIMITS.WEBHOOK.MAX_REQUESTS,
+  windowMs: RATE_LIMITS.WEBHOOK.WINDOW_MS, // 1 min
+  max: RATE_LIMITS.WEBHOOK.MAX_REQUESTS, // 1000 requests per minute
   message: {
     error: 'Webhook rate limit exceeded',
     message: `Too many webhook requests. Maximum ${RATE_LIMITS.WEBHOOK.MAX_REQUESTS} per minute.`,
@@ -75,9 +79,8 @@ export const webhookRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   
-  // Use default keyGenerator for IPv6 safety
-  // Webhooks from Facebook will be tracked by their IP
-  
+  // check further above as to what keyGenerator is and does. But basically its a unique idenfitifier
+  // for each user/requester. Here we use the default, which is the IP address (works with IPv4 and IPv6)
   handler: (req, res) => {
     const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
     logger.critical('Webhook rate limit exceeded - possible attack', new Error('Rate limit exceeded'), {
@@ -86,7 +89,7 @@ export const webhookRateLimiter = rateLimit({
       userAgent: req.headers['user-agent'],
     });
     
-    res.status(429).json({
+    res.status(429).json({ // 429 = too many requests
       error: 'Webhook rate limit exceeded',
       message: 'Too many requests',
     });
