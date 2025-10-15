@@ -1,7 +1,8 @@
 import './App.css'
 import { useEffect, useState } from 'react';
 import { EventCard } from './components/EventCard';
-import { getEvents, getPages } from './data/dal'; // async data access layer
+import type { Event, Page } from './types';
+import { getEvents, getPages } from './services/dal'; // async data access layer
 
 function App() {
   
@@ -47,7 +48,6 @@ function App() {
     const eventsCount = params.get('events');
     
     if (success) {
-      console.log(`OAuth Success! Connected ${pagesCount} page(s), synced ${eventsCount} event(s)`);
       alert(`Successfully connected ${pagesCount} Facebook page(s)! Synced ${eventsCount} events.`);
       // Clean URL and reload data
       window.history.replaceState({}, '', '/');
@@ -66,7 +66,8 @@ function App() {
     (async () => {
       try {
         setLoading(true); // show loading indicator
-        const [page, event] = await Promise.all([getPages(), getEvents()]); // promise used for async code
+        const [page, event] = await Promise.all([getPages(), getEvents({ upcoming: false })]); // promise used for async code
+        // TODO: Remove "upcoming: false" above, it's just for testing (!)
         if (cancelled) return; 
         setPages(page); 
         setEvents(event); // set the data
@@ -83,7 +84,7 @@ function App() {
 
   // Filtering
   const [pageId, setPageId] = useState<string>(''); 
-  const filtered = pageId ? events.filter(e => e.pageId === pageId) : events; // if pageId is set, filter events by pageId. Else show all events
+  const filtered = pageId ? events.filter((e: Event) => e.pageId === pageId) : events; // if pageId is set, filter events by pageId. Else show all events
 
   // Text search (debounced)
   // debounce = wait for a short delay after typing stops before updating the search query
@@ -98,7 +99,7 @@ function App() {
 
   // apply text filter on title/description/place
   const textFiltered = debouncedQuery
-    ? filtered.filter(event => {
+    ? filtered.filter((event: Event) => {
         const haystack = (  // "haystack" = the text we're searching in
           (event.title || '') + ' ' +
           (event.description || '') + ' ' +
@@ -130,7 +131,7 @@ function App() {
   // If the range is invalid, ignore the 'to' bound to avoid hiding everything
   const effectiveToObj = invalidRange ? undefined : toObj;
 
-  const dateFiltered = textFiltered.filter(event => {
+  const dateFiltered = textFiltered.filter((event: Event) => {
     const eventMs = new Date(event.startTime).getTime();
     if (fromObj && eventMs < startOfDayMs(fromObj)) return false;
     if (effectiveToObj && eventMs > endOfDayMs(effectiveToObj)) return false;
@@ -172,7 +173,7 @@ function App() {
           {/* option = each item in the dropdown menu */}
           {/* value = what's selected. onChange = what to do when selected*/}
           <option value="">All</option>
-          {pages.map(p => (
+          {pages.map((p: Page) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>

@@ -1,4 +1,6 @@
-// Utilities for event rendering and formatting
+// utils folder is for stuff that is used in multiple places, like constants, helper functions etc
+
+// this file contains utility functions related to events, like formatting dates and constructing URLs
 
 const dateTimeFormatter = new Intl.DateTimeFormat('da-DK', {
   dateStyle: 'medium',
