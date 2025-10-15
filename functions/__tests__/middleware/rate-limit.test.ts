@@ -1,4 +1,5 @@
-// @ts-nocheck
+
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
 // Capture the configuration objects passed to express-rate-limit
 const mockRateLimitConfigs: any[] = [];
@@ -9,9 +10,18 @@ const mockRateLimitFactory = jest.fn((config) => {
   return mw;
 });
 
+// Mock ipKeyGenerator to normalize IPv6 addresses
+const mockIpKeyGenerator = jest.fn((ip: string) => {
+  // Simple implementation that mimics the real behavior for testing
+  if (ip === 'unknown') return 'unknown';
+  // For actual IPs, just return them (in reality it would normalize IPv6)
+  return ip;
+});
+
 jest.mock('express-rate-limit', () => ({
   __esModule: true,
   default: mockRateLimitFactory,
+  ipKeyGenerator: mockIpKeyGenerator,
 }));
 
 // Provide a logger mock that matches the import shape ({ logger }) in code
@@ -46,6 +56,15 @@ describe('rate-limit middleware configuration and handlers', () => {
     expect(standardConfig.legacyHeaders).toBe(false);
   });
 
+  it('keyGenerator returns first IP when x-forwarded-for is an array and falls back to unknown', () => {
+    const keyGen = standardConfig.keyGenerator;
+    const reqA: any = { headers: { 'x-forwarded-for': ['10.0.0.1', '1.2.3.4'] }, ip: '1.2.3.4' };
+    const reqB: any = { headers: {}, ip: undefined };
+
+    expect(keyGen(reqA)).toBe('10.0.0.1');
+    expect(keyGen(reqB)).toBe('unknown');
+  });
+
   it('standard handler logs and responds with 429 body', () => {
     const handler = standardConfig.handler;
     const body: any = {};
@@ -56,6 +75,18 @@ describe('rate-limit middleware configuration and handlers', () => {
 
     expect(loggerMock.warn).toHaveBeenCalledWith('Rate limit exceeded', expect.objectContaining({ ip: '1.1.1.1', path: '/api/sync' }));
     expect(res.status).toHaveBeenCalledWith(429);
+    expect(body).toHaveProperty('error', 'Too many requests');
+  });
+
+  it('standard handler reads x-forwarded-for header when ip missing', () => {
+    const handler = standardConfig.handler;
+    const body: any = {};
+    const req: any = { ip: undefined, path: '/api/sync', headers: { 'x-forwarded-for': '8.8.8.8', 'user-agent': 'UA' } };
+    const res: any = { status: jest.fn().mockImplementation(() => ({ json: (b: any) => Object.assign(body, b) })) };
+
+    handler(req, res);
+
+    expect(loggerMock.warn).toHaveBeenCalledWith('Rate limit exceeded', expect.objectContaining({ ip: '8.8.8.8' }));
     expect(body).toHaveProperty('error', 'Too many requests');
   });
 

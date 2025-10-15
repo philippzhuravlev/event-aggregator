@@ -1,11 +1,5 @@
 // @ts-nocheck
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import {
-  getFileExtension,
-  uploadImageFromUrl,
-  processEventCoverImage,
-  initializeStorageBucket,
-} from '../../services/image-service';
 import * as admin from 'firebase-admin';
 import axios from 'axios';
 import { Readable } from 'stream';
@@ -23,6 +17,34 @@ jest.mock('firebase-admin', () => ({
   })),
 }));
 jest.mock('../../utils/logger');
+
+// Mock sharp so tests don't invoke native image processing
+jest.mock('sharp', () => {
+  const { PassThrough } = require('stream');
+  // The module should be callable. When called without args it returns a transform stream
+  // that supports resize/webp/withMetadata chaining. When called with a buffer it should
+  // return an object with a metadata() method.
+  return jest.fn((...args) => {
+    if (args.length === 0) {
+      const t = new PassThrough();
+      t.resize = () => t;
+      t.webp = () => t;
+      t.withMetadata = () => t;
+      return t;
+    }
+    return {
+      metadata: async () => ({ format: 'webp', width: 100, height: 100 }),
+    };
+  });
+});
+
+// Import service after mocks so mocked modules are used
+import {
+  getFileExtension,
+  uploadImageFromUrl,
+  processEventCoverImage,
+  initializeStorageBucket,
+} from '../../services/image-service';
 
 describe('image-service', () => {
   beforeEach(() => {
@@ -128,6 +150,7 @@ describe('image-service', () => {
 
       mockFile = {
         createWriteStream: jest.fn().mockReturnValue(mockWriteStream),
+        save: jest.fn().mockResolvedValue(undefined),
         makePublic: jest.fn().mockResolvedValue(undefined),
         getSignedUrl: jest.fn().mockResolvedValue(['https://signed-url.com/image.jpg']),
       };
@@ -163,9 +186,11 @@ describe('image-service', () => {
           timeout: 30000,
         })
       );
-      expect(mockBucket.file).toHaveBeenCalledWith('covers/page1/event1.jpg');
-      expect(mockFile.makePublic).toHaveBeenCalled();
-      expect(url).toBe('https://storage.googleapis.com/test-bucket/covers/page1/event1.jpg');
+  // service converts images to .webp
+  expect(mockBucket.file).toHaveBeenCalledWith('covers/page1/event1.webp');
+  expect(mockFile.save).toHaveBeenCalled();
+  expect(mockFile.makePublic).toHaveBeenCalled();
+  expect(url).toBe('https://storage.googleapis.com/test-bucket/covers/page1/event1.webp');
     });
 
     it('should generate signed URL when makePublic is false', async () => {
@@ -197,7 +222,7 @@ describe('image-service', () => {
           expires: expect.any(Date),
         })
       );
-      expect(url).toBe('https://signed-url.com/image.jpg');
+  expect(url).toBe('https://signed-url.com/image.jpg');
     });
 
     it('should retry on failure', async () => {
@@ -219,7 +244,7 @@ describe('image-service', () => {
       );
 
       expect(axios.get).toHaveBeenCalledTimes(2);
-      expect(url).toContain('storage.googleapis.com');
+  expect(url).toContain('storage.googleapis.com');
     });
 
     it('should throw error when bucket not provided', async () => {
@@ -270,7 +295,9 @@ describe('image-service', () => {
       const mockWriteStream = { on: jest.fn(), write: jest.fn(), end: jest.fn() };
       const mockFile = {
         createWriteStream: jest.fn().mockReturnValue(mockWriteStream),
+        save: jest.fn().mockResolvedValue(undefined),
         makePublic: jest.fn().mockResolvedValue(undefined),
+        getSignedUrl: jest.fn().mockResolvedValue(['https://signed-url.com/image.jpg']),
       };
 
       mockBucket = {
@@ -302,7 +329,8 @@ describe('image-service', () => {
         'https://facebook.com/cover.jpg',
         expect.any(Object)
       );
-      expect(mockBucket.file).toHaveBeenCalledWith('covers/page123/event123.jpg');
+  // service converts images to .webp
+  expect(mockBucket.file).toHaveBeenCalledWith('covers/page123/event123.webp');
       expect(url).toContain('storage.googleapis.com');
     });
 

@@ -7,6 +7,7 @@ import {
   getPageEvents,
   getAllRelevantEvents,
 } from '../../services/facebook-api';
+import { FACEBOOK_API } from '../../utils/constants';
 
 // Mock axios
 jest.mock('axios');
@@ -101,6 +102,22 @@ describe('facebook-api service', () => {
       ).rejects.toMatchObject({ response: { status: 400 } });
 
       expect(mockedAxios.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw after exhausting retries on server errors', async () => {
+      // Force axios.get to reject with a 500 error for all retries
+      const serverError = { response: { status: 500 } };
+      // mockRejectedValue will cause each call to reject
+      mockedAxios.get.mockRejectedValue(serverError);
+
+      const maxRetries = FACEBOOK_API.MAX_RETRIES;
+
+      await expect(
+        exchangeCodeForToken('auth-code', 'app-id', 'app-secret', 'https://example.com/callback')
+      ).rejects.toMatchObject({ response: { status: 500 } });
+
+      // withRetry should have called axios.get exactly maxRetries times
+      expect(mockedAxios.get).toHaveBeenCalledTimes(maxRetries);
     });
   });
 

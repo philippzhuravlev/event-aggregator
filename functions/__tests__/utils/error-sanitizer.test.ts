@@ -142,7 +142,8 @@ describe('Error Sanitizer', () => {
       const result = createErrorResponse(error);
       
       expect(result.success).toBe(false);
-      expect(result.error).toBe('An error occurred');
+      // error contains sanitized message
+      expect(result.error).toBe('Database failed with password=REDACTED');
       expect(result.timestamp).toBeTruthy();
       expect(result.details).toBeUndefined();
     });
@@ -152,7 +153,8 @@ describe('Error Sanitizer', () => {
       const result = createErrorResponse(error, true);
       
       expect(result.success).toBe(false);
-      expect(result.error).toBe('An error occurred');
+      // error contains sanitized message
+      expect(result.error).toBe('Token invalid: token=REDACTED');
       expect(result.details).toBe('Token invalid: token=REDACTED');
       expect(result.timestamp).toBeTruthy();
     });

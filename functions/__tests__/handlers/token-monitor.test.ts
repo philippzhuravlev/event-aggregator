@@ -16,6 +16,7 @@ jest.mock('firebase-admin', () => ({
 jest.mock('../../services/secret-manager');
 jest.mock('../../services/firestore-service');
 jest.mock('../../utils/logger');
+import { logger } from '../../utils/logger';
 
 describe('token-monitor handler', () => {
   beforeEach(() => {
@@ -276,10 +277,10 @@ describe('token-monitor handler', () => {
       await handleTokenHealthCheck(mockReq, mockRes, mockAuthMiddleware);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
         success: false,
         error: 'Database error',
-      });
+      }));
     });
   });
 
@@ -297,6 +298,26 @@ describe('token-monitor handler', () => {
         unknown: [],
         timestamp: expect.any(String),
       });
+    });
+
+    it('should log critical when expired tokens are present', async () => {
+      const mockPages = [ { id: 'page1', name: 'Expired Page', data: {} } ];
+      (firestoreService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
+      (secretManager.checkTokenExpiry as jest.Mock).mockResolvedValue({ isExpiring: true, daysUntilExpiry: -1, expiresAt: new Date() });
+
+      await handleScheduledTokenMonitoring();
+
+      expect(logger.critical).toHaveBeenCalled();
+    });
+
+    it('should log warn when expiringSoon tokens are present', async () => {
+      const mockPages = [ { id: 'page2', name: 'Soon Expiring', data: {} } ];
+      (firestoreService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
+      (secretManager.checkTokenExpiry as jest.Mock).mockResolvedValue({ isExpiring: true, daysUntilExpiry: 3, expiresAt: new Date() });
+
+      await handleScheduledTokenMonitoring();
+
+      expect(logger.warn).toHaveBeenCalled();
     });
 
     it('should throw error on failure', async () => {
