@@ -7,8 +7,13 @@ const dateTimeFormatter = new Intl.DateTimeFormat('da-DK', {
   timeStyle: 'short',
 });
 
-export function formatEventStart(iso: string): string {
-  return dateTimeFormatter.format(new Date(iso));
+export function formatEventStart(iso?: string | null): string {
+  // Guard against missing/invalid inputs. Intl.DateTimeFormat.format throws
+  // a RangeError when given an invalid date (getTime() is NaN).
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (!isFinite(d.getTime())) return '';
+  return dateTimeFormatter.format(d);
 }
 
 export function getEventUrl(id: string, explicit?: string): string {
