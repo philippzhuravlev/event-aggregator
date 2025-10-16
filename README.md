@@ -57,6 +57,17 @@ Or "TonkaProductions". Note that all contribute code.
 - Analytics dashboard for event engagement
 - Notification system for page admins (event sync status, token expiration)
 
+## TODO
+
+- Add input validation with Zod
+- Parallelize page syncing with Promise.all
+- Add magic numbers to constants
+- Standardize error response format
+- Add health check metrics
+- Implement OAuth state HMAC verification
+- Add composite rate limiting (IP + API key)
+- Add request tracing with correlation IDs
+
 ## List
 
 Below are the pages for bars at DTU. Note well that some events are not listed through these pages, but those dedicated to social gatherings.

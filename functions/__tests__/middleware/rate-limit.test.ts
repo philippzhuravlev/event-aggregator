@@ -96,7 +96,7 @@ describe('rate-limit middleware configuration and handlers', () => {
 
     const handler = webhookConfig.handler;
     const body: any = {};
-    const req: any = { headers: {}, path: '/webhooks/facebook' };
+    const req: any = { headers: {}, path: '/webhooks' };
     const res: any = { status: jest.fn().mockImplementation(() => ({ json: (b: any) => Object.assign(body, b) })) };
 
     handler(req, res);

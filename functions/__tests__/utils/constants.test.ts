@@ -76,13 +76,12 @@ describe('constants', () => {
   });
 
   describe('WEBHOOK', () => {
-    it('should have verify token configured', () => {
-      expect(WEBHOOK.VERIFY_TOKEN).toBeDefined();
-      expect(WEBHOOK.VERIFY_TOKEN.length).toBeGreaterThan(10); // Should be secure
-    });
-
     it('should have endpoint path', () => {
       expect(WEBHOOK.ENDPOINT_PATH).toContain('/');
+    });
+
+    it('should not have hardcoded verify token (moved to Secret Manager)', () => {
+      expect(WEBHOOK).not.toHaveProperty('VERIFY_TOKEN');
     });
   });
 

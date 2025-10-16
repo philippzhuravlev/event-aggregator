@@ -107,8 +107,9 @@ export const FACEBOOK_ORIGIN = 'https://www.facebook.com';
 // could get us rate limited). Instead, facebook just tells us "hey something changed" and then we
 // can go and fetch only the __changed__ data - how efficient !
 export const WEBHOOK = {
-  VERIFY_TOKEN: 'dtuevent_webhook_verify_token_2025', // change this to a secure random string
-  ENDPOINT_PATH: '/webhooks/facebook',
+  ENDPOINT_PATH: '/webhooks',
+  // Note: VERIFY_TOKEN has been moved to Google Secret Manager for security
+  // It's now loaded from the WEBHOOK_VERIFY_TOKEN secret at runtime
 };
 
 // Cleanup, i.e. deleting old events

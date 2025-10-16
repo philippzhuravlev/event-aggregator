@@ -22,7 +22,7 @@ import { handleCORS } from './middleware/validation';
 import { standardRateLimiter, webhookRateLimiter, oauthRateLimiter } from './middleware/rate-limit';
 
 // import constants
-import { SYNC, region, WEBHOOK, CLEANUP } from './utils/constants';
+import { SYNC, region, CLEANUP } from './utils/constants';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -170,9 +170,10 @@ export const facebookCallback = onRequest({
  * POST - Webhook events (Facebook sends these when events change)
  * WITH RATE LIMITING (lenient for Facebook bursts)
  */
+const WEBHOOK_VERIFY_TOKEN_SECRET = defineSecret('WEBHOOK_VERIFY_TOKEN');
 export const facebookWebhook = onRequest({
   region: region,
-  secrets: [FACEBOOK_APP_SECRET],
+  secrets: [FACEBOOK_APP_SECRET, WEBHOOK_VERIFY_TOKEN_SECRET],
 }, async (req, res) => {
   // apply webhook rate limiting (lenient for Facebook)
   await new Promise<void>((resolve) => {
@@ -185,7 +186,7 @@ export const facebookWebhook = onRequest({
     req,
     res,
     FACEBOOK_APP_SECRET.value(),
-    WEBHOOK.VERIFY_TOKEN
+    WEBHOOK_VERIFY_TOKEN_SECRET.value()
   );
 });
 

@@ -5,6 +5,7 @@ import {
   storePageToken,
   getPageToken,
   getApiKey,
+  getWebhookVerifyToken,
   checkTokenExpiry,
   markTokenExpired,
 } from '../../services/secret-manager';
@@ -222,6 +223,34 @@ describe('secret-manager service', () => {
       const apiKey = await getApiKey();
 
       expect(apiKey).toBeNull();
+    });
+  });
+
+  describe('getWebhookVerifyToken', () => {
+    it('should retrieve webhook verify token from Secret Manager', async () => {
+      const mockVersion = {
+        payload: {
+          data: Buffer.from('webhook-verify-token-123'),
+        },
+      };
+      mockAccessSecretVersion.mockResolvedValue([mockVersion]);
+
+      const token = await getWebhookVerifyToken();
+
+      expect(token).toBe('webhook-verify-token-123');
+      expect(mockAccessSecretVersion).toHaveBeenCalledWith({
+        name: 'projects/test-project/secrets/WEBHOOK_VERIFY_TOKEN/versions/latest',
+      });
+    });
+
+    it('should return null when webhook verify token not found', async () => {
+      mockAccessSecretVersion.mockRejectedValue(
+        new Error('Secret not found')
+      );
+
+      const token = await getWebhookVerifyToken();
+
+      expect(token).toBeNull();
     });
   });
 

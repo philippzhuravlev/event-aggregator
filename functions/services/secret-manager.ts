@@ -137,6 +137,26 @@ export async function getApiKey(): Promise<string | null> {
 }
 
 /**
+ * Get the webhook verify token for Facebook webhook verification
+ * This token is used by Facebook to verify that our webhook endpoint is legitimate
+ * @returns The webhook verify token or null if not found
+ */
+export async function getWebhookVerifyToken(): Promise<string | null> {
+  const projectId = process.env.GCLOUD_PROJECT;
+  const secretName = 'WEBHOOK_VERIFY_TOKEN'; // this secret is in google secrets manager
+  
+  try {
+    const [version] = await secretClient.accessSecretVersion({ // inbuilt method
+      name: `projects/${projectId}/secrets/${secretName}/versions/latest`, 
+    });
+    return version.payload?.data?.toString() || null;
+  } catch (error: any) {
+    logger.error('Failed to retrieve webhook verify token from Secret Manager', error);
+    return null;
+  }
+}
+
+/**
  * Check if a page's token is expiring soon and needs refresh
  * @param db - Firestore instance
  * @param pageId - Facebook page ID
