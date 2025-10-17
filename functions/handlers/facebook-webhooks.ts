@@ -180,15 +180,31 @@ export function handleWebhookVerification(
     hasToken: !!token,
   });
 
-  // verify that mode is 'subscribe' and token matches
-  if (mode === 'subscribe' && token === verifyToken) {
-    logger.info('Webhook verification successful');
+  // verify that mode is 'subscribe' and token matches (trim both sides to avoid CRLF issues)
+  // webhooks work by "subscribing" to events. Here, we verify that Facebook is indeed trying 
+  // to subscribe and that the token matches what we expect (thru secret manager)
+  const received = typeof token === 'string' ? token.trim() : String(token); // ? : is if else notation
+  const expected = typeof verifyToken === 'string' ? verifyToken.trim() : String(verifyToken); // trim removes spaces/newlines
+  // typeof is simple: it tells us what type a variable is, e.g. string, number, object, etc.
+  // === is strict equality, meaning both value and type must match (unlike == which is more lenient)
+
+  // "masked" is just a way to hide part of the token for security/logging purposes
+  // => is an arrow function, a common JS shorthand for defining functions quickly and simply
+  const masked = (s: string) => (s ? `${s.substring(0, 6)}...` : '');
+
+  if (mode === 'subscribe' && received === expected) {
+    logger.info('Webhook verification successful', {
+      received: masked(received),
+      expected: masked(expected),
+    });
     return challenge || null;
   }
 
   logger.warn('Webhook verification failed', {
     mode,
-    tokenMatch: token === verifyToken,
+    tokenMatch: received === expected,
+    received: masked(received),
+    expected: masked(expected),
   });
   return null;
 }
