@@ -54,110 +54,129 @@ export async function syncAllPageEvents(): Promise<SyncResult> {
   const eventData: EventBatchItem[] = [];
   const expiringTokens: ExpiringToken[] = [];
 
-  // Sync each page
-  for (const page of pages) { 
-    try {
-      // Check if token is expiring soon (within 7 days)
-  const tokenStatus = await checkTokenExpiry(db, page.id, TOKEN_REFRESH.WARNING_DAYS);
-      if (tokenStatus.isExpiring) {
-        logger.warn('Token expiring soon', {
-          pageId: page.id,
-          pageName: page.name,
-          daysUntilExpiry: tokenStatus.daysUntilExpiry,
-          expiresAt: tokenStatus.expiresAt ? tokenStatus.expiresAt.toISOString() : null,
-        });
-        expiringTokens.push({
-          pageId: page.id,
-          pageName: page.name,
-          daysUntilExpiry: tokenStatus.daysUntilExpiry,
-          expiresAt: tokenStatus.expiresAt,
-        });
-      }
-
-      // Get access token from Secret Manager
-      const accessToken = await getPageToken(page.id); // in secret-manager service
-      if (!accessToken) {
-        logger.error('No access token found for page', null, {
-          pageId: page.id,
-          pageName: page.name,
-        });
-        continue;
-      }
-
-      logger.info('Syncing events for page', {
-        pageId: page.id,
-        pageName: page.name,
-      });
-      
-      // Get events from Facebook-api service (upcoming + last 30 days)
-      let events;
+  // Sync all pages in parallel using Promise.all. That's the excellent utility
+  // of Promise in JS/TS
+  const syncResults = await Promise.all(
+    pages.map(async (page) => {
       try {
-        events = await getAllRelevantEvents(page.id, accessToken, 30);
-      } catch (error: any) {
-        // Check if it's a token expiry error (Facebook error code 190)
-        if (error.response && error.response.data && error.response.data.error) {
-          const fbError = error.response.data.error;
-          if (fbError.code === ERROR_CODES.FACEBOOK_TOKEN_INVALID) {
-            logger.error('Token expired for page - marking as inactive', error, {
-              pageId: page.id,
-              pageName: page.name,
-              facebookErrorCode: fbError.code,
-            });
-            // Mark the page as inactive and token as expired
-            await markTokenExpired(db, page.id);
-            continue; // Skip to next page
-          }
+        // 1. In this try-catch, first we check if token is expiring soon 
+        // (so within 7 days)
+        const tokenStatus = await checkTokenExpiry(db, page.id, TOKEN_REFRESH.WARNING_DAYS);
+        if (tokenStatus.isExpiring) {
+          logger.warn('Token expiring soon', {
+            pageId: page.id,
+            pageName: page.name,
+            daysUntilExpiry: tokenStatus.daysUntilExpiry,
+            expiresAt: tokenStatus.expiresAt ? tokenStatus.expiresAt.toISOString() : null,
+          });
+          // ...and if we can do it:
+          expiringTokens.push({
+            pageId: page.id,
+            pageName: page.name,
+            daysUntilExpiry: tokenStatus.daysUntilExpiry,
+            expiresAt: tokenStatus.expiresAt,
+          });
         }
-        // Re-throw if it's not a token error
-        throw error;
-      }
-      
-      logger.info('Events fetched from Facebook', {
-        pageId: page.id,
-        pageName: page.name,
-        eventCount: events.length,
-      });
 
-      // Normalize and prepare for batch write
-      // batch write is doing it all at once or not at all. Normalize is just 
-      // formatting it in a standard way
-      for (const event of events) {
-        // Start with image processing
-        // Process cover image using the image service
-        let coverImageUrl: string | null = null;
-        if (storageBucket) {
-          try {
-            coverImageUrl = await processEventCoverImage(event, page.id, storageBucket);
-          } catch (error: any) {
-            logger.warn('Image processing failed - using Facebook URL', {
-              eventId: event.id,
-              pageId: page.id,
-              error: error.message,
-            });
-            // Fallback to original Facebook URL
+        // 2. Then, we get access token from Secret Manager (thru the secret manager service)
+        const accessToken = await getPageToken(page.id); // in secret-manager service
+        if (!accessToken) {
+          logger.error('No access token found for page', null, {
+            pageId: page.id,
+            pageName: page.name,
+          });
+          return { events: [], pageId: page.id };
+        }
+
+        logger.info('Syncing events for page', {
+          pageId: page.id,
+          pageName: page.name,
+        });
+        
+        // 3. Get events from facebook-api service
+        // Well technically we get two events w/ api upcoming + last 30 days
+        let events;
+        try {
+          events = await getAllRelevantEvents(page.id, accessToken, 30);
+        } catch (error: any) {
+          // 4. Check if it's a token expiry error 
+          // (Facebook will throw its dedicated error code 190)
+          if (error.response && error.response.data && error.response.data.error) {
+            const fbError = error.response.data.error;
+            if (fbError.code === ERROR_CODES.FACEBOOK_TOKEN_INVALID) {
+              logger.error('Token expired for page - marking as inactive', error, {
+                pageId: page.id,
+                pageName: page.name,
+                facebookErrorCode: fbError.code,
+              });
+              // 4. set the page as inactive and token as expired
+              await markTokenExpired(db, page.id); // in secret-manager service
+              return { events: [], pageId: page.id }; // skips this page
+            }
+          }
+          // if no error token:
+          throw error;
+        }
+        
+        // log things in logger
+        logger.info('Events fetched from Facebook', {
+          pageId: page.id,
+          pageName: page.name,
+          eventCount: events.length,
+        });
+
+        // 5. Process all events for this page
+        // We're still doing batch write, i.e. all or nothing, but we'll use 
+        // Promise.all to make it real fast
+        const pageEventData: EventBatchItem[] = [];
+        for (const event of events) { // go thru all events...
+          // 6 Start with image processing
+          // Process cover image using our dedicated image service
+          let coverImageUrl: string | null = null;
+          if (storageBucket) {
+            try {
+              coverImageUrl = await processEventCoverImage(event, page.id, storageBucket);
+              // ^^^ there it is
+            } catch (error: any) {
+              logger.warn('Image processing failed - using Facebook URL', {
+                eventId: event.id,
+                pageId: page.id,
+                error: error.message,
+              });
+              // Fallback image to the original event's image in case we cant process t
+              coverImageUrl = event.cover ? event.cover.source : null;
+            }
+          } else {
+            // Else: Fallback in the same way
             coverImageUrl = event.cover ? event.cover.source : null;
           }
-        } else {
-          // No storage available, use original URL
-          coverImageUrl = event.cover ? event.cover.source : null;
+
+          // 7. "Normalize" events, i.e. put it into a format we use for e.g. firebase
+          // here we use our "normalizer" util in /functions/utils which basically matches
+          // facebook's event object to our firestore event object
+          const normalized = normalizeEvent(event, page.id, coverImageUrl);
+
+          pageEventData.push({
+            id: event.id,
+            data: normalized,
+          });
         }
 
-        // here we use our "normalizer" util in /functions/utils which basically matches
-        // facebook's event object to our firestore event object
-        const normalized = normalizeEvent(event, page.id, coverImageUrl);
-
-        eventData.push({
-          id: event.id,
-          data: normalized,
+        return { events: pageEventData, pageId: page.id };
+      } catch (error: any) {
+        logger.error('Failed to sync events for page', error, {
+          pageId: page.id,
+          pageName: page.name,
         });
-        totalEvents++;
+        return { events: [], pageId: page.id };
       }
-    } catch (error: any) {
-      logger.error('Failed to sync events for page', error, {
-        pageId: page.id,
-        pageName: page.name,
-      });
-    }
+    })
+  );
+
+  // collect all events from all pages
+  for (const result of syncResults) {
+    eventData.push(...result.events);
+    totalEvents += result.events.length;
   }
 
   // Batch write all events. Again, batch writing is doing it all at once
@@ -170,7 +189,7 @@ export async function syncAllPageEvents(): Promise<SyncResult> {
     });
   }
 
-  // Log expiring tokens summary
+  // And at the end, we might as well log all expiring tokens as a summary
   if (expiringTokens.length > 0) {
     logger.warn('Multiple tokens expiring soon', {
       count: expiringTokens.length,
@@ -187,7 +206,8 @@ export async function syncAllPageEvents(): Promise<SyncResult> {
 }
 
 // the above function just does the functionality. We would actually prefer
-// to do it either manually or with a cron job
+// to do it either manually or with a cron job, hence, the two methods below
+// do the actual jobs using the above method
 
 /**
  * Manual sync request (HTTP endpoint) using syncAllPageEvents() funct
@@ -201,8 +221,11 @@ export async function handleManualSync(
   res: any, 
   authMiddleware: (req: Request, res: any) => Promise<boolean>
 ): Promise<void> {
-  // authenticate request
+  // For safety, we start by authenticating our attempted sync, which is 
+  // technically a kind of HTTP request ("req") object. As a result, it will 
+  // send back a result object ("res"); both have attached attributes etc etc 
   const isAuthenticated = await authMiddleware(req, res);
+  // the authentication is done in /middleware/ in auth.ts
   if (!isAuthenticated) {
     return; // middleware already sent error
   }
@@ -227,6 +250,9 @@ export async function handleManualSync(
  * Handle scheduled sync (cron job)
  */
 export async function handleScheduledSync(): Promise<void> {
+  // The method before this one was manual; this one's scheduled as a cron job.
+  // it's actually called in index.ts, i.e. the list of methods accepted by 
+  // firebase, which also specifies how often the sync is run on schedule:))
   try {
     logger.info('Scheduled sync started');
     const result = await syncAllPageEvents();
