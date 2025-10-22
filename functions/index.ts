@@ -273,4 +273,3 @@ export const getEvents = onRequest({
   // Now handle the actual request
   await handleGetEvents(req, res); 
 });
-

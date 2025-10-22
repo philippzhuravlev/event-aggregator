@@ -212,4 +212,3 @@ export async function handleHealthCheck(req: Request, res: HttpResponse): Promis
     );
   }
 }
-

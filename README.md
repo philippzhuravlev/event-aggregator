@@ -40,7 +40,7 @@ Or "TonkaProductions". Note that all contribute code.
 - Lilian - Design & Agile facilitation
 - Ollie - Outreach (Facebook page admin liaison) & dev support
 
-## Planned Features
+## Potential Features
 
 - User favorites and personalization
 - Calendar integration and export
@@ -56,17 +56,6 @@ Or "TonkaProductions". Note that all contribute code.
 - Event moderation and approval system
 - Analytics dashboard for event engagement
 - Notification system for page admins (event sync status, token expiration)
-
-## TODO
-
-- Add magic numbers to constants
-- Standardize error response format
-- Add health check metrics
-- Implement OAuth state HMAC verification
-- Add composite rate limiting (IP + API key)
-- Add request tracing with correlation IDs
-
-## List
 
 Below are the pages for bars at DTU. Note well that some events are not listed through these pages, but those dedicated to social gatherings.
 

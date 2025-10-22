@@ -184,4 +184,3 @@ describe('auth middleware', () => {
     });
   });
 });
-

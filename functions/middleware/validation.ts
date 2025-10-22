@@ -2,6 +2,7 @@ import { Request } from 'firebase-functions/v2/https';
 import { ALLOWED_ORIGINS, FACEBOOK_ORIGIN } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { sanitizeErrorMessage } from '../utils/error-sanitizer';
+import { HTTP_STATUS } from '../utils/constants';
 
 // So in the broadest sense middleware is any software that works between apps and 
 // services etc. Usually that means security, little "checkpoints". In many ways they're 
@@ -178,7 +179,7 @@ export function handleCORS(req: Request, res: any): boolean {
   // is allowed. We in turn do that by responding to the OPTIONS request with headers
   // (like Accept, Accept-Encoding etc) and a "204 No Content" status.
   if (req.method === 'OPTIONS') {
-    res.status().send('');
+    res.status(HTTP_STATUS.NO_CONTENT).send('');
     return false; // dont continue
   }
 

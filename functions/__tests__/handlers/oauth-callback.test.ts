@@ -162,6 +162,56 @@ describe('oauth-callback handler', () => {
       );
     });
 
+    it('should accept a signed state parameter when signature is valid', async () => {
+      // build signed state: <encodedOrigin>|<hmac>
+      const origin = 'http://localhost:5173';
+      const encoded = encodeURIComponent(origin);
+      // compute expected HMAC using same algorithm as util
+      const crypto = require('crypto');
+      const sig = crypto.createHmac('sha256', mockAppSecret).update(origin).digest('hex');
+      mockReq.query = {
+        code: 'valid-auth-code',
+        state: `${encoded}|${sig}`,
+      };
+
+      const mockPages = [
+        { id: 'page1', name: 'Test Page 1', access_token: 'page-token-1' },
+      ];
+
+      (facebookApi.exchangeCodeForToken as jest.Mock).mockResolvedValue('short-lived-token');
+      (facebookApi.exchangeForLongLivedToken as jest.Mock).mockResolvedValue('long-lived-token');
+      (facebookApi.getUserPages as jest.Mock).mockResolvedValue(mockPages);
+      (secretManager.storePageToken as jest.Mock).mockResolvedValue(undefined);
+      (secretManager.getPageToken as jest.Mock).mockResolvedValue('page-token-1');
+      (firestoreService.savePage as jest.Mock).mockResolvedValue(undefined);
+      (facebookApi.getAllRelevantEvents as jest.Mock).mockResolvedValue([]);
+      (imageService.initializeStorageBucket as jest.Mock).mockReturnValue({});
+      (firestoreService.batchWriteEvents as jest.Mock).mockResolvedValue(0);
+
+      await handleOAuthCallback(mockReq, mockRes, mockAppId, mockAppSecret);
+
+      expect(mockRes.redirect).toHaveBeenCalledWith(
+        expect.stringContaining('http://localhost:5173')
+      );
+    });
+
+    it('should reject a signed state parameter when signature is invalid', async () => {
+      const origin = 'http://localhost:5173';
+      const encoded = encodeURIComponent(origin);
+      // tampered signature
+      const sig = '00deadbeef';
+      mockReq.query = {
+        code: 'valid-auth-code',
+        state: `${encoded}|${sig}`,
+      };
+
+      await handleOAuthCallback(mockReq, mockRes, mockAppId, mockAppSecret);
+
+      expect(mockRes.redirect).toHaveBeenCalledWith(
+        expect.stringContaining('error=invalid_state')
+      );
+    });
+
     it('should fallback to referer header when state is not provided', async () => {
       mockReq.query = {
         code: 'valid-auth-code',
@@ -355,4 +405,3 @@ describe('oauth-callback handler', () => {
     });
   });
 });
-

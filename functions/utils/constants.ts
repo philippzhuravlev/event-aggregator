@@ -165,6 +165,7 @@ export const TRUSTED_PROXIES = ['loopback', 'linklocal', 'uniquelocal'];
 // HTTP Status Codes - standard HTTP response codes used throughout the app and actually the whole internet, frankly
 export const HTTP_STATUS = {
   OK: 200,
+  NO_CONTENT: 204,
   BAD_REQUEST: 400,
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
@@ -214,4 +215,3 @@ export const SERVER_ERROR_RANGE = {
 } as const;
 
 export { region };
-

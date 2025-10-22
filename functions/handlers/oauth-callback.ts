@@ -7,6 +7,7 @@ import { processEventCoverImage, initializeStorageBucket } from '../services/ima
 import { normalizeEvent } from '../utils/event-normalizer';
 import { URLS, ERROR_CODES } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { verifyStateHmac } from '../utils/oauth';
 import { EventBatchItem } from '../types';
 import { oauthCallbackQuerySchema } from '../schemas/oauth-callback.schema';
 
@@ -59,14 +60,38 @@ export async function handleOAuthCallback(
   try {
     // state parameters ("state" below) are used to maintain state between the request and 
     // callback so it doesnt get hijacked or messed up along the way
-    if (state) {
+    if (state) { // = if state param is present
       try {
-        const decodedState = decodeURIComponent(state);
+        // Here, we do HMAC verification. What is that? Well HMAC (Hash-based Message Authentication Code) is
+        // what you do to a state param to make sure that it hasn't been tampered with - it's a security thing.
+        // Basically, the way it works is that you take the state param, hash it with a secret key (our app secret),
+        // and then compare that hash to the one sent along with the state param. Actually quite simple, but with a 
+        // scary name, as per usual in programming and security.
+
+        // The general format of our HMAC-ified state param is:
+        // state = ncode(original_state) + '|' + hmac_signature
+        // where original_state is the actual state data (like redirect URL), and hmac_signature is the HMAC hash
+        // we generated in the first place using our Facebook App secret ("appSecret"). The '|' is just a separator.
+        let payload = state;
+        if (state.includes('|')) {
+          const [encodedPayload, sig] = state.split('|', 2); // Separate
+          // verify signature using appSecret; if invalid, reject
+          const ok = verifyStateHmac(encodedPayload, sig, appSecret);
+          if (!ok) {
+            logger.warn('OAuth state HMAC verification failed', { state });
+            res.redirect(`${redirectBase}/?error=invalid_state`);
+            return;
+          }
+          // else:
+          payload = encodedPayload;
+        }
+
+        const decodedState = decodeURIComponent(payload);
         const stateUrl = new URL(decodedState);
         redirectBase = stateUrl.origin;
         logger.debug('Using redirect URL from state parameter', { redirectBase });
-      } catch (e: any) {
-        logger.warn('Failed to parse state parameter as URL', { state, error: e.message });
+      } catch (err: any) {
+        logger.warn('Failed to parse state parameter as URL', { state, error: err?.message });
       }
     } else if (req.headers.referer) {
       // Fall back to referer header
@@ -234,4 +259,3 @@ export async function handleOAuthCallback(
     res.redirect(`${fallbackRedirect}/?error=callback_failed`);
   }
 }
-

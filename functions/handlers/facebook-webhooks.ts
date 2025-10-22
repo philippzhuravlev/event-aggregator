@@ -538,4 +538,3 @@ export async function handleFacebookWebhook(
     createErrorResponse(new Error('Method not allowed'), false, 'Only GET and POST methods are supported')
   );
 }
-

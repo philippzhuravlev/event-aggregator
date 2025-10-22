@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { getEvents } from '../../handlers/get-events';
 import { handleGetEvents } from '../../handlers/get-events';
+import { HTTP_STATUS } from '../../utils/constants';
 import * as admin from 'firebase-admin';
 
 // Minimal Firestore-like mocks
@@ -147,7 +148,7 @@ describe('getEvents', () => {
 
     await handleGetEvents(req as any, res);
 
-    expect(status).toHaveBeenCalledWith(405);
+    expect(status).toHaveBeenCalledWith(HTTP_STATUS.METHOD_NOT_ALLOWED);
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({ 
         success: false,
