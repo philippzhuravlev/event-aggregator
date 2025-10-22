@@ -167,7 +167,7 @@ export async function handleGetEvents(req: Request, res: any): Promise<void> {
 
     // 2. Then, we call the validation function which we did with Zod. Note that getEventsQuerySchema is passed as 
     // a parameter, like our HTTP request object. This is a pattern called "dependency injection"", where we inject the schema"
-    const validation = validateQueryParams(req, getEventsQuerySchema);
+  const validation = validateQueryParams<GetEventsQuery>(req, getEventsQuerySchema);
     
     if (!validation.success) {
       res.status(400).json({ // 400 = Bad Request

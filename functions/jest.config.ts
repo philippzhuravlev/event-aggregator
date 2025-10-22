@@ -21,7 +21,9 @@ const config: Config.InitialOptions = {
     '!**/types/**',
     '!jest.config.ts',
     '!jest.config.js',
-    '!index.ts'
+    // exclude index files from testing
+    '!index.ts',
+    '!**/schemas/index.ts'
   ],
   coverageThreshold: {
     global: {

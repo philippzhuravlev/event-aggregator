@@ -2,8 +2,10 @@ import { Request } from 'firebase-functions/v2/https';
 import { getApiKey } from '../services/secret-manager';
 import { logger } from '../utils/logger';
 
-// So in the broadest sense middleware is any software that works between 
-// apps and services etc. Usually that means security, little "checkpoints"
+// So in the broadest sense middleware is any software that works between apps and 
+// services etc. Usually that means security, little "checkpoints". In many ways they're 
+// comparable to handlers in that they "do something", but that "doing something" is less
+// domain logic but more security (auth, validation etc).
 
 // authentication is the archetypical middleware. It protects http endpoints 
 // when requests and responses are sent out to make sure the right auth is done

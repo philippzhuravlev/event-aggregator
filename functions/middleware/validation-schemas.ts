@@ -1,9 +1,11 @@
-import { z, ZodSchema } from 'zod';
+import { z } from 'zod'; // zod is a nice and simple schema validation library for TypeScript from Node
 import { Request } from 'firebase-functions/v2/https';
 import { logger } from '../utils/logger';
 
-// So in the broadest sense middleware is any software that works between 
-// apps and services etc. Usually that means security, little "checkpoints"
+// So in the broadest sense middleware is any software that works between apps and 
+// services etc. Usually that means security, little "checkpoints". In many ways they're 
+// comparable to handlers in that they "do something", but that "doing something" is less
+// domain logic but more security (auth, validation etc).
 
 // I am well aware that there's already a file called validation.ts, but that's because the word "validation" means something 
 // slightly different in this context. There, it's about validating OAuth - are you the right guy? Here, it's about validating
@@ -13,7 +15,10 @@ import { logger } from '../utils/logger';
 // parameters for /get-events look like".
 
 /**
- * Validation result interface
+ * Validation result interface with:
+ * @param success - Whether validation succeeded
+ * @param data - Parsed data if successful (optional, generic type T)
+ * @param errors - Array of error messages if failed (optional)
  */
 export interface ValidationResult<T> {
   // remember - TS/JS interfaces are just for type checking. Here we're defining what a good validation result looks like
@@ -31,7 +36,7 @@ export interface ValidationResult<T> {
  */
 export function validateQueryParams<T>(
   req: Request, // the HTTP request object, which contains fields and methods related to urls and endpoints etc
-  schema: ZodSchema<T> // a Zod schema object, which defines the shape of the data we want to validate against
+  schema: z.ZodType<T, any, any> // a Zod schema object, which defines the shape of the data we want to validate against
 ): ValidationResult<T> { // here, we say the function returns a ValidationResult object of type T
   try {
     const parsed = schema.parse(req.query); // first, we start by parsing using Zod schema's parse() method
@@ -77,7 +82,7 @@ export function validateQueryParams<T>(
  */
 export function validateBody<T>( // T = generic type, so anything from str to bool to an obj etc
   req: Request, // again, the HTTP request object with urls/endpoint methods
-  schema: ZodSchema<T>  // the Zod schema object we're validating against
+  schema: z.ZodType<T, any, any>  // the Zod schema object we're validating against
 ): ValidationResult<T> { // the output
   try {
     const parsed = schema.parse(req.body); // 1. parse the body using Zod schema's parse() method
@@ -113,51 +118,4 @@ export function validateBody<T>( // T = generic type, so anything from str to bo
       errors: ['Validation failed due to unexpected error'],
     };
   }
-}
-
-/**
- * Express-style middleware wrapper for Zod validation
- * Validates query params and sends 400 response if invalid
- * @param schema - Zod schema to validate against
- * @returns Middleware function
- */
-export function validateQueryMiddleware<T>(schema: ZodSchema<T>) {
-  return (req: Request, res: any, next: () => void) => {
-    const result = validateQueryParams(req, schema);
-    
-    if (!result.success) {
-      res.status(400).json({
-        error: 'Validation failed',
-        details: result.errors,
-      });
-      return;
-    }
-    
-    // Attach validated data to request for handlers to use
-    (req as any).validatedQuery = result.data;
-    next();
-  };
-}
-
-/**
- * Validates request body and sends 400 response if invalid
- * @param schema - Zod schema to validate against
- * @returns Middleware function
- */
-export function validateBodyMiddleware<T>(schema: ZodSchema<T>) { 
-  return (req: Request, res: any, next: () => void) => {
-    const result = validateBody(req, schema);
-    
-    if (!result.success) {
-      res.status(400).json({
-        error: 'Validation failed',
-        details: result.errors,
-      });
-      return;
-    }
-    
-    // Attach validated data to request for handlers to use
-    (req as any).validatedBody = result.data;
-    next();
-  };
 }

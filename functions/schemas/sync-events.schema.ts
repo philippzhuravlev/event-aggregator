@@ -31,7 +31,7 @@ export const syncEventsQuerySchema = z.object({
   daysBack: z // how many days back to look for events
     .string() 
     .optional()
-    .transform((val) => (val ? parseInt(val, 10) : 30)) // if val exists, parse it, else default to 30
+    .transform((val) => (val ? Number(val) : 30)) // if val exists, convert to number (Number preserves decimals) else default to 30
     .pipe(z.number().int().min(1).max(365)) // must be an integer between 1 and 365
     .describe('Number of days to look back for events (1-365, default: 30)'),
 }).describe('Sync events query parameters');

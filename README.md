@@ -59,8 +59,6 @@ Or "TonkaProductions". Note that all contribute code.
 
 ## TODO
 
-- Add input validation with Zod
-- Parallelize page syncing with Promise.all
 - Add magic numbers to constants
 - Standardize error response format
 - Add health check metrics

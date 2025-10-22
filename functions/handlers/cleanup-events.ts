@@ -229,7 +229,7 @@ export async function handleManualCleanup(
     // functions/validation.ts) but we still pass the actual cleanup events schema here as
     // a param. This is called "dependency injection" - passing dependencies as params
     // instead of hardcoding them inside the function, with 5-10 little params etc
-    const validation = validateQueryParams(req, cleanupEventsQuerySchema);
+  const validation = validateQueryParams<import('../schemas/cleanup-events.schema').CleanupEventsQuery>(req, cleanupEventsQuerySchema);
     
     if (!validation.success) {
       res.status(400).json({ // 400 = Bad Request

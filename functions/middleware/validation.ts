@@ -3,8 +3,10 @@ import { ALLOWED_ORIGINS, FACEBOOK_ORIGIN } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { sanitizeErrorMessage } from '../utils/error-sanitizer';
 
-// So in the broadest sense middleware is any software that works between 
-// apps and services etc. Usually that means security, little "checkpoints"
+// So in the broadest sense middleware is any software that works between apps and 
+// services etc. Usually that means security, little "checkpoints". In many ways they're 
+// comparable to handlers in that they "do something", but that "doing something" is less
+// domain logic but more security (auth, validation etc).
 
 // Like auth, validation is classic middleware. It protects against classic attacks 
 // e.g. sending SQL statements in text fields (an "injection attack"), manually 

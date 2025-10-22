@@ -6,8 +6,10 @@ import { logger } from '../utils/logger';
 const app = express(); // here we create the express app. It's a surprise too that'll help us later with proxies and rate limiting
 app.set('trust proxy', TRUSTED_PROXIES); // and here's what we're using express for, to trust only specific proxies
 
-// So in the broadest sense middleware is any software that works between 
-// apps and services etc. Usually that means security, little "checkpoints"
+// So in the broadest sense middleware is any software that works between apps and 
+// services etc. Usually that means security, little "checkpoints". In many ways they're 
+// comparable to handlers in that they "do something", but that "doing something" is less
+// domain logic but more security (auth, validation etc).
 
 // Rate limiting is also classic middleware. It prevents abuse by limiting how many
 // requests someone can make in a given time window. This protects against:
