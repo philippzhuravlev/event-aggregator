@@ -8,9 +8,10 @@ import { batchWriteEvents } from '../services/firestore-service';
 import { processEventCoverImage, initializeStorageBucket } from '../services/image-service';
 import { normalizeEvent } from '../utils/event-normalizer';
 import { logger } from '../utils/logger';
-import { sanitizeErrorMessage } from '../utils/error-sanitizer';
+import { sanitizeErrorMessage, createErrorResponse, createValidationErrorResponse } from '../utils/error-sanitizer';
 import { validateQueryParams, validateBody } from '../middleware/validation-schemas';
 import { webhookVerificationSchema, webhookPayloadSchema } from '../schemas/facebook-webhook.schema';
+import { HTTP_STATUS } from '../utils/constants';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -444,7 +445,11 @@ export async function handleFacebookWebhook(
         errors: validation.errors,
         query: req.query,
       });
-      res.status(403).json({ error: 'Forbidden' });
+      res.status(HTTP_STATUS.FORBIDDEN).json(
+        createErrorResponse(new Error('Forbidden'), false, 'Invalid verification parameters')
+        // NB: "createErrorResponse" is a utility function in /utils/ that sanitizes errors
+        // this is going to also be the case below in POST request handling too
+      );
       return;
     }
 
@@ -454,10 +459,12 @@ export async function handleFacebookWebhook(
     );
 
     if (challenge) {
-      res.status(200).send(challenge);
+      res.status(HTTP_STATUS.OK).send(challenge);
     } else {
       // Sanitized error response - don't reveal verification details
-      res.status(403).json({ error: 'Forbidden' });
+      res.status(HTTP_STATUS.FORBIDDEN).json(
+        createErrorResponse(new Error('Forbidden'), false, 'Verification failed')
+      );
     }
     return;
   }
@@ -479,7 +486,9 @@ export async function handleFacebookWebhook(
         bodyLength: rawBody.length,
       });
       // here the error is reworked not to show any details for security; it's been "sanitized"
-      res.status(403).json({ error: 'Forbidden' });
+      res.status(HTTP_STATUS.FORBIDDEN).json(
+        createErrorResponse(new Error('Forbidden'), false, 'Invalid signature')
+      );
       return;
     }
 
@@ -493,7 +502,9 @@ export async function handleFacebookWebhook(
         errors: bodyValidation.errors, // the "body" part specifies that this is the payload
       });
       // here the error is reworked not to show any details for security
-      res.status(400).json({ error: 'Bad Request' });
+      res.status(HTTP_STATUS.BAD_REQUEST).json(
+        createValidationErrorResponse(bodyValidation.errors, 'Invalid webhook payload')
+      );
       return;
     }
 
@@ -503,7 +514,7 @@ export async function handleFacebookWebhook(
       const result = await processWebhookPayload(payload);
 
       // Success response - minimal information given over to avoid leaking details
-      res.status(200).json({
+      res.status(HTTP_STATUS.OK).json({
         success: true,
         processed: result.processed,
         skipped: result.skipped,
@@ -514,18 +525,17 @@ export async function handleFacebookWebhook(
       });
       
       // here the error has again been reworked not to show any details for security
-      const sanitizedError = sanitizeErrorMessage(error.message || String(error));
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-        // and lastly, we also sanitize this error here
-        ...(process.env.NODE_ENV === 'development' && { details: sanitizedError }),
-      });
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+        createErrorResponse(error, isDevelopment, 'Failed to process webhook')
+      );
     }
     return;
   }
 
   // other methods not allowed like PUT, DELETE etc !    
-  res.status(405).json({ error: 'Method not allowed' });
+  res.status(HTTP_STATUS.METHOD_NOT_ALLOWED).json(
+    createErrorResponse(new Error('Method not allowed'), false, 'Only GET and POST methods are supported')
+  );
 }
 

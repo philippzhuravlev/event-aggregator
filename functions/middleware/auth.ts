@@ -1,6 +1,8 @@
 import { Request } from 'firebase-functions/v2/https';
 import { getApiKey } from '../services/secret-manager';
 import { logger } from '../utils/logger';
+import { HTTP_STATUS } from '../utils/constants';
+import { createErrorResponse } from '../utils/error-sanitizer';
 
 // So in the broadest sense middleware is any software that works between apps and 
 // services etc. Usually that means security, little "checkpoints". In many ways they're 
@@ -22,10 +24,13 @@ export async function requireApiKey(req: Request, res: any): Promise<boolean> {
     
     if (!validApiKey) {
       logger.critical('API key not configured in Secret Manager', new Error('Missing API key'));
-      res.status(500).json({  // 500 = server error
-        error: 'Server configuration error',
-        message: 'API authentication is not properly configured'
-      });
+      res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+        createErrorResponse( // NB: "createErrorResponse" is a utility function in /utils/ that sanitizes errors
+          new Error('Server configuration error'), // create a new error object
+          false, // isDevelopment = false, since this is a server config error
+          'API authentication is not properly configured' // the manual, custom message we send back
+        )
+      );
       return false;
     }
 
@@ -54,17 +59,23 @@ export async function requireApiKey(req: Request, res: any): Promise<boolean> {
       userAgent: req.headers['user-agent'],
       path: req.path,
     });
-    res.status(401).json({ // 401 = unauthorized
-      error: 'Unauthorized',
-      message: 'Valid API key required. Provide via Authorization: Bearer <key> or x-api-key: <key> header'
-    });
+    res.status(HTTP_STATUS.UNAUTHORIZED).json(
+      createErrorResponse(
+        new Error('Unauthorized'),
+        false,
+        'Valid API key required. Provide via Authorization: Bearer <key> or x-api-key: <key> header'
+      )
+    );
     return false;
   } catch (error: any) {
     logger.error('API key verification failed', error);
-    res.status(500).json({ // 500 = server error
-      error: 'Authentication error',
-      message: 'Failed to verify API key'
-    });
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      createErrorResponse(
+        error,
+        false,
+        'Failed to verify API key'
+      )
+    );
     return false;
   }
 }

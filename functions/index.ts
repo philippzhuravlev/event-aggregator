@@ -3,9 +3,12 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import * as admin from 'firebase-admin';
 
-// this is the big file where the magic happens. We've made a lot of handlers that "do stuff",
-// middleware that guards front- and backend, and constants that are used by both (and more).
-// then we just pass them to firebase functions and let them do their magic.
+// generally, index files is the confusing name given for the main entry and exit points of a module
+// as you can see, it consists of just importing all of our handlers, middleware, utils etc etc
+
+// But in reality, this is the big file where the magic happens, because we export it to Firebase Functions.
+// that's because it's in [firebase] /functions/; if it was in /schemas/, it'd be the index for schemas. 
+// This also means that it goes beyond imports and exports, but also functions and initializes admin etc
 
 // import handlers
 import { handleOAuthCallback } from './handlers/oauth-callback';
@@ -22,13 +25,14 @@ import { handleCORS } from './middleware/validation';
 import { standardRateLimiter, webhookRateLimiter, oauthRateLimiter } from './middleware/rate-limit';
 
 // import constants
-import { SYNC, region, CLEANUP } from './utils/constants';
+import { SYNC, region, CLEANUP, EMAIL } from './utils/constants';
 
 // Initialize Firebase Admin
-admin.initializeApp();
+admin.initializeApp(); // also note that initializing firebase admin is necessary for using firestore, storage, etc
+// because without it, we don't have the right permissions to access those services
 
 // more consts
-const FACEBOOK_APP_ID = defineSecret('FACEBOOK_APP_ID');
+const FACEBOOK_APP_ID = defineSecret('FACEBOOK_APP_ID'); // pulled from Google Secret Manager
 const FACEBOOK_APP_SECRET = defineSecret('FACEBOOK_APP_SECRET');
 
 /**
@@ -39,12 +43,18 @@ export const syncFacebook = onRequest({
   region: region,
   secrets: [] 
 }, async (req, res) => {
-  // Handle CORS preflight and validate origin
+  // The reason why we put this as a function rather than just imports/exports is because firebase functions needs to
+  // initialize and run these functions when called, not before. So we need to wrap them in a function that firebase
+  // can call when the endpoint is hit (like a handler). This is also where we apply middleware like CORS and rate limiting.
+  
   if (!handleCORS(req, res)) return;
   
   // Apply rate limiting
   await new Promise<void>((resolve) => {
     standardRateLimiter(req as any, res as any, () => resolve());
+    // if you're wondering why "as any", it's because express-rate-limit expects express Request/Response types,
+    // but firebase-functions/v2/https Request/Response are slightly different. So we cast them to "any"
+    // 
   });
   
   // Check if rate limit was triggered (response already sent)
@@ -101,17 +111,17 @@ export const dailyTokenMonitoring = onSchedule({
 });
 
 // Scheduled token refresh (daily at 03:00 UTC) - automatically refresh tokens nearing expiry
-const FACEBOOK_APP_ID_SECRET = defineSecret('FACEBOOK_APP_ID');
+const FACEBOOK_APP_ID_SECRET = defineSecret('FACEBOOK_APP_ID'); // pull these secrets from Google Secret Manager
 const FACEBOOK_APP_SECRET_SECRET = defineSecret('FACEBOOK_APP_SECRET');
 const MAIL_SMTP_HOST = defineSecret('MAIL_SMTP_HOST');
 const MAIL_SMTP_USER = defineSecret('MAIL_SMTP_USER');
 const MAIL_SMTP_PASS = defineSecret('MAIL_SMTP_PASS');
 
 export const dailyTokenRefresh = onSchedule({
-  region: region,
+  region: region, // for us, it's europe-west1
   schedule: 'every day 03:00',
   timeZone: 'Etc/UTC',
-  secrets: [
+  secrets: [ // pull in all necessary secrets
     FACEBOOK_APP_ID_SECRET, 
     FACEBOOK_APP_SECRET_SECRET,
     MAIL_SMTP_HOST,
@@ -119,19 +129,21 @@ export const dailyTokenRefresh = onSchedule({
     MAIL_SMTP_PASS,
   ],
 }, async () => {
-  // yeah this means that we're importing this function only when needed, something programmers
-  // call "lazy loading" or if they're full of themselves (like me), "dynamic import". It's 
-  // actually quite helpful because it's efficient and prevents "circular dependencies" issues
+  // below: await import means that we're importing this function only when needed, something programmers
+  // call "lazy loading" or if they're full of themselves (like me), "dynamic import". So it's not at the
+  // top of the page, but inside our function (which is async'd btw and uses TS' amazing => shortcut, which
+  // is just a more concise way of writing functions instead of writing the whole "function ... () { ... }"
+  // TS is sometimes awful but it's full of these little things people call "syntactic sugar"
   const { handleScheduledTokenRefresh } = await import('./handlers/token-refresh.js');
   await handleScheduledTokenRefresh(
     FACEBOOK_APP_ID_SECRET.value(), 
     FACEBOOK_APP_SECRET_SECRET.value(),
-    {
-      host: MAIL_SMTP_HOST.value(),
-      user: MAIL_SMTP_USER.value(),
-      pass: MAIL_SMTP_PASS.value(),
-      port: 587, // Gmail SMTP with STARTTLS
-      from: 'no-reply@dtuevent.dk', // Your desired from address
+    { // SMTP = Simple Mail Transfer Protocol, standard for sending emails
+      host: MAIL_SMTP_HOST.value(), // HOST = SMTP server host (e.g. gmail)
+      user: MAIL_SMTP_USER.value(), // USER = email account username
+      pass: MAIL_SMTP_PASS.value(), // PASSWORD = email account password, stored as a secret
+      port: EMAIL.SMTP_PORT, // PORT = SMTP server port (e.g. 587 for Gmail)
+      from: 'no-reply@dtuevent.dk', // Email from address
     }
   );
 });
@@ -149,7 +161,7 @@ export const facebookCallback = onRequest({
   if (!handleCORS(req, res)) return;
   
   // apply OAuth rate limiting (strict)
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve) => { // again, => is just a shorthand for function () {} etc
     oauthRateLimiter(req as any, res as any, () => resolve());
   });
   

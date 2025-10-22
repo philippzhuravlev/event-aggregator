@@ -75,7 +75,9 @@ describe('rate-limit middleware configuration and handlers', () => {
 
     expect(loggerMock.warn).toHaveBeenCalledWith('Rate limit exceeded', expect.objectContaining({ ip: '1.1.1.1', path: '/api/sync' }));
     expect(res.status).toHaveBeenCalledWith(429);
-    expect(body).toHaveProperty('error', 'Too many requests');
+    expect(body).toHaveProperty('success', false);
+    expect(body).toHaveProperty('error', 'Rate limit exceeded');
+    expect(body).toHaveProperty('message');
   });
 
   it('standard handler reads x-forwarded-for header when ip missing', () => {
@@ -87,7 +89,8 @@ describe('rate-limit middleware configuration and handlers', () => {
     handler(req, res);
 
     expect(loggerMock.warn).toHaveBeenCalledWith('Rate limit exceeded', expect.objectContaining({ ip: '8.8.8.8' }));
-    expect(body).toHaveProperty('error', 'Too many requests');
+    expect(body).toHaveProperty('success', false);
+    expect(body).toHaveProperty('error', 'Rate limit exceeded');
   });
 
   it('configures webhook limiter and its handler logs critical and returns webhook message', () => {

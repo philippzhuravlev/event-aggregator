@@ -2,7 +2,8 @@ import * as admin from 'firebase-admin';
 import { Request } from 'firebase-functions/v2/https';
 import { logger } from '../utils/logger';
 import { HttpResponse, toTypedError } from '../types/handlers';
-import { sanitizeErrorMessage } from '../utils/error-sanitizer';
+import { createErrorResponse } from '../utils/error-sanitizer';
+import { HTTP_STATUS, TIME } from '../utils/constants';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -164,7 +165,7 @@ export async function performHealthCheck(
   return {
     status,
     timestamp: new Date().toISOString(),
-    uptime: Math.floor((Date.now() - startTime) / 1000),
+    uptime: Math.floor((Date.now() - startTime) / TIME.MS_PER_SECOND),
     version: process.env.K_REVISION || '1.0.0',
     checks: {
       firestore: firestoreCheck,
@@ -191,7 +192,7 @@ export async function handleHealthCheck(req: Request, res: HttpResponse): Promis
     // 503 is the standard for "service unavailable"
     // 200 is the standard for "ok"
     // you should already be aware of 404 (not found) and 403 (forbidden)
-    const statusCode = result.status === 'unhealthy' ? 503 : 200;
+    const statusCode = result.status === 'unhealthy' ? HTTP_STATUS.SERVICE_UNAVAILABLE : HTTP_STATUS.OK;
     
     res.status(statusCode).json(result); // send the whole result as json. 
     // the idea is that it's similar to what we do below with "res.status(503).json({...})",
@@ -204,12 +205,11 @@ export async function handleHealthCheck(req: Request, res: HttpResponse): Promis
     // function that turns unknown error into a dedicated typed Error 
     // (and error with an explicit type) with message property etc
     logger.error('Health check endpoint failed', typedError);
-    res.status(503).json({
-      status: 'unhealthy',
-      timestamp: new Date().toISOString(),
-      error: 'Health check failed',
-      message: sanitizeErrorMessage(typedError.message),
-    });
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    res.status(HTTP_STATUS.SERVICE_UNAVAILABLE).json(
+      createErrorResponse(typedError, isDevelopment, 'Health check failed - service unavailable')
+      // NB: "createErrorResponse" is a utility function in /utils/ that sanitizes errors
+    );
   }
 }
 

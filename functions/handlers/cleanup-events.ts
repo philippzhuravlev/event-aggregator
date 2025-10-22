@@ -2,9 +2,10 @@ import * as admin from 'firebase-admin';
 import { Request } from 'firebase-functions/v2/https';
 import { CleanupResult, CleanupOptions } from '../types';
 import { logger } from '../utils/logger';
-import { createErrorResponse } from '../utils/error-sanitizer';
+import { createErrorResponse, createValidationErrorResponse } from '../utils/error-sanitizer';
 import { validateQueryParams } from '../middleware/validation-schemas';
 import { cleanupEventsQuerySchema } from '../schemas/cleanup-events.schema';
+import { PAGINATION, HTTP_STATUS, TIME } from '../utils/constants';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -34,7 +35,7 @@ export async function cleanupOldEvents(options: CleanupOptions): Promise<Cleanup
     daysToKeep,
     dryRun = false, // dry run means we just simulate the cleanup without actually deleting anything
     archiveBeforeDelete = false,
-    batchSize = 500, // firestore batch limit. 500 cleanups per batch
+    batchSize = PAGINATION.MAX_CLEANUP_QUERY, // firestore batch limit. 500 cleanups per batch
   } = options;
 
   // calculate cutoff date
@@ -65,7 +66,7 @@ export async function cleanupOldEvents(options: CleanupOptions): Promise<Cleanup
     // we use endTime if available, otherwise startTime
     const oldEventsQuery = db.collection('events')
       .where('startTime', '<', cutoffISO)
-      .limit(10000); // Process max 10k at a time to avoid memory issues
+      .limit(PAGINATION.MAX_CLEANUP_QUERY); // Process max 10k at a time to avoid memory issues
 
     const snapshot = await oldEventsQuery.get();
 
@@ -134,7 +135,7 @@ export async function cleanupOldEvents(options: CleanupOptions): Promise<Cleanup
 
     logger.info('Event cleanup completed', {
       ...result,
-      durationSeconds: (result.duration / 1000).toFixed(2), // convert ms to seconds
+      durationSeconds: (result.duration / TIME.MS_PER_SECOND).toFixed(2), // convert ms to seconds
     });
 
     return result; // wuw we did it
@@ -232,10 +233,9 @@ export async function handleManualCleanup(
   const validation = validateQueryParams<import('../schemas/cleanup-events.schema').CleanupEventsQuery>(req, cleanupEventsQuerySchema);
     
     if (!validation.success) {
-      res.status(400).json({ // 400 = Bad Request
-        error: 'Invalid query parameters',
-        details: validation.errors,
-      });
+      res.status(HTTP_STATUS.BAD_REQUEST).json(
+        createValidationErrorResponse(validation.errors, 'Invalid query parameters')
+      );
       return;
     }
 
@@ -270,7 +270,8 @@ export async function handleManualCleanup(
   } catch (error: any) {
     logger.error('Manual cleanup failed', error);
     const isDevelopment = process.env.NODE_ENV === 'development';
-    res.status(500).json(createErrorResponse(error, isDevelopment));
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse(error, isDevelopment));
+    // NB: "createErrorResponse" is a utility function in /utils/ that sanitizes errors
   }
 }
 

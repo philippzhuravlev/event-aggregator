@@ -145,10 +145,16 @@ describe('getEvents', () => {
     const status = jest.fn(() => ({ json }));
     const res: any = { status };
 
-    await handleGetEvents(req, res);
+    await handleGetEvents(req as any, res);
 
     expect(status).toHaveBeenCalledWith(405);
-    expect(json).toHaveBeenCalledWith({ error: 'Method not allowed' });
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({ 
+        success: false,
+        error: 'Method not allowed',
+        message: expect.any(String)
+      })
+    );
   });
 
   it('handleGetEvents returns 200 and JSON payload on success', async () => {

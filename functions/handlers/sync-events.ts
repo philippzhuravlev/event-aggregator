@@ -5,7 +5,7 @@ import { getPageToken, checkTokenExpiry, markTokenExpired } from '../services/se
 import { getActivePages, batchWriteEvents } from '../services/firestore-service';
 import { processEventCoverImage, initializeStorageBucket } from '../services/image-service';
 import { normalizeEvent } from '../utils/event-normalizer';
-import { ERROR_CODES, TOKEN_REFRESH } from '../utils/constants';
+import { ERROR_CODES, TOKEN_REFRESH, EVENT_SYNC, HTTP_STATUS } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { EventBatchItem, SyncResult, ExpiringToken } from '../types';
 import { createErrorResponse } from '../utils/error-sanitizer';
@@ -97,7 +97,7 @@ export async function syncAllPageEvents(): Promise<SyncResult> {
         // Well technically we get two events w/ api upcoming + last 30 days
         let events;
         try {
-          events = await getAllRelevantEvents(page.id, accessToken, 30);
+          events = await getAllRelevantEvents(page.id, accessToken, EVENT_SYNC.PAST_EVENTS_DAYS);
         } catch (error: any) {
           // 4. Check if it's a token expiry error 
           // (Facebook will throw its dedicated error code 190)
@@ -240,13 +240,14 @@ export async function handleManualSync(
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
-    logger.error('Manual sync failed', error);
+    logger.error('Manual sync failed', error); 
     const isDevelopment = process.env.NODE_ENV === 'development';
-    res.status(500).json(createErrorResponse(error, isDevelopment));
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      createErrorResponse(error, isDevelopment, 'Failed to sync events from Facebook')
+      // NB: "createErrorResponse" is a utility function in /utils/ that sanitizes errors
+    );
   }
-}
-
-/**
+}/**
  * Handle scheduled sync (cron job)
  */
 export async function handleScheduledSync(): Promise<void> {
@@ -261,4 +262,3 @@ export async function handleScheduledSync(): Promise<void> {
     logger.error('Scheduled sync failed', error);
   }
 }
-

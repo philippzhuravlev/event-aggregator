@@ -121,7 +121,9 @@ describe('auth middleware', () => {
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'Authentication error',
+          success: false,
+          error: 'Secret Manager unavailable',
+          message: 'Failed to verify API key',
         })
       );
     });

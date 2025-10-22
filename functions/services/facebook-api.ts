@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import { ERROR_CODES, FACEBOOK, FACEBOOK_API } from '../utils/constants';
+import { ERROR_CODES, FACEBOOK, FACEBOOK_API, EVENT_SYNC, SERVER_ERROR_RANGE } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { FacebookEvent, FacebookPage, FacebookErrorResponse } from '../types';
 
@@ -41,7 +41,7 @@ function isTokenExpiredError(error: AxiosError<FacebookErrorResponse>): boolean 
 function isRetryableError(error: AxiosError): boolean {
   if (!error.response) return false;
   const status = error.response.status;
-  return status === 429 || (status >= 500 && status < 600);
+  return status === ERROR_CODES.FACEBOOK_RATE_LIMIT || (status >= SERVER_ERROR_RANGE.MIN && status < SERVER_ERROR_RANGE.MAX);
 }
 
 /**
@@ -241,7 +241,7 @@ export async function getPageEvents(
 export async function getAllRelevantEvents(
   pageId: string, 
   accessToken: string, 
-  daysBack: number = 30
+  daysBack: number = EVENT_SYNC.PAST_EVENTS_DAYS
 ): Promise<FacebookEvent[]> {
   // events **past** and **upcoming**
   const upcomingEvents = await getPageEvents(pageId, accessToken, 'upcoming');
@@ -274,4 +274,3 @@ export async function getAllRelevantEvents(
   
   return uniqueEvents;
 }
-

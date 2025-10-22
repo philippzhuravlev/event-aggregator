@@ -63,7 +63,7 @@ export function sanitizeErrorMessage(message: string): string {
  */
 export function sanitizeError(error: any): { message: string; type?: string } { 
   // whereas the first method far above redacts sensitive info (tokens, API keys etc), 
-  // this method extracts the message from an error object and "sanitizes" it;
+  // from messages, this method extracts the message from an error object and "sanitizes" it;
   // this means it will redact sensitive info but also ensure it's a string
   // and not e.g. undefined or null or an object or something otherwise quite weird innit
 
@@ -91,44 +91,85 @@ export function sanitizeError(error: any): { message: string; type?: string } {
 }
 
 /**
+ * Standardized error response interface
+ * All error responses across the API should follow this format
+ */
+export interface StandardErrorResponse {
+  // Like in other places, we use TS interfaces to define what a standard error response looks like. 
+  // Note well again that in TS/JS, interfaces are just for type checking
+  success: false;
+  error: string;
+  message?: string; // ? = optional field
+  timestamp: string;
+  details?: any;
+}
+
+/**
  * Create a safe error response object for HTTP responses
  * Includes timestamp and sanitized error information
- * @param error - Error object
+ * @param error - Error object or error message
  * @param includeDetails - Whether to include error details (e.g., in development)
- * @returns Safe error response object
+ * @param customMessage - Optional custom message to provide more context
+ * @returns Standardized error response object
  */
 export function createErrorResponse(
   error: any, 
-  includeDetails: boolean = false
-): {
-  success: false;
-  error: string;
-  timestamp: string;
-  details?: string;
-} {
+  includeDetails: boolean = false,
+  customMessage?: string
+): StandardErrorResponse {
   // this is the full function that uses the above two methods to create
   // a full error object. Like usual, we send it thru a so-called http "response"
   // (also an object), that usually has plenty of properties, but we will only
   // include the safest ones. We're like "trimming" away the potentially dangerous stuff.
+  // it's used tons of places, e.g. in auth middleware, rate limit middleware, handlers etc
   
+  // 1. start by sanitizing the error object. How we do that is by calling the above method
   const sanitized = sanitizeError(error); 
-  
-  const response: { // here we're putting these things from the response http object → ...
-    success: false;
-    error: string;
-    timestamp: string;
-    details?: string;
-  } = {             // ... → in here
+
+  // 2. create the response object
+  const response: StandardErrorResponse = {
     success: false,
     // Return the sanitized message so tests (and callers) receive a meaningful error
     error: sanitized.message || 'An error occurred',
     timestamp: new Date().toISOString(),
   };
 
-  // include sanitized details only if requested (e.g., development mode)
-  if (includeDetails) {
-    response.details = sanitized.message;
+  // 3. add message (technically optional) e.g. "Please try again later"
+  if (customMessage) {
+    response.message = customMessage;
   }
 
+  // 4. include sanitized details only if requested (e.g., development mode)
+  if (includeDetails) {
+    response.details = sanitized.message;
+
+    if (process.env.NODE_ENV === 'development' && sanitized.type) {
+      (response as any).debug = {
+        type: sanitized.type,
+        message: sanitized.message,
+      };
+    }
+  }
+
+  // 5. finally, return it
   return response;
+}
+
+/**
+ * Create a standardized validation error response
+ * @param validationErrors - Array or object of validation errors
+ * @param message - Optional custom message
+ * @returns Standardized error response with validation details
+ */
+export function createValidationErrorResponse(
+  validationErrors: any,
+  message: string = 'Validation failed'
+): StandardErrorResponse {
+  return {
+    success: false,
+    error: message,
+    message: 'The request contains invalid parameters',
+    timestamp: new Date().toISOString(),
+    details: validationErrors,
+  };
 }

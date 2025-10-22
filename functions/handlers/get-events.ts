@@ -1,9 +1,10 @@
 import * as admin from 'firebase-admin';
 import { Request } from 'firebase-functions/v2/https';
 import { logger } from '../utils/logger';
-import { createErrorResponse } from '../utils/error-sanitizer';
+import { createErrorResponse, createValidationErrorResponse } from '../utils/error-sanitizer';
 import { validateQueryParams } from '../middleware/validation-schemas';
 import { getEventsQuerySchema, GetEventsQuery } from '../schemas/get-events.schema';
+import { HTTP_STATUS } from '../utils/constants';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -161,7 +162,13 @@ export async function handleGetEvents(req: Request, res: any): Promise<void> {
   try {
     // 1. First we validate the request method is indeed GET
     if (req.method !== 'GET') {
-      res.status(405).json({ error: 'Method not allowed' }); // 405 = Method Not Allowed
+      res.status(HTTP_STATUS.METHOD_NOT_ALLOWED).json(
+        createErrorResponse( // NB: "createErrorResponse" is a utility function in /utils/ that sanitizes errors
+          new Error('Method not allowed'), // create the actual error object
+          false, // isDevelopment = false, since this is a server error
+          'Only GET requests are supported for this endpoint' // the manual, custom message we send back
+        )
+      );
       return;
     }
 
@@ -170,10 +177,9 @@ export async function handleGetEvents(req: Request, res: any): Promise<void> {
   const validation = validateQueryParams<GetEventsQuery>(req, getEventsQuerySchema);
     
     if (!validation.success) {
-      res.status(400).json({ // 400 = Bad Request
-        error: 'Invalid query parameters',
-        details: validation.errors,
-      });
+      res.status(HTTP_STATUS.BAD_REQUEST).json(
+        createValidationErrorResponse(validation.errors, 'Invalid query parameters')
+      );
       return;
     }
 
@@ -183,10 +189,10 @@ export async function handleGetEvents(req: Request, res: any): Promise<void> {
     const result = await getEvents(db, queryParams);
     
     // 4. Finally, return the result as JSON
-    res.status(200).json(result); // 200 = OK
+    res.status(HTTP_STATUS.OK).json(result); // 200 = OK
   } catch (error: any) {
     logger.error('Failed to get events', error);
     const isDevelopment = process.env.NODE_ENV === 'development';
-    res.status(500).json(createErrorResponse(error, isDevelopment));
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse(error, isDevelopment));
   }
 }

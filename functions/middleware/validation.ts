@@ -178,10 +178,9 @@ export function handleCORS(req: Request, res: any): boolean {
   // is allowed. We in turn do that by responding to the OPTIONS request with headers
   // (like Accept, Accept-Encoding etc) and a "204 No Content" status.
   if (req.method === 'OPTIONS') {
-    res.status(204).send('');
+    res.status().send('');
     return false; // dont continue
   }
 
   return true; // continue
 }
-

@@ -1,7 +1,8 @@
 import express from 'express'; // a node js web app "framework" (a bunch of tools in a system)
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
-import { RATE_LIMITS, TRUSTED_PROXIES } from '../utils/constants';
+import { RATE_LIMITS, TRUSTED_PROXIES, HTTP_STATUS, TIME } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { createErrorResponse } from '../utils/error-sanitizer';
 
 const app = express(); // here we create the express app. It's a surprise too that'll help us later with proxies and rate limiting
 app.set('trust proxy', TRUSTED_PROXIES); // and here's what we're using express for, to trust only specific proxies
@@ -28,13 +29,13 @@ export const standardRateLimiter = rateLimit({
   max: RATE_LIMITS.STANDARD.MAX_REQUESTS, // 100 requests per window. 
   message: {
     error: 'Too many requests',
-    message: `Rate limit exceeded. Maximum ${RATE_LIMITS.STANDARD.MAX_REQUESTS} requests per ${RATE_LIMITS.STANDARD.WINDOW_MS / 60000} minutes.`,
-    retryAfter: RATE_LIMITS.STANDARD.WINDOW_MS / 1000, // seconds
+    message: `Rate limit exceeded. Maximum ${RATE_LIMITS.STANDARD.MAX_REQUESTS} requests per ${RATE_LIMITS.STANDARD.WINDOW_MS / TIME.MS_PER_MINUTE} minutes.`,
+    retryAfter: RATE_LIMITS.STANDARD.WINDOW_MS / TIME.MS_PER_SECOND, // 1000 seconds
   },
   // so the HTTP "headers" are little pieces of info that go with every HTTP request/response, cuz
   // http requests and responses are objects. In that way, the headers are like the object's metadata
-  standardHeaders: true, // Return rate limit info into the HTTP `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers. This is used by older browsers.
+  standardHeaders: true, // Return rate limit info into the HTTP "RateLimit-*"" headers
+  legacyHeaders: false, // Disable the "X"-RateLimit-*" headers. This is used by older browsers.
   keyGenerator: (req) => {
     // so the key generateor is what identifies a user - each user has its own key whenever it makes
     // a http request. This is important because it means that if one user abuses the system (e.g. 
@@ -58,11 +59,14 @@ export const standardRateLimiter = rateLimit({
       userAgent: req.headers['user-agent'],
     });
     
-    res.status(429).json({ // 429 = too many requests
-      error: 'Too many requests',
-      message: `Rate limit exceeded. Maximum ${RATE_LIMITS.STANDARD.MAX_REQUESTS} requests per ${RATE_LIMITS.STANDARD.WINDOW_MS / 60000} minutes.`,
-      retryAfter: RATE_LIMITS.STANDARD.WINDOW_MS / 1000,
-    });
+    res.status(HTTP_STATUS.TOO_MANY_REQUESTS).json(
+      createErrorResponse( // NB: "createErrorResponse" is a utility function in /utils/ that sanitizes errors
+        new Error('Rate limit exceeded'), // the actual error object
+        false, // isDevelopment = false, so we don't leak info
+        `Maximum ${RATE_LIMITS.STANDARD.MAX_REQUESTS} requests per ${RATE_LIMITS.STANDARD.WINDOW_MS / TIME.MS_PER_MINUTE} minutes. Please try again later.`
+        // ^^^ the message we send back
+      )
+    );
   },
 });
 
@@ -91,10 +95,13 @@ export const webhookRateLimiter = rateLimit({
       userAgent: req.headers['user-agent'],
     });
     
-    res.status(429).json({ // 429 = too many requests
-      error: 'Webhook rate limit exceeded',
-      message: 'Too many requests',
-    });
+    res.status(HTTP_STATUS.TOO_MANY_REQUESTS).json(
+      createErrorResponse(
+        new Error('Webhook rate limit exceeded'),
+        false,
+        'Too many webhook requests received'
+      )
+    );
   },
 });
 
@@ -108,7 +115,7 @@ export const oauthRateLimiter = rateLimit({
   max: RATE_LIMITS.OAUTH.MAX_REQUESTS,
   message: {
     error: 'OAuth rate limit exceeded',
-    message: `Too many OAuth attempts. Maximum ${RATE_LIMITS.OAUTH.MAX_REQUESTS} per ${RATE_LIMITS.OAUTH.WINDOW_MS / 60000} minutes.`,
+    message: `Too many OAuth attempts. Maximum ${RATE_LIMITS.OAUTH.MAX_REQUESTS} per ${RATE_LIMITS.OAUTH.WINDOW_MS / TIME.MS_PER_MINUTE} minutes.`,
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -124,7 +131,7 @@ export const oauthRateLimiter = rateLimit({
       state: req.query.state,
     });
     
-    res.status(429).json({
+    res.status(HTTP_STATUS.TOO_MANY_REQUESTS).json({
       error: 'OAuth rate limit exceeded',
       message: 'Too many authentication attempts. Please try again later.',
     });

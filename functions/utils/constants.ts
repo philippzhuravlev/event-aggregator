@@ -162,5 +162,56 @@ export const RATE_LIMITS = {
 // "loopback" = localhost (127.0.0.1)
 export const TRUSTED_PROXIES = ['loopback', 'linklocal', 'uniquelocal'];
 
+// HTTP Status Codes - standard HTTP response codes used throughout the app and actually the whole internet, frankly
+export const HTTP_STATUS = {
+  OK: 200,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  METHOD_NOT_ALLOWED: 405,
+  TOO_MANY_REQUESTS: 429,
+  INTERNAL_SERVER_ERROR: 500,
+  SERVICE_UNAVAILABLE: 503,
+} as const;
+
+// Pagination and Query Limits (i.e. - how many items do we return per "page"/section etc)
+export const PAGINATION = {
+  DEFAULT_LIMIT: 50, // Default number of events per page
+  MAX_LIMIT: 100, // Maximum events per page
+  MAX_SEARCH_LENGTH: 200, // Maximum length for search queries
+  MAX_CLEANUP_QUERY: 10000, // Max events to query at once during cleanup
+} as const;
+
+// Time Conversion
+export const TIME = {
+  MS_PER_SECOND: 1000,
+  MS_PER_MINUTE: 60000,
+  SECONDS_PER_MINUTE: 60,
+  MINUTES_PER_HOUR: 60,
+  HOURS_PER_DAY: 24,
+} as const;
+
+// Email
+export const EMAIL = {
+  SMTP_PORT: 587, // Standard SMTP port with STARTTLS
+} as const;
+
+// Event Sync
+export const EVENT_SYNC = {
+  PAST_EVENTS_DAYS: 30, // How many days back to fetch past events
+} as const;
+
+// Image
+export const IMAGE_PROCESSING = {
+  DEFAULT_WEBP_QUALITY: 85, // Default quality for WebP compression (1-100)
+} as const;
+
+// Server Error
+export const SERVER_ERROR_RANGE = {
+  MIN: 500,
+  MAX: 600,
+} as const;
+
 export { region };
 

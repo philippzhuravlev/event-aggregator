@@ -180,7 +180,8 @@ describe('Error Sanitizer', () => {
       const result = createErrorResponse(null, true);
       
       expect(result.success).toBe(false);
-      expect(result.details).toBe('An unknown error occurred');
+      expect(result.error).toBe('An unknown error occurred');
+      expect(result.details).toBeTruthy();
     });
 
     it('should respect includeDetails flag', () => {
