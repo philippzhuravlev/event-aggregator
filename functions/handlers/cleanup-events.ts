@@ -3,6 +3,8 @@ import { Request } from 'firebase-functions/v2/https';
 import { CleanupResult, CleanupOptions } from '../types';
 import { logger } from '../utils/logger';
 import { createErrorResponse } from '../utils/error-sanitizer';
+import { validateQueryParams } from '../middleware/validation-schemas';
+import { cleanupEventsQuerySchema } from '../schemas/cleanup-events.schema';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -220,25 +222,39 @@ export async function handleManualCleanup(
   }
 
   try {
-    // get options from query params
-    // again, options is the object we passed earlier thru cleanupOldEvents() function far above which
-    // had all those little params like daysToKeep, dryRun, archiveBeforeDelete, etc., the point of it
-    // being that you don't need to pass 5-10 params manually each time ("object destructuring")
-    const daysToKeep = parseInt(req.query.daysToKeep as string || '90');
-    const dryRun = req.query.dryRun === 'true';
-    const archiveBeforeDelete = req.query.archive === 'true';
+    // Validate query parameters
+    // This is done with a Node module called Zod; it lets us add schemas for better validation
+    // when we get the params from the HTTP request. The schema itself is defined in
+    // functions/schemas/cleanup-events.schema.ts. The validating is done elsewhere (in 
+    // functions/validation.ts) but we still pass the actual cleanup events schema here as
+    // a param. This is called "dependency injection" - passing dependencies as params
+    // instead of hardcoding them inside the function, with 5-10 little params etc
+    const validation = validateQueryParams(req, cleanupEventsQuerySchema);
+    
+    if (!validation.success) {
+      res.status(400).json({ // 400 = Bad Request
+        error: 'Invalid query parameters',
+        details: validation.errors,
+      });
+      return;
+    }
+
+    // extract validated params. The "data!" part means we assert that data is not null/undefined;
+    // since we already checked validation.success above, this __should__ be safe...
+    const { daysToKeep, dryRun, archive, batchSize } = validation.data!;
 
     logger.info('Manual cleanup requested', {
       daysToKeep,
       dryRun,
-      archiveBeforeDelete,
+      archiveBeforeDelete: archive,
     });
 
     // do the cleanup with the original function we wrote above.
     const result = await cleanupOldEvents({ // remember - cleanupOldEvents() sends back a promise
       daysToKeep,
       dryRun,
-      archiveBeforeDelete,
+      archiveBeforeDelete: archive,
+      batchSize,
     });
     // See that "await" keyword above? It means "wait for this async function to complete before continuing
     // with any other code". So yes, this function sits and waits for cleanupOldEvents() to finish and send

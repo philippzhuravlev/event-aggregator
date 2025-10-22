@@ -2,6 +2,8 @@ import * as admin from 'firebase-admin';
 import { Request } from 'firebase-functions/v2/https';
 import { logger } from '../utils/logger';
 import { createErrorResponse } from '../utils/error-sanitizer';
+import { validateQueryParams } from '../middleware/validation-schemas';
+import { getEventsQuerySchema, GetEventsQuery } from '../schemas/get-events.schema';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -11,18 +13,6 @@ import { createErrorResponse } from '../utils/error-sanitizer';
 // specifically, it means splitting up large requests into smaller chunks, or "pages". Like if you 
 // have 1000 events, you don't want the frontend to fetch them all at once, because that will be slow 
 // and might crash. And so, we split them up into e.g. 50 events per page, and send them that way
-
-/**
- * Query parameters for event listing
- */
-export interface GetEventsQuery { 
-  // the ? after each property means it's optional
-  limit?: number;        // Number of events per page (default: 50, max: 100)
-  pageToken?: string;    // Cursor for pagination (startAfter timestamp)
-  pageId?: string;       // Filter by specific Facebook page
-  upcoming?: boolean;    // Filter upcoming events only (default: true)
-  search?: string;       // Search in title/description
-}
 
 /**
  * Response format for paginated events
@@ -46,13 +36,16 @@ export interface GetEventsResponse {
  */
 export async function getEvents(
   db: admin.firestore.Firestore,
-  queryParams: GetEventsQuery
-): Promise<GetEventsResponse> {
-  // Parse and validate query params
-  const limit = Math.min(parseInt(String(queryParams.limit || 50)), 100);
+  queryParams: GetEventsQuery // the "schema" object found in functions/schemas/get-events.schema.ts
+  // What that means is that we use a Node library called Zod. What it does is validate that the data we get 
+  // and send is in the right structure - kind of like how /types/ checks for the right type (bool, str etc)
+  // Here, we deconstruct the schema into its individual fields
+): Promise<GetEventsResponse> { // here, we say the function returns a Promise that resolves to GetEventsResponse
+  // 
+  const limit = queryParams.limit;
   const pageToken = queryParams.pageToken;
   const pageId = queryParams.pageId;
-  const upcoming = queryParams.upcoming !== false; // default true
+  const upcoming = queryParams.upcoming;
   const searchQuery = queryParams.search?.toLowerCase().trim();
 
   logger.debug('Getting events with pagination', {
@@ -163,26 +156,33 @@ export async function getEvents(
  * Public endpoint (no auth required) with CORS support
  */
 export async function handleGetEvents(req: Request, res: any): Promise<void> {
-  // 
-
+  // Here, we try to deconstruct the schema (getEventsQuerySchema from functions/schemas/get-events.schema.ts) into 
+  // its individual fields, which can then be passed to the /getEvents endpoint
   try {
-    // First we validate the request method is GET
+    // 1. First we validate the request method is indeed GET
     if (req.method !== 'GET') {
-      res.status(405).json({ error: 'Method not allowed' });
+      res.status(405).json({ error: 'Method not allowed' }); // 405 = Method Not Allowed
       return;
     }
 
-    const db = admin.firestore();
-    const queryParams: GetEventsQuery = {
-      limit: req.query.limit ? parseInt(String(req.query.limit)) : undefined,
-      pageToken: req.query.pageToken as string | undefined,
-      pageId: req.query.pageId as string | undefined,
-      upcoming: req.query.upcoming === 'false' ? false : true,
-      search: req.query.search as string | undefined,
-    };
+    // 2. Then, we call the validation function which we did with Zod. Note that getEventsQuerySchema is passed as 
+    // a parameter, like our HTTP request object. This is a pattern called "dependency injection"", where we inject the schema"
+    const validation = validateQueryParams(req, getEventsQuerySchema);
+    
+    if (!validation.success) {
+      res.status(400).json({ // 400 = Bad Request
+        error: 'Invalid query parameters',
+        details: validation.errors,
+      });
+      return;
+    }
 
+    // 3. Call the getEvents function with the validated query parameters
+    const db = admin.firestore();
+    const queryParams = validation.data!; // ! = non-null assertion; we make sure data is not null here
     const result = await getEvents(db, queryParams);
     
+    // 4. Finally, return the result as JSON
     res.status(200).json(result); // 200 = OK
   } catch (error: any) {
     logger.error('Failed to get events', error);

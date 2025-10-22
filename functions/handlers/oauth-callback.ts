@@ -8,6 +8,7 @@ import { normalizeEvent } from '../utils/event-normalizer';
 import { URLS, ERROR_CODES } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { EventBatchItem } from '../types';
+import { oauthCallbackQuerySchema } from '../schemas/oauth-callback.schema';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -38,11 +39,24 @@ export async function handleOAuthCallback(
   appId: string, 
   appSecret: string
 ): Promise<void> {
+  // Here, we use a Node module called Zod which lets us define so-called "schemas"; they're kind of like
+  // "types" in that they're blueprints for data, but schemas relate not the data's type (string, number, 
+  // boolean etc) but also its structure, so it'll fit nicely in our database and not have missing fields etc.
+  // The schema itself is defined in functions/schemas/oauth-callback.schema.ts. 
+
+  const parsed = oauthCallbackQuerySchema.safeParse(req.query);
+  const { code, error, state } = parsed.success
+    ? parsed.data
+    : { // falling back to raw values if parsing fails; this is mostly for testing
+        code: (req.query && (req.query.code as string)) || undefined,
+        error: (req.query && (req.query.error as string)) || undefined,
+        state: (req.query && (req.query.state as string)) || undefined,
+      };
+  
   // this entire section is about figuring out which url "prefix" (localhost, dtuevent.dk etc)
   // is used and then redirect back to that
   let redirectBase = URLS.WEB_APP;
   try {
-    const { code, error, state } = req.query as { code?: string; error?: string; state?: string };
     // state parameters ("state" below) are used to maintain state between the request and 
     // callback so it doesnt get hijacked or messed up along the way
     if (state) {

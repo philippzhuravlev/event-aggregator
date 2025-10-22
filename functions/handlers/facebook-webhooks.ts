@@ -9,6 +9,8 @@ import { processEventCoverImage, initializeStorageBucket } from '../services/ima
 import { normalizeEvent } from '../utils/event-normalizer';
 import { logger } from '../utils/logger';
 import { sanitizeErrorMessage } from '../utils/error-sanitizer';
+import { validateQueryParams, validateBody } from '../middleware/validation-schemas';
+import { webhookVerificationSchema, webhookPayloadSchema } from '../schemas/facebook-webhook.schema';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
@@ -429,8 +431,25 @@ export async function handleFacebookWebhook(
 
   // GET request - webhook verification
   if (req.method === 'GET') {
+    // Validate query parameters with Zod
+    // Once again, we use the node module Zod to validate the data. This is done with a "schema", which is like types
+    // but instead of just defining the type (string, number, boolean etc), it defines the structure of the data
+    // itself, so we can be sure it fits nicely in our database and doesn't have missing fields etc.
+    // The schema itself is defined in functions/schemas/facebook-webhook.schema.ts and is here parsed as a param,
+    // a trick called "dependency injection" where we pass dependencies as params instead of hardcoding 5-10 params
+    const validation = validateQueryParams(req, webhookVerificationSchema);
+    
+    if (!validation.success) {
+      logger.warn('Invalid webhook verification parameters', {
+        errors: validation.errors,
+        query: req.query,
+      });
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
     const challenge = handleWebhookVerification(
-      req.query as WebhookVerificationQuery,
+      validation.data as WebhookVerificationQuery,
       verifyToken
     );
 
@@ -464,11 +483,14 @@ export async function handleFacebookWebhook(
       return;
     }
 
-    // Step 2: Validate payload structure
-    const validation = validateWebhookPayload(req.body);
-    if (!validation.isValid) {
+    // Step 2: Validate payload structure with Zod
+    // Again, we use Zod (see above in step 1), but this time for validating the actual "payload"
+    // (also again, the json object sent by facebook w/ changes). Also in functions/schemas/...
+    // ...facebook-webhook.schema.ts file
+    const bodyValidation = validateBody(req, webhookPayloadSchema);
+    if (!bodyValidation.success) {
       logger.warn('Invalid webhook payload structure', {
-        errors: validation.errors,
+        errors: bodyValidation.errors, // the "body" part specifies that this is the payload
       });
       // here the error is reworked not to show any details for security
       res.status(400).json({ error: 'Bad Request' });
@@ -477,7 +499,7 @@ export async function handleFacebookWebhook(
 
     // Step 3: Process webhook
     try {
-      const payload = req.body as FacebookWebhookPayload;
+      const payload = bodyValidation.data as FacebookWebhookPayload;
       const result = await processWebhookPayload(payload);
 
       // Success response - minimal information given over to avoid leaking details

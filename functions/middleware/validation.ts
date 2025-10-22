@@ -8,7 +8,13 @@ import { sanitizeErrorMessage } from '../utils/error-sanitizer';
 
 // Like auth, validation is classic middleware. It protects against classic attacks 
 // e.g. sending SQL statements in text fields (an "injection attack"), manually 
-// changing redirect urls etc. 
+// changing redirect urls etc. The whole point of validation however is to ensure
+// that data is in the correct format, and that it meets our expectations. We use a
+// nice library called Zod (see functions/schemas/) to define "schemas" for data
+// (like "this is what a valid facebook webhook payload looks like"), and then
+// we can use those schemas to validate incoming data. If the data doesn't match
+// the schema, we can reject it before it causes any harm. So like think of schemas
+// as "checkers" in the same way that /types/ are "checkers" for data types (bool, str etc)
 
 /**
  * Validate that a redirect origin is in our whitelist
