@@ -1,252 +1,72 @@
 import './App.css'
-import { useEffect, useState } from 'react';
 import { EventCard } from './components/EventCard';
-import type { Event, Page } from './types';
-import { getEvents, getPages } from './services/dal'; // async data access layer
+import { EventFilters } from './components/EventFilters';
+import { OAuthButton } from './components/OAuthButton';
+import { useEventsData } from './hooks/useEventsData';
+import { useEventFilters } from './hooks/useEventFilters';
+import { useOAuthRedirect } from './hooks/useOAuthRedirect';
 
 function App() {
+  // Load pages and events data
+  const { pages, events, loading, error } = useEventsData();
   
-  // Data state (loaded asynchronously). 
-  // having a data access layer like this (dal) makes the code cleaner/reusable.
-  const [pages, setPages] = useState([] as Awaited<ReturnType<typeof getPages>>);
-  const [events, setEvents] = useState([] as Awaited<ReturnType<typeof getEvents>>);
-  const [loading, setLoading] = useState(true);   // loading indicator
-  const [error, setError] = useState<string>(''); // simple error string
+  // Handle OAuth redirect from Facebook. This is done in a hook in /hooks/
+  useOAuthRedirect();
+  
+  // Filter events by page, search query, and date range
+  const {
+    filtered,
+    pageId,
+    setPageId,
+    query,
+    setQuery,
+    fromDate,
+    setFromDate,
+    toDate,
+    setToDate,
+    invalidRange,
+  } = useEventFilters(events);
 
-  // Facebook OAuth consts
-  const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID;
-  const FB_REDIRECT_URI = encodeURIComponent(
-    import.meta.env.VITE_OAUTH_CALLBACK_URL || 
-    'https://europe-west1-dtuevent-8105b.cloudfunctions.net/facebookCallback'
-  );
-  const FB_SCOPES = [
-    'pages_show_list',
-    'pages_read_engagement'
-    //'pages_manage_events'
-  ].join(',');
-
-  function buildFacebookLoginUrl() {
-    // TODO: okay so first of all, this will be done in a separate file later
-
-    // here we actually make the url; arguments are passed and separated by "&"
-    // we pass things as "state parameters", i.e. just telling the origin/destination
-    // the state of things so it can't be hijacked/messed up along the way. This includes:
-    // - FB_APP_ID (which app is making the request)
-    // - FB_REDIRECT_URI (where to go back to after login)
-    // - FB_SCOPES (what permissions are being requested, for us just reading things)
-    // - currentOrigin (where the request came from, i.e. localhost, dtuevent.dk etc)
-    const currentOrigin = encodeURIComponent(window.location.origin);
-    return `https://www.facebook.com/v23.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${FB_REDIRECT_URI}&scope=${FB_SCOPES}&state=${currentOrigin}`;
-  }
-
-  // handle OAuth redirect back from Facebook
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const success = params.get('success');
-    const error = params.get('error');
-    const pagesCount = params.get('pages');
-    const eventsCount = params.get('events');
-    
-    if (success) {
-      alert(`Successfully connected ${pagesCount} Facebook page(s)! Synced ${eventsCount} events.`);
-      // Clean URL and reload data
-      window.history.replaceState({}, '', '/');
-      window.location.reload();
-    }
-    if (error) {
-      console.error(`OAuth Error: ${error}`);
-      alert(`OAuth failed: ${error}`);
-      window.history.replaceState({}, '', '/');
-    }
-  }, [])
-
-  // load data on mount. "mount" = when the component is created/loaded. Done asynchronously. 
-  useEffect(() => {
-    let cancelled = false; // if the component is "unmounted", i.e. deleted, we don't want to set the state.
-    (async () => {
-      try {
-        setLoading(true); // show loading indicator
-        const [page, event] = await Promise.all([getPages(), getEvents({ upcoming: false })]); // promise used for async code
-        // TODO: Remove "upcoming: false" above, it's just for testing (!)
-        if (cancelled) return; 
-        setPages(page); 
-        setEvents(event); // set the data
-      } catch (err) {
-        if (cancelled) return;
-        const message = (err instanceof Error && err.message) ? err.message : 'Failed to load data';
-        setError(message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true };
-  }, []);
-
-  // Filtering
-  const [pageId, setPageId] = useState<string>(''); 
-  const filtered = pageId ? events.filter((e: Event) => e.pageId === pageId) : events; // if pageId is set, filter events by pageId. Else show all events
-
-  // Text search (debounced)
-  // debounce = wait for a short delay after typing stops before updating the search query
-  const [query, setQuery] = useState<string>(''); // what's typed in the search box
-  const [debouncedQuery, setDebouncedQuery] = useState<string>(''); // updates after a short delay
-  useEffect(() => {
-    const id = setTimeout(() => {
-      setDebouncedQuery(query.trim().toLowerCase());
-    }, 250); // wait 250ms after typing stops
-    return () => clearTimeout(id); // cleanup if user keeps typing
-  }, [query]);
-
-  // apply text filter on title/description/place
-  const textFiltered = debouncedQuery
-    ? filtered.filter((event: Event) => {
-        const haystack = (  // "haystack" = the text we're searching in
-          (event.title || '') + ' ' +
-          (event.description || '') + ' ' +
-          (event.place?.name || '')
-        ).toLowerCase();
-        return haystack.includes(debouncedQuery);
-      })
-    : filtered;
-
-  // Date range filtering (from/to)
-  // input values are YYYY-MM-DD; we compare event startTime 
-  const [fromDate, setFromDate] = useState<string>(''); // inclusive
-  const [toDate, setToDate] = useState<string>('');     // inclusive
-
-  // helpers to parse and compute day boundaries
-  const parseDateOnly = (value: string) => {
-    if (!value) return undefined;
-    const [y, m, d] = value.split('-').map(Number);
-    if (!y || !m || !d) return undefined;
-    return new Date(y, m - 1, d);
-  };
-  const startOfDayMs = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).getTime();
-  const endOfDayMs = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime();
-
-  const fromObj = parseDateOnly(fromDate);
-  const toObj = parseDateOnly(toDate);
-  const invalidRange = !!(fromObj && toObj && toObj < fromObj);
-
-  // If the range is invalid, ignore the 'to' bound to avoid hiding everything
-  const effectiveToObj = invalidRange ? undefined : toObj;
-
-  const dateFiltered = textFiltered.filter((event: Event) => {
-    const eventMs = new Date(event.startTime).getTime();
-    if (fromObj && eventMs < startOfDayMs(fromObj)) return false;
-    if (effectiveToObj && eventMs > endOfDayMs(effectiveToObj)) return false;
-    return true;
-  });
-
-  const list = [...dateFiltered].sort( // sort filtered events by start time
-    // "a" and "b" are the two events we're comparing in the filtering process
-    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-  );
-
-  // HTML Quick Intro:
-  // p = paragraph
-  // a = anchor, creates a link
-  // h1 = header 1 (largest)
-  // ul = list (unordered)
-  // li = list item
-  // div = division, creates an element 
-  // label = text next to element
-  // map = iterate over each event, kind of like a for loop
   return (
-    <div className="p-6 max-w-3xl mx-auto"> {/* page container: padding + centered + width */}
-      {/* header */}
+    <div className="p-6 max-w-3xl mx-auto"> {/* padding 6, max width 3xl (xl = 768px), center horizontally */}
+      {/* h1 = Header 1 */}
       <header className="mb-6">
-        <h1 className="text-2xl font-bold mb-1">DTU Events</h1>
+        <h1 className="text-2xl font-bold mb-1">DTU Event</h1>
       </header>
 
-      {/* filter bar (row 1: Page then Search inline) */}
-      <div className="mb-2 flex flex-wrap items-center gap-3">
-        <label htmlFor="page" className="text-sm font-medium">Page</label> {/* label's htmlFor must match select id */}
-        {/* the little dropdown menu itself. */}
-        {/* border = border around the dropdown menu. rounded = rounded corners. px-2 py-1 = padding. */}
-        <select
-          id="page"
-          className="border rounded px-2 py-1"
-          value={pageId}
-          onChange={e => setPageId(e.target.value)}
-        >
-          {/* option = each item in the dropdown menu */}
-          {/* value = what's selected. onChange = what to do when selected*/}
-          <option value="">All</option>
-          {pages.map((p: Page) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+      {/* Filter controls */}
+      <EventFilters // EventFilters is actually a component we import from /components/; this displays the filter UI
+        pages={pages} // the {} are "props", which are inputs in the component
+        pageId={pageId}
+        setPageId={setPageId}
+        query={query}
+        setQuery={setQuery}
+        fromDate={fromDate}
+        setFromDate={setFromDate}
+        toDate={toDate}
+        setToDate={setToDate}
+        resultCount={filtered.length}
+        invalidRange={invalidRange}
+      />
 
-        {/* search box follows Page */}
-        <label htmlFor="q" className="text-sm font-medium">Search</label> {/* label next to input */}
-        <input
-          id="q"
-          type="text"
-          placeholder="Search events"
-          className="border rounded px-2 py-1 w-56"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-        />
-        {/* if the length is 1, don't show the 's' in 'events'*/}
-        <span className="text-sm text-gray-600">{list.length} event{list.length === 1 ? '' : 's'}</span>
-      </div>
+      {/* Loading and error text in case we're in a loading or error state */}
+      {loading && <p className="text-sm text-gray-600 mb-2">Loading…</p>}
+      {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
 
-      {/* filter bar (row 2: date range below Page and Search) */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        {/* date range (from/to). Both are inclusive. */}
-        <label htmlFor="from" className="text-sm font-medium">From</label>
-        <input
-          id="from"
-          type="date"
-          className="border rounded px-2 py-1"
-          value={fromDate}
-          onChange={e => setFromDate(e.target.value)}
-        />
-        <label htmlFor="to" className="text-sm font-medium">To</label>
-        <input
-          id="to"
-          type="date"
-          className="border rounded px-2 py-1"
-          value={toDate}
-          onChange={e => setToDate(e.target.value)}
-        />
-      </div>
-
-      {/* loading and error */}
-      {loading && (
-        <p className="text-sm text-gray-600 mb-2">Loading…</p>
-      )}
-      {error && (
-        <p className="text-sm text-red-600 mb-2">{error}</p>
-      )}
-
-      {/* show a tiny message if the date range is invalid */}
-      {invalidRange && (
-        <p className="text-xs text-red-600 mb-2">End date is before start date. Showing results up to any end date.</p>
-      )}
-
-      {/* if list is empty */}
-      {list.length === 0 && (
+      {/* Empty state text */}
+      {filtered.length === 0 && !loading && (
         <p className="text-sm text-gray-600 mb-4">No events found for this page.</p>
       )}
 
-      {/* list of events themselves */}
-      <div className="space-y-3"> {/* vertical spacing between cards; basically padding */}
-        {list.map(event => (
+      {/* Event list text */}
+      <div className="space-y-3">
+        {filtered.map(event => ( // again, map = for each event in filtered events
           <EventCard key={event.id} event={event} />
         ))}
       </div>
 
-      <div className="mb-4">
-        <a
-          href={buildFacebookLoginUrl()}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded"
-        >
-          Connect Facebook Page
-        </a>
-      </div>
-
+      {/* OAuth connection button */}
+      <OAuthButton />
     </div>
   );
 }

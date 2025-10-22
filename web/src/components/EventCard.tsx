@@ -9,6 +9,15 @@ import { formatEventStart, getEventUrl } from '../utils/eventUtils';
 
 export function EventCard({ event }: { event: Event }) {
   return (
+    // HTML Quick Intro:
+    // p = paragraph
+    // a = anchor, creates a link
+    // h1 = header 1 (largest)
+    // ul = list (unordered)
+    // li = list item
+    // div = division, creates an element 
+    // label = text next to element
+    // map = iterate over each event, for loop
     <a // this confusing syntax is JSX allow us to write html inside tsx files with React
       href={getEventUrl(event.id, event.eventURL)} // html link to the event
       target="_blank" // open in new tab
