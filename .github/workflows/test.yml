@@ -1,0 +1,63 @@
+name: Backend Tests
+
+on:
+  push:
+    branches: [ main, live, dev ]
+    paths:
+      - 'functions/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches: [ main, live, dev ]
+    paths:
+      - 'functions/**'
+      - '.github/workflows/test.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./functions
+    
+    strategy:
+      matrix:
+        node-version: [22.x]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: functions/package-lock.json
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Typecheck (fast)
+      run: npx tsc --noEmit
+
+    - name: Run linter
+      run: npm run lint
+    
+    - name: Build TypeScript
+      run: npm run build
+    
+    - name: Run tests
+      run: npm test
+    
+    - name: Run tests with coverage
+      run: npm run test:coverage
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        files: ./functions/coverage/lcov.info
+        flags: backend
+        name: backend-coverage
+      continue-on-error: true
+
