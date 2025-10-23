@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "cd web && npm run build",
+    "postinstall": "npm --prefix ./web ci",
+    "build": "npm --prefix ./web run build",
     "ingest:facebook": "node ./tools/ingest-facebook.mjs"
   },
   "repository": {
