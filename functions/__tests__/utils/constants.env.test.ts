@@ -12,23 +12,21 @@ describe('constants environment variations', () => {
     process.env = ORIGINAL_ENV;
   });
 
-  it('should expose production URLs when GCLOUD_PROJECT is set', () => {
-    process.env.GCLOUD_PROJECT = 'my-project-123';
-    process.env.FUNCTION_REGION = 'europe-west1';
+  it('should expose production environment constants when NODE_ENV=production', () => {
+    process.env.NODE_ENV = 'production';
 
-  const constants = require('../../utils/constants');
+    const constants = require('../../utils/constants');
 
-    expect(constants.URLS.WEB_APP).toContain('https://my-project-123');
-    expect(constants.URLS.OAUTH_CALLBACK).toContain('cloudfunctions.net');
+    expect(constants.IS_PRODUCTION).toBe(true);
+    expect(constants.IS_DEVELOPMENT).toBe(false);
   });
 
-  it('should expose localhost URLs when not in production', () => {
-    delete process.env.GCLOUD_PROJECT;
-    delete process.env.FUNCTIONS_EMULATOR;
+  it('should expose development environment constants when NODE_ENV=development', () => {
+    process.env.NODE_ENV = 'development';
 
-  const constants = require('../../utils/constants');
+    const constants = require('../../utils/constants');
 
-    expect(constants.URLS.WEB_APP).toBe('http://localhost:5173');
-    expect(constants.URLS.OAUTH_CALLBACK).toContain('http://localhost');
+    expect(constants.IS_PRODUCTION).toBe(false);
+    expect(constants.IS_DEVELOPMENT).toBe(true);
   });
 });
