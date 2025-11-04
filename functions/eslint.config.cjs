@@ -5,7 +5,7 @@ const tsPlugin = require('@typescript-eslint/eslint-plugin')
 const tsParser = require('@typescript-eslint/parser')
 
 module.exports = [
-  globalIgnores(['lib', 'node_modules', '.eslintrc.js', '.eslintrc.json', 'eslint.config.js', 'eslint.config.cjs']),
+  globalIgnores(['lib', 'node_modules', '.eslintrc.js', '.eslintrc.json', 'eslint.config.js', 'eslint.config.cjs', 'jest.setup.ts']),
 
   // JS files: use @eslint/js recommended rules
   {
@@ -22,7 +22,7 @@ module.exports = [
   // TS files: use @typescript-eslint plugin recommended rules
   {
     files: ['**/*.ts'],
-    ignores: ['lib/**'],
+    ignores: ['lib/**', 'jest.setup.ts'],
     languageOptions: {
       ecmaVersion: 2020,
       sourceType: 'module',
@@ -64,6 +64,20 @@ module.exports = [
       '@typescript-eslint/ban-ts-comment': 'off',
       '@typescript-eslint/no-require-imports': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
+    },
+  },
+
+  // jest.setup.ts - no type checking needed
+  {
+    files: ['jest.setup.ts'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      sourceType: 'module',
+      globals: globals.node,
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/ban-ts-comment': 'off',
     },
   },
 ]

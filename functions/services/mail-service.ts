@@ -4,9 +4,9 @@ import { logger } from '../utils/logger';
 import { TOKEN_REFRESH } from '../utils/constants';
 
 // this is a "service", which sounds vague but basically means a specific piece
-// of code that connects it to external elements like facebook, firestore and
-// google secret manager. The term could also mean like an internal service, e.g.
-// authentication or handling tokens, but here we've outsourced it to google/meta
+// of code that connects it to external elements like facebook, Supabase and
+// secrets manager. The term could also mean like an internal service, e.g.
+// authentication or handling tokens, but here we've outsourced it to meta
 // Services should not be confused with "handlers" that do business logic
 
 // Quite self-explanatory: This is a simple mailer service using the excellent module 
@@ -31,7 +31,7 @@ export function createMailTransporter(config: Partial<MailConfig>): Transporter 
   // Nodemailer and many other mail services use something called SMTP (Simple Mail Transfer Protocol),
   // which is a standardized way of sending emails through programs over the internet. You need
   // the below host, port, user, and pass to use this protocol (/system). We pull these from
-  // Google Secret Manager at runtime.
+  // Vault at runtime.
   const { host, port, user, pass } = config;
 
   if (!host || !port || !user || !pass) {

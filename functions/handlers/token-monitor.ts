@@ -1,7 +1,6 @@
-import * as admin from 'firebase-admin';
-import { Request } from 'firebase-functions/v2/https';
-import { checkTokenExpiry } from '../services/secret-manager';
-import { getActivePages } from '../services/firestore-service';
+import { Request, Response } from 'express';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { checkTokenExpiry, getActivePages } from '../services/supabase-service';
 import { logger } from '../utils/logger';
 import { TokenHealthReport, PageTokenInfo } from '../types';
 import { TOKEN_EXPIRY_CONFIG, HTTP_STATUS } from '../utils/constants';
@@ -9,7 +8,7 @@ import { createErrorResponse } from '../utils/error-sanitizer';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
-// something to an existing service, e.g. facebook or google secrets manager
+// something to an existing service, e.g. facebook or supabase vault
 
 // This handler handles "token health", a fancy work for anything related
 // to token renewing etc etc. note there might be some overlap with "health-check.ts"
@@ -18,11 +17,11 @@ import { createErrorResponse } from '../utils/error-sanitizer';
 /**
  * Check all page tokens for expiry status
  * Returns a report of which tokens are expiring soon or already expired
+ * @param supabase - Supabase client
  * @returns Token health report
  */
-export async function checkAllTokenHealth(): Promise<TokenHealthReport> {
-  const db = admin.firestore();
-  const pages = await getActivePages(db);
+export async function checkAllTokenHealth(supabase: SupabaseClient): Promise<TokenHealthReport> {
+  const pages = await getActivePages(supabase);
   
   const report: TokenHealthReport = {
     totalPages: pages.length,
@@ -35,7 +34,7 @@ export async function checkAllTokenHealth(): Promise<TokenHealthReport> {
 
   for (const page of pages) {
     try {
-      const status = await checkTokenExpiry(db, page.id, TOKEN_EXPIRY_CONFIG.warningDays);
+      const status = await checkTokenExpiry(supabase, page.id, TOKEN_EXPIRY_CONFIG.warningDays);
       
       const pageInfo: PageTokenInfo = {
         pageId: page.id,
@@ -76,22 +75,11 @@ export async function checkAllTokenHealth(): Promise<TokenHealthReport> {
  * HTTP handler for token health check endpoint
  * @param req - HTTP request object
  * @param res - HTTP response object
- * @param authMiddleware - Authentication middleware function
  */
-export async function handleTokenHealthCheck(
-  req: Request, 
-  res: any, 
-  authMiddleware: (req: Request, res: any) => Promise<boolean>
-): Promise<void> {
-  // authenticate request first
-  const isAuthenticated = await authMiddleware(req, res);
-  if (!isAuthenticated) {
-    return; // middleware already sent error
-  }
-
+export async function handleTokenHealthCheck(req: Request, res: Response): Promise<void> {
   try {
     logger.info('Token health check started');
-    const report = await checkAllTokenHealth();
+    const report = await checkAllTokenHealth((req as any).supabase);
     
     // Log warnings for expiring/expired tokens
     if (report.expired.length > 0) {
@@ -125,10 +113,10 @@ export async function handleTokenHealthCheck(
  * Scheduled handler to monitor token health and log warnings
  * This should run daily to proactively identify expiring tokens
  */
-export async function handleScheduledTokenMonitoring(): Promise<TokenHealthReport> {
+export async function handleScheduledTokenMonitoring(supabase: SupabaseClient): Promise<TokenHealthReport> {
   try {
     logger.info('Scheduled token health monitoring started');
-    const report = await checkAllTokenHealth();
+    const report = await checkAllTokenHealth(supabase);
     
     // Log summary
     logger.info('Token health summary', {
@@ -160,4 +148,3 @@ export async function handleScheduledTokenMonitoring(): Promise<TokenHealthRepor
     throw error;
   }
 }
-

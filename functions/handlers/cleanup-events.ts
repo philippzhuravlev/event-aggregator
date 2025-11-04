@@ -1,26 +1,27 @@
-import * as admin from 'firebase-admin';
-import { Request } from 'firebase-functions/v2/https';
+import { Request, Response } from 'express';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { CleanupResult, CleanupOptions } from '../types';
 import { logger } from '../utils/logger';
 import { createErrorResponse, createValidationErrorResponse } from '../utils/error-sanitizer';
 import { validateQueryParams } from '../middleware/validation-schemas';
 import { cleanupEventsQuerySchema } from '../schemas/cleanup-events.schema';
-import { PAGINATION, HTTP_STATUS, TIME } from '../utils/constants';
+import { EVENT_SYNC, HTTP_STATUS, TIME } from '../utils/constants';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
-// something to an existing service, e.g. facebook or google secrets manager
+// something to an existing service, e.g. facebook or supabase vault
 
 // This handler cleans up old events to prevent database bloat events older than X
 // days are deleted (or archived). Archiving is important because of GDPR compliance, 
 // cuz the user has a right to get all their stored data back even after deletion
 
 /**
- * Clean up old events from Firestore
+ * Clean up old events from Supabase
+ * @param supabase - Supabase client
  * @param options - Cleanup configuration
  * @returns Cleanup result with counts and details
  */
-export async function cleanupOldEvents(options: CleanupOptions): Promise<CleanupResult> {
+export async function cleanupOldEvents(supabase: SupabaseClient, options: CleanupOptions): Promise<CleanupResult> {
   // the "options: " part means that the function takes a single argument "options"
   // which is of type CleanupOptions, defined in ../types/index.ts. Now the "options" 
   // object itself has properties like daysToKeep, whether to dryRun (actually do cleanup
@@ -29,13 +30,12 @@ export async function cleanupOldEvents(options: CleanupOptions): Promise<Cleanup
   // pass many little params into one function as a single object - like, imagine doing 5-10
   // params manually for each function
   const startTime = Date.now();
-  const db = admin.firestore();
   
   const {
     daysToKeep,
     dryRun = false, // dry run means we just simulate the cleanup without actually deleting anything
     archiveBeforeDelete = false,
-    batchSize = PAGINATION.MAX_CLEANUP_QUERY, // firestore batch limit. 500 cleanups per batch
+    batchSize = EVENT_SYNC.MAX_CLEANUP_QUERY, // Supabase batch limit. 500 cleanups per batch
   } = options;
 
   // calculate cutoff date
@@ -64,71 +64,58 @@ export async function cleanupOldEvents(options: CleanupOptions): Promise<Cleanup
   try {
     // Query events older than cutoff date
     // we use endTime if available, otherwise startTime
-    const oldEventsQuery = db.collection('events')
-      .where('startTime', '<', cutoffISO)
-      .limit(PAGINATION.MAX_CLEANUP_QUERY); // Process max 10k at a time to avoid memory issues
+    const { data: oldEvents, error } = await supabase
+      .from('events')
+      .select('id')
+      .lt('startTime', cutoffISO)
+      .limit(EVENT_SYNC.MAX_CLEANUP_QUERY);
 
-    const snapshot = await oldEventsQuery.get();
+    if (error) {
+      throw new Error(error.message);
+    }
 
     // if no more older events than last batch, we're done
-    if (snapshot.empty) {
+    if (!oldEvents || oldEvents.length === 0) {
       logger.info('No old events found to clean up');
       result.duration = Date.now() - startTime;
       return result;
     }
 
-    logger.info('Found old events to clean up', { count: snapshot.size });
+    logger.info('Found old events to clean up', { count: oldEvents.length });
 
-    // archive to cheaper storage if requested
-    if (archiveBeforeDelete && !dryRun) {
-      try {
-        await archiveEvents(snapshot.docs);
-        result.archivedCount = snapshot.docs.length;
-        logger.info('Events archived successfully', { count: result.archivedCount });
-      } catch (error: any) {
-        logger.error('Failed to archive events', error);
-        result.errors?.push(`Archive failed: ${error.message}`);
-      }
-    }
+    // TODO: Add back archiving
 
-    // delete events in batches (firestore limit: 500 ops per batch)
+    // delete events in batches
     if (!dryRun) {
-      const chunks: FirebaseFirestore.DocumentSnapshot[][]  = [];
-      for (let i = 0; i < snapshot.docs.length; i += batchSize) {
-        chunks.push(snapshot.docs.slice(i, i + batchSize));
+      const chunks: { id: string }[][] = [];
+      for (let i = 0; i < oldEvents.length; i += batchSize) {
+        chunks.push(oldEvents.slice(i, i + batchSize));
       }
 
       for (const chunk of chunks) {
-        const batch = db.batch();
-        
-        for (const doc of chunk) {
-          try {
-            batch.delete(doc.ref);
-          } catch (error: any) {
-            logger.error('Failed to add delete to batch', error, { eventId: doc.id });
-            result.failedCount++;
-            result.errors?.push(`Failed to delete ${doc.id}: ${error.message}`);
-          }
-        }
+        const idsToDelete = chunk.map(event => event.id);
+        const { error: deleteError } = await supabase
+          .from('events')
+          .delete()
+          .in('id', idsToDelete);
 
-        try {
-          await batch.commit();
-          result.deletedCount += chunk.length - result.failedCount;
+        if (deleteError) {
+          logger.error('Failed to commit batch delete', deleteError);
+          result.failedCount += chunk.length;
+          result.errors?.push(`Batch commit failed: ${deleteError.message}`);
+        } else {
+          result.deletedCount += chunk.length;
           logger.debug('Deleted batch of events', {
             batchSize: chunk.length,
             totalDeleted: result.deletedCount,
           });
-        } catch (error: any) {
-          logger.error('Failed to commit batch delete', error);
-          result.failedCount += chunk.length;
-          result.errors?.push(`Batch commit failed: ${error.message}`);
         }
       }
     } else {
       // Again, just to repeat myself, "Dry run" is just simulate what would be deleted, without
       // actually deleting anything; its the certified best way to test cleanup without risk
-      result.deletedCount = snapshot.size;
-      logger.info('Dry run - would delete events', { count: snapshot.size });
+      result.deletedCount = oldEvents.length;
+      logger.info('Dry run - would delete events', { count: oldEvents.length });
     }
 
     result.duration = Date.now() - startTime; // here it sure helped having the results be an object, huh
@@ -148,66 +135,11 @@ export async function cleanupOldEvents(options: CleanupOptions): Promise<Cleanup
 }
 
 /**
- * Archive events to Google Cloud Storage before deletion
- * This stores them as JSON in a cheaper storage tier
- * @param docs - Firestore documents to archive
- */
-async function archiveEvents(docs: FirebaseFirestore.DocumentSnapshot[]): Promise<void> {
-  if (docs.length === 0) return;
-  // note well: Archiving is actually super important because if we just delete stuff,
-  // we might not be able to give the data back if the user wants (GDPR complicance)
-
-  try {
-    // lets start by initializing things, principally the storage bucket
-    const storage = admin.storage();
-    const bucket = storage.bucket();
-    const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const filename = `archives/events-${timestamp}.json`; // in the "archives" folder
-    // the name will be e.g. "events-2023-10-05.json"
-    
-    // prepare archive data
-    const archiveData = docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      archivedAt: new Date().toISOString(),
-    }));
-
-    // upload to cloud storage!!
-    const file = bucket.file(filename);
-    await file.save(JSON.stringify(archiveData, null, 2), {
-      contentType: 'application/json',
-      metadata: {
-        cacheControl: 'private, max-age=31536000', // 1 year
-        metadata: {
-          eventCount: docs.length.toString(),
-          archivedAt: new Date().toISOString(),
-        },
-      },
-    });
-
-    logger.info('Events archived to Cloud Storage', {
-      filename,
-      count: docs.length,
-      size: JSON.stringify(archiveData).length,
-    });
-  } catch (error: any) {
-    logger.error('Failed to archive events to Cloud Storage', error);
-    throw error;
-  }
-}
-
-/**
  * HTTP handler for manual cleanup
  * Requires API key authentication
  * @param req - HTTP request
  * @param res - HTTP response
- * @param authMiddleware - Authentication middleware
  */
-export async function handleManualCleanup(
-  req: Request,
-  res: any,
-  authMiddleware: (req: Request, res: any) => Promise<boolean>
-): Promise<void> {
   // manual cleanup means we call this function via HTTP request (a full on object)
   // with authentication as a parameter, so only authorized users can do it. The 
   // confusing notation is just because authMiddleware is itself a function that takes
@@ -215,13 +147,9 @@ export async function handleManualCleanup(
   // promise means async operations work or nah. This chaotic mess of a function is indeed
   // just how ts works: the pattern is called "higher order functions" - functions that take
   // other functions as params. Welcome to real programming
-  
-  // authenticate request with our amazing middleware function that we passed as a whole param
-  const isAuthenticated = await authMiddleware(req, res);
-  if (!isAuthenticated) {
-    return; // don't worry about logging - Middleware already sent error
-  }
 
+  // authenticate request with our amazing middleware function that we passed as a whole param
+export async function handleManualCleanup(req: Request, res: Response): Promise<void> {
   try {
     // Validate query parameters
     // This is done with a Node module called Zod; it lets us add schemas for better validation
@@ -230,7 +158,7 @@ export async function handleManualCleanup(
     // functions/validation.ts) but we still pass the actual cleanup events schema here as
     // a param. This is called "dependency injection" - passing dependencies as params
     // instead of hardcoding them inside the function, with 5-10 little params etc
-  const validation = validateQueryParams<import('../schemas/cleanup-events.schema').CleanupEventsQuery>(req, cleanupEventsQuerySchema);
+  const validation = validateQueryParams<import('../schemas/cleanup-events.schema').CleanupEventsQuery>(req as any, cleanupEventsQuerySchema);
     
     if (!validation.success) {
       res.status(HTTP_STATUS.BAD_REQUEST).json(
@@ -250,7 +178,7 @@ export async function handleManualCleanup(
     });
 
     // do the cleanup with the original function we wrote above.
-    const result = await cleanupOldEvents({ // remember - cleanupOldEvents() sends back a promise
+    const result = await cleanupOldEvents((req as any).supabase, { // remember - cleanupOldEvents() sends back a promise
       daysToKeep,
       dryRun,
       archiveBeforeDelete: archive,
@@ -279,11 +207,11 @@ export async function handleManualCleanup(
  * Scheduled cleanup handler
  * Runs weekly to clean up old events automatically
  */
-export async function handleScheduledCleanup(): Promise<void> {
+export async function handleScheduledCleanup(supabase: SupabaseClient): Promise<void> {
   try {
     logger.info('Scheduled event cleanup started');
     
-    const result = await cleanupOldEvents({
+    const result = await cleanupOldEvents(supabase, {
       daysToKeep: 90, // keep events for 90 days
       dryRun: false,
       archiveBeforeDelete: true, // archive before deleting

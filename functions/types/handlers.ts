@@ -1,6 +1,3 @@
-import { Request } from 'firebase-functions/v2/https';
-import type { Bucket } from '@google-cloud/storage';
-
 // Typescript is called that because its an upgraded version of javascript that has
 // types (and much much more). Types (str, bool, null) are structured like interfaces in
 // java/c#, but they're just used for "type checking", i.e. the compiler checks that the
@@ -11,7 +8,7 @@ import type { Bucket } from '@google-cloud/storage';
 // especially in ts. The whole point of ts is to provide type safety, so we're doing that here.
 
 /**
- * Firebase Functions HTTP Response type
+ * Supabase Functions HTTP Response type
  * We use a minimal interface instead of importing Express Response to avoid version conflicts
  * This covers all methods we actually use in the codebase
  */
@@ -30,10 +27,10 @@ export interface HttpResponse {
 export type AuthMiddleware = (req: Request, res: HttpResponse) => Promise<boolean>;
 
 /**
- * Firebase Storage Bucket type
+ * Supabase Storage Bucket type
  * Use this instead of 'any' for bucket objects
  */
-export type StorageBucket = Bucket;
+export type StorageBucket = any;
 
 /**
  * Typed error object

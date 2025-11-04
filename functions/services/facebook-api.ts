@@ -1,12 +1,12 @@
 import axios, { AxiosError } from 'axios';
-import { ERROR_CODES, FACEBOOK, FACEBOOK_API, EVENT_SYNC, SERVER_ERROR_RANGE } from '../utils/constants';
+import { ERROR_CODES, FACEBOOK, EVENT_SYNC, SERVER_ERROR_RANGE } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { FacebookEvent, FacebookPage, FacebookErrorResponse } from '../types';
 
 // this is a "service", which sounds vague but basically means a specific piece
-// of code that connects it to external elements like facebook, firestore and
-// google secret manager. The term could also mean like an intenal service, e.g.
-// authentication or handling tokens, but here we've outsourced it to google/meta
+// of code that connects it to external elements like facebook, Supabase and
+// vault secrets manager. The term could also mean like an intenal service, e.g.
+// authentication or handling tokens, but here we've outsourced it to supabase/meta
 // Services should not be confused with "handlers" that do business logic
 
 // The following services use "axios" which is a http tool that lets us pull from http
@@ -50,7 +50,7 @@ function isRetryableError(error: AxiosError): boolean {
  * @param maxRetries - Maximum retry attempts
  * @returns API response
  */
-async function withRetry<T>(apiCall: () => Promise<T>, maxRetries: number = FACEBOOK_API.MAX_RETRIES): Promise<T> {
+async function withRetry<T>(apiCall: () => Promise<T>, maxRetries: number = FACEBOOK.MAX_RETRIES): Promise<T> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await apiCall();
@@ -68,7 +68,7 @@ async function withRetry<T>(apiCall: () => Promise<T>, maxRetries: number = FACE
       
       // retry on rate limiting or server errors
       if (isRetryableError(axiosError) && attempt < maxRetries) {
-        const delayMs = FACEBOOK_API.RETRY_DELAY_MS * Math.pow(2, attempt - 1); // Exponential backoff
+        const delayMs = FACEBOOK.RETRY_DELAY_MS * Math.pow(2, attempt - 1); // Exponential backoff
         const status = axiosError.response ? axiosError.response.status : 'unknown';
         logger.warn('Facebook API error - retrying with backoff', {
           status,
@@ -177,7 +177,7 @@ export async function getUserPages(accessToken: string): Promise<FacebookPage[]>
         params: {
           access_token: accessToken,
           fields: 'id,name,access_token',
-          limit: FACEBOOK_API.PAGINATION_LIMIT, // Max per page
+          limit: FACEBOOK.PAGINATION_LIMIT, // Max per page
         },
       });
     });
@@ -216,7 +216,7 @@ export async function getPageEvents(
           time_filter: timeFilter,
           // explicitly request cover{source} to ensure Facebook returns the image URL
           fields: 'id,name,description,start_time,end_time,place,cover{source}',
-          limit: FACEBOOK_API.PAGINATION_LIMIT, // Max per page
+          limit: FACEBOOK.PAGINATION_LIMIT, // Max per page
         },
       });
     });

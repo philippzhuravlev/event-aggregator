@@ -1,23 +1,21 @@
-import * as admin from 'firebase-admin';
 import axios from 'axios';
 import { Readable } from 'stream';
 import path from 'path';
 import sharp from 'sharp'; // sharp is a node js lib for image processing, very powerful and fast
-import { IMAGE_SERVICE } from '../utils/constants';
+import { createClient } from '@supabase/supabase-js';
 import { logger } from '../utils/logger';
-import { FacebookEvent, ImageUploadOptions } from '../types';
 
 // this is a "service", which sounds vague but basically means a specific piece
-// of code that connects it to external elements like facebook, firestore and
-// google secret manager. The term could also mean like an internal service, e.g.
-// authentication or handling tokens, but here we've outsourced it to google/meta
+// of code that connects it to external elements like facebook, supabase and
+// secrets manager. The term could also mean like an internal service, e.g.
+// authentication or handling tokens, but here we've outsourced it to supabase/meta
 // Services should not be confused with "handlers" that do business logic
 
 // Having a service for images specifically is common and useful. It uses some 
 // advanced stuff like streaming and plenty of error handling and retry logic, 
 // but all it should really do is download an image from a url and upload it
-// to our firebase storage bucket. Again, a storage bucket is just a memory object
-// with methods and properties, similar to http req res objects or firebase
+// to our supabase storage bucket. Again, a storage bucket is just a memory object
+// with methods and properties, similar to http req res objects or supabase clients
 
 /**
  * Get file extension from content-type header with fallbacks
@@ -52,6 +50,29 @@ export function getFileExtension(contentType: string | undefined, originalUrl: s
   // default
   return '.jpg';
 }
+
+// Defaults/compatibility constants and types used by the image service
+const IMAGE_SERVICE = {
+  ALLOWED_EXTENSIONS: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'],
+  MAX_RETRIES: 3,
+  TIMEOUT_MS: 15000,
+  CACHE_MAX_AGE: 31536000, // 1 year in seconds
+  BACKOFF_BASE_MS: 1000,
+  BACKOFF_MAX_MS: 30000,
+};
+
+interface ImageUploadOptions {
+  bucket: string | { name?: string };
+  maxRetries?: number;
+  timeoutMs?: number;
+  makePublic?: boolean;
+  signedUrlExpiryYears?: number;
+}
+
+type FacebookEvent = {
+  id: string;
+  cover?: { source?: string };
+};
 
 /**
  * Sleep for a given number of milliseconds (for retry delays)
@@ -98,7 +119,7 @@ async function optimizeImage(
     // but basically we're reading the image in chunks, transforming it,
     // and then putting the chunks back together into a single "buffer"
     // a buffer is just a chunk of memory that holds binary data
-    // and is way easier to upload directly to firestore
+    // and is way easier to upload directly to supabase
     const buffer = await new Promise<Buffer>((resolve, reject) => {
       const chunks: Buffer[] = [];
       imageStream // using several streams here for efficiency
@@ -126,7 +147,7 @@ async function optimizeImage(
 }
 
 /**
- * Download and upload an image from a URL to Firebase Storage with optimization
+ * Download and upload an image from a URL to Supabase Storage with optimization
  * @param imageUrl - Source image URL (e.g., Facebook cover image)
  * @param storagePath - Destination path in Storage bucket (e.g., 'covers/pageId/eventId')
  * @param options - Configuration options
@@ -172,7 +193,7 @@ export async function uploadImageFromUrl(
       
       // Download image with streaming
       // remember streaming from programming 2? We can use this for images too to speed up the process;
-      // axios splits it up into chunks and we can directly "pipe" it (combine streams) to firebase storage
+      // axios splits it up into chunks and we can directly "pipe" it (combine streams) to supabase storage
       // instead of downloading the entire image first and then uploading it
       const response = await axios.get(imageUrl, {
         responseType: 'stream',
@@ -184,7 +205,7 @@ export async function uploadImageFromUrl(
 
       // Optimize the image: resize, compress, convert to WebP
       // again, the buffer here is just a chunk of memory that holds binary data
-      // and is way easier to upload directly to firestore. The "optimizedBuffer"
+      // and is way easier to upload directly to supabase storage. The "optimizedBuffer"
       // is just the entire image in one piece, instead of many little chunks
       logger.debug('Optimizing image', { imageUrl });
       const { buffer: optimizedBuffer } = await optimizeImage(
@@ -201,41 +222,52 @@ export async function uploadImageFromUrl(
         size: optimizedBuffer.length,
       });
       
-      // Storage bucket creation
-      const file = bucket.file(fullStoragePath);
-      
-      // 
-      await file.save(optimizedBuffer, {
-        metadata: {
+      // Use Supabase Storage to upload the optimized buffer
+      // bucket is expected to be the bucket name (string) when using Supabase
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ADMIN_KEY;
+
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error('Missing Supabase configuration: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+      }
+
+      const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+
+      const bucketName = typeof bucket === 'string' ? bucket : (bucket && bucket.name) || String(bucket);
+
+      // upload path in Supabase Storage should not start with a leading slash
+      const uploadPath = fullStoragePath.replace(/^\//, '');
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucketName)
+        .upload(uploadPath, optimizedBuffer, {
           contentType: 'image/webp',
-          cacheControl: `public, max-age=${IMAGE_SERVICE.CACHE_MAX_AGE}`, // i.e. 1 year cache
-        },
-        resumable: false, // Use simple upload for smaller files
-      });
-      
-      logger.debug('Successfully uploaded image to Storage', { fullStoragePath });
-      
-      // Generate public URL for the user to access the image in browser 
+          cacheControl: `public, max-age=${IMAGE_SERVICE.CACHE_MAX_AGE}`,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      logger.debug('Successfully uploaded image to Supabase Storage', { bucket: bucketName, uploadPath });
+
+      // Generate public URL or signed URL
       let publicUrl: string;
       if (makePublic) {
-        await file.makePublic();
-        publicUrl = `https://storage.googleapis.com/${bucket.name}/${fullStoragePath}`;
-        logger.debug('Made file public', { publicUrl });
+        const { data: publicData } = supabase.storage.from(bucketName).getPublicUrl(uploadPath);
+        publicUrl = publicData.publicUrl;
+        logger.debug('Retrieved public URL from Supabase Storage', { publicUrl });
       } else {
-        // or generate a signed URL valid for a certain time period if its not public
-        const expiryDate = new Date();
-        expiryDate.setFullYear(expiryDate.getFullYear() + signedUrlExpiryYears);
-        
-        const [signedUrl] = await file.getSignedUrl({
-          action: 'read',
-          expires: expiryDate,
-        });
-        publicUrl = signedUrl;
-        logger.debug('Generated signed URL for image', {
-          expires: expiryDate.toISOString(),
-        });
+        const expiresInSeconds = signedUrlExpiryYears * 365 * 24 * 60 * 60;
+        const { data: signedData, error: signedError } = await supabase.storage.from(bucketName).createSignedUrl(uploadPath, expiresInSeconds);
+        if (signedError) {
+          throw signedError;
+        }
+        publicUrl = signedData.signedUrl;
+        logger.debug('Generated signed URL for image', { expiresInSeconds });
       }
-      
+
       return publicUrl;
     } catch (error: any) {
       lastError = error;
@@ -267,7 +299,7 @@ export async function uploadImageFromUrl(
  * Process Facebook event cover image and upload to Storage
  * @param event - Facebook event object with cover.source
  * @param pageId - Facebook page ID
- * @param bucket - Firebase Storage bucket
+ * @param bucket - Supabase Storage bucket
  * @param options - Upload options (see uploadImageFromUrl)
  * @returns Storage URL or null if no cover image
  */
@@ -306,19 +338,22 @@ export async function processEventCoverImage(
 }
 
 /**
- * Initialize Firebase Storage bucket for image operations
+ * Initialize Supabase Storage bucket for image operations
  * @param bucketName - Optional bucket name. If not provided, uses default
- * @returns Storage bucket instance
+ * @returns Supabase storage client
  */
 export function initializeStorageBucket(bucketName: string | null = null): any {
   try {
-    const storage = admin.storage();
+    const supabaseUrl = process.env.SUPABASE_URL!;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY!;
+    const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
     
     if (bucketName) {
-      return storage.bucket(bucketName);
+      // Return a reference to the specific bucket
+      return supabase.storage.from(bucketName);
     } else {
-      // Use default bucket
-      return storage.bucket();
+      // Use default bucket (typically 'event-cover-images' or similar)
+      return supabase.storage.from('event-cover-images');
     }
   } catch (error: any) {
     throw new Error(`Failed to initialize Storage bucket: ${error.message}`);

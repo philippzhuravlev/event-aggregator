@@ -40,7 +40,7 @@ export const standardRateLimiter = rateLimit({
     // so the key generateor is what identifies a user - each user has its own key whenever it makes
     // a http request. This is important because it means that if one user abuses the system (e.g. 
     // by sending too many requests), we can block just that user without affecting others. Usually
-    // it's the IP address, but if they're using proxies (e.g. cloudflare, firebase), then it can be
+    // it's the IP address, but if they're using proxies (e.g. cloudflare, supabase), then it can be
     // so easily bypassed that it's not even funny. And so, we use express with trusted proxies and
     // pull x-forwareded-for header first, then the usual request IP ("req.ip")
     // Using ipKeyGenerator to properly handle IPv6 addresses

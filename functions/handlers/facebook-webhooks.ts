@@ -1,11 +1,9 @@
-import * as admin from 'firebase-admin';
-import { Request } from 'firebase-functions/v2/https';
+import { Request, Response } from 'express';
+import { SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { FacebookWebhookPayload, WebhookVerificationQuery, WebhookProcessingResult, WebhookEventDetail } from '../types';
-import { getPageToken } from '../services/secret-manager';
+import { getPageToken, batchWriteEvents, getActivePages } from '../services/supabase-service';
 import { getAllRelevantEvents } from '../services/facebook-api';
-import { batchWriteEvents } from '../services/firestore-service';
-import { processEventCoverImage, initializeStorageBucket } from '../services/image-service';
 import { normalizeEvent } from '../utils/event-normalizer';
 import { logger } from '../utils/logger';
 import { sanitizeErrorMessage, createErrorResponse, createValidationErrorResponse } from '../utils/error-sanitizer';
@@ -15,7 +13,7 @@ import { HTTP_STATUS } from '../utils/constants';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
-// something to an existing service, e.g. facebook or google secrets manager
+// something to an existing service, e.g. facebook or supabase vault
 
 // What this handler does is that it receives real-time notifications from Facebook when events change
 // instead of polling every 12 hours. This is done thru facebook's dedicated Facebook App Webhooks service.
@@ -214,22 +212,24 @@ export function handleWebhookVerification(
 
 /**
  * Handle a single event change from webhook
+ * @param supabase - Supabase client
  * @param eventId - Facebook event ID
  * @param verb - Action type (create, update, delete)
  * @param pageId - Facebook page ID
  * @returns Processing result
  */
 async function handleEventChange(
+  supabase: SupabaseClient,
   eventId: string,
   verb: 'create' | 'update' | 'delete',
   pageId: string
 ): Promise<WebhookEventDetail> {
-  const db = admin.firestore();
 
   try {
     // check if page is active in our system
-    const pageDoc = await db.collection('pages').doc(pageId).get();
-    if (!pageDoc.exists || !pageDoc.data()?.active) {
+    const pages = await getActivePages(supabase);
+    const page = pages.find(p => p.id === pageId);
+    if (!page || !page.data.active) {
       logger.debug('Webhook event for inactive page - skipping', { pageId, eventId });
       return {
         eventId,
@@ -242,7 +242,7 @@ async function handleEventChange(
 
     // Do delete
     if (verb === 'delete') {
-      await db.collection('events').doc(eventId).delete();
+      await supabase.from('events').delete().eq('id', eventId);
       logger.info('Event deleted via webhook', { eventId, pageId });
       return {
         eventId,
@@ -253,7 +253,7 @@ async function handleEventChange(
     }
 
     // Create/update - fetches fresh data from Facebook
-    const accessToken = await getPageToken(pageId);
+    const accessToken = await getPageToken(supabase, pageId);
     if (!accessToken) {
       logger.error('No access token for page in webhook handler', null, { pageId, eventId });
       return {
@@ -272,7 +272,7 @@ async function handleEventChange(
     if (!event) {
       logger.warn('Event not found in Facebook API response', { eventId, pageId });
       // might have been deleted, remove from our DB
-      await db.collection('events').doc(eventId).delete();
+      await supabase.from('events').delete().eq('id', eventId);
       return {
         eventId,
         verb,
@@ -282,35 +282,11 @@ async function handleEventChange(
       };
     }
 
-    // do the cover image
-    let storageBucket: any = null;
-    try {
-      storageBucket = initializeStorageBucket();
-    } catch (error: any) {
-      logger.warn('Storage bucket not available for webhook - using Facebook URL', { 
-        error: error.message 
-      });
-    }
-
-    // process the cover image
-    let coverImageUrl: string | null = null;
-    if (storageBucket && event.cover) {
-      try {
-        coverImageUrl = await processEventCoverImage(event, pageId, storageBucket);
-      } catch (error: any) {
-        logger.warn('Image processing failed in webhook - using Facebook URL', {
-          eventId,
-          error: error.message,
-        });
-        coverImageUrl = event.cover.source;
-      }
-    } else if (event.cover) {
-      coverImageUrl = event.cover.source;
-    }
+    // TODO: Add back image processing
 
     // use the normalize util to format the event
-    const normalized = normalizeEvent(event, pageId, coverImageUrl);
-    await batchWriteEvents(db, [{ id: eventId, data: normalized }]);
+    const normalized = normalizeEvent(event, pageId, event.cover ? event.cover.source : null);
+    await batchWriteEvents(supabase, [{ id: eventId, data: normalized }]);
 
     logger.info('Event synced via webhook', { 
       eventId, 
@@ -347,10 +323,12 @@ async function handleEventChange(
 
 /**
  * Process webhook payload from Facebook
+ * @param supabase - Supabase client
  * @param payload - Webhook payload with event changes
  * @returns Processing result summary
  */
 export async function processWebhookPayload(
+  supabase: SupabaseClient,
   payload: FacebookWebhookPayload
 ): Promise<WebhookProcessingResult> {
   logger.info('Processing webhook payload', {
@@ -391,6 +369,7 @@ export async function processWebhookPayload(
 
       // process the event change
       const detail = await handleEventChange(
+        supabase,
         value.event_id,
         value.verb,
         value.page_id || pageId
@@ -423,10 +402,11 @@ export async function processWebhookPayload(
  */
 export async function handleFacebookWebhook(
   req: Request,
-  res: any,
+  res: Response,
   appSecret: string,
   verifyToken: string
 ): Promise<void> {
+  const supabase = (req as any).supabase;
   // The method above this one was just for validating the payload and signature. 
   // This time, we're actually "doing something" - a handler - which uses the methods above
 
@@ -434,11 +414,11 @@ export async function handleFacebookWebhook(
   if (req.method === 'GET') {
     // Validate query parameters with Zod
     // Once again, we use the node module Zod to validate the data. This is done with a "schema", which is like types
-    // but instead of just defining the type (string, number, boolean etc), it defines the structure of the data
+    // but instead of justdefining the type (string, number, boolean etc), it defines the structure of the data
     // itself, so we can be sure it fits nicely in our database and doesn't have missing fields etc.
     // The schema itself is defined in functions/schemas/facebook-webhook.schema.ts and is here parsed as a param,
     // a trick called "dependency injection" where we pass dependencies as params instead of hardcoding 5-10 params
-    const validation = validateQueryParams(req, webhookVerificationSchema);
+    const validation = validateQueryParams(req as any, webhookVerificationSchema);
     
     if (!validation.success) {
       logger.warn('Invalid webhook verification parameters', {
@@ -477,8 +457,8 @@ export async function handleFacebookWebhook(
     // which is a special part of the http system ("protocol") that usually contains metadata
     // about the request itself, like who sent it, when, etc. We're just using one of
     // those headers to verify the request is legit thru this signaature
-    const signature = req.headers['x-hub-signature-256'] as string | undefined;
-    const rawBody = req.rawBody?.toString() || JSON.stringify(req.body);
+    const signature = (req as any).headers['x-hub-signature-256'] as string | undefined;
+    const rawBody = (req as any).rawBody?.toString() || JSON.stringify((req as any).body);
     
     if (!verifyWebhookSignature(rawBody, signature, appSecret)) {
       logger.warn('Webhook signature verification failed', {
@@ -496,7 +476,7 @@ export async function handleFacebookWebhook(
     // Again, we use Zod (see above in step 1), but this time for validating the actual "payload"
     // (also again, the json object sent by facebook w/ changes). Also in functions/schemas/...
     // ...facebook-webhook.schema.ts file
-    const bodyValidation = validateBody(req, webhookPayloadSchema);
+    const bodyValidation = validateBody(req as any, webhookPayloadSchema);
     if (!bodyValidation.success) {
       logger.warn('Invalid webhook payload structure', {
         errors: bodyValidation.errors, // the "body" part specifies that this is the payload
@@ -511,7 +491,7 @@ export async function handleFacebookWebhook(
     // Step 3: Process webhook
     try {
       const payload = bodyValidation.data as FacebookWebhookPayload;
-      const result = await processWebhookPayload(payload);
+      const result = await processWebhookPayload(supabase, payload);
 
       // Success response - minimal information given over to avoid leaking details
       res.status(HTTP_STATUS.OK).json({

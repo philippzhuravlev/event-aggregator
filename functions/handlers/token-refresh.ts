@@ -1,6 +1,11 @@
-import * as admin from 'firebase-admin';
-import { getActivePages } from '../services/firestore-service';
-import { getPageToken, storePageToken, checkTokenExpiry, markTokenExpired } from '../services/secret-manager';
+import { createClient } from '@supabase/supabase-js';
+import {
+  getActivePages,
+  getPageToken,
+  storePageToken,
+  checkTokenExpiry,
+  markTokenExpired,
+} from '../services/supabase-service';
 import { exchangeForLongLivedToken } from '../services/facebook-api';
 import { logger } from '../utils/logger';
 import { ERROR_CODES } from '../utils/constants';
@@ -9,7 +14,7 @@ import { TOKEN_EXPIRY_CONFIG } from '../utils/constants';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
-// something to an existing service, e.g. facebook or google secrets manager
+// something to an existing service, e.g. facebook or supabase vault
 
 // It is known that facebook tokens exist in a short-lived (hours) and long-lived
 // (60 days) format. They can't be any longer, and that's the point; it's a security
@@ -19,7 +24,7 @@ import { TOKEN_EXPIRY_CONFIG } from '../utils/constants';
  * Scheduled token refresh
  * - Finds all active pages
  * - For tokens expiring within `warningDays`, attempts to refresh via Facebook
- * - Stores refreshed token in Secret Manager and updates Firestore metadata
+ * - Stores refreshed token in Secret Manager and updates Supabase metadata
  * - Marks tokens as expired/inactive when Facebook reports they are invalid
  * @param appId - Facebook App ID
  * @param appSecret - Facebook App Secret
@@ -30,7 +35,6 @@ export async function handleScheduledTokenRefresh(
   appSecret: string, 
   mailConfig: Partial<MailConfig>
 ): Promise<void> {
-  const db = admin.firestore(); // dont get it twisted; this just initializes firestore
   
   // Create mailer from Secret Manager credentials
   const mailer = createMailTransporter(mailConfig);
@@ -41,7 +45,12 @@ export async function handleScheduledTokenRefresh(
   // so it begins
   try {
     logger.info('Scheduled token refresh started');
-    const pages = await getActivePages(db);
+    // Initialize Supabase client (used as the vault/configs + pages storage)
+    const supabaseUrl = process.env.SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const pages = await getActivePages(supabase);
 
     if (pages.length === 0) {
       logger.info('No active pages found for token refresh');
@@ -50,13 +59,13 @@ export async function handleScheduledTokenRefresh(
 
     for (const page of pages) {
       try {
-        const token = await getPageToken(page.id);
+        const token = await getPageToken(supabase, page.id);
         if (!token) {
           logger.warn('No token found for page; skipping refresh', { pageId: page.id, pageName: page.name });
           continue;
         }
 
-        const expiry = await checkTokenExpiry(db, page.id, TOKEN_EXPIRY_CONFIG.warningDays);
+        const expiry = await checkTokenExpiry(supabase, page.id, TOKEN_EXPIRY_CONFIG.warningDays);
         if (!expiry.isExpiring) {
           logger.debug('Token not expiring yet; skipping', { pageId: page.id, daysUntilExpiry: expiry.daysUntilExpiry });
           continue;
@@ -68,14 +77,14 @@ export async function handleScheduledTokenRefresh(
         try {
           const newToken = await exchangeForLongLivedToken(token, appId, appSecret);
           // store new token and update metadata (defaults to configured days)
-          await storePageToken(page.id, newToken, { db, expiresInDays: TOKEN_EXPIRY_CONFIG.defaultExpiresDays });
+          await storePageToken(supabase, page.id, newToken, TOKEN_EXPIRY_CONFIG.defaultExpiresDays);
           logger.info('Token refreshed and stored', { pageId: page.id });
         } catch (err: any) {
           // if Facebook reports the token as invalid, we in turn mark it as expired
           const fbErr = err?.response?.data?.error;
           if (fbErr && fbErr.code === ERROR_CODES.FACEBOOK_TOKEN_INVALID) {
             logger.error('Token refresh failed - token invalid, marking expired', err, { pageId: page.id });
-            await markTokenExpired(db, page.id);
+            await markTokenExpired(supabase, page.id);
             continue;
           }
 

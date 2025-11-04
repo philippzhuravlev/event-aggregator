@@ -1,5 +1,4 @@
 import { z } from 'zod'; // zod is a nice and simple schema validation library for TypeScript from Node
-import { Request } from 'firebase-functions/v2/https';
 import { logger } from '../utils/logger';
 
 // So in the broadest sense middleware is any software that works between apps and 
@@ -39,7 +38,8 @@ export function validateQueryParams<T>(
   schema: z.ZodType<T, any, any> // a Zod schema object, which defines the shape of the data we want to validate against
 ): ValidationResult<T> { // here, we say the function returns a ValidationResult object of type T
   try {
-    const parsed = schema.parse(req.query); // first, we start by parsing using Zod schema's parse() method
+    const reqAny = req as any;
+    const parsed = schema.parse(reqAny.query); // first, we start by parsing using Zod schema's parse() method
     return { // and hope to return:
       success: true,
       data: parsed,
@@ -53,10 +53,11 @@ export function validateQueryParams<T>(
       });
       
       // log if error
+      const reqAny = req as any;
       logger.warn('Query parameter validation failed', {
-        path: req.path,
+        path: reqAny.path,
         errors,
-        query: req.query,
+        query: reqAny.query,
       });
       
       return {
@@ -85,7 +86,8 @@ export function validateBody<T>( // T = generic type, so anything from str to bo
   schema: z.ZodType<T, any, any>  // the Zod schema object we're validating against
 ): ValidationResult<T> { // the output
   try {
-    const parsed = schema.parse(req.body); // 1. parse the body using Zod schema's parse() method
+    const reqAny = req as any;
+    const parsed = schema.parse(reqAny.body); // 1. parse the body using Zod schema's parse() method
     return { // 2A. if successful, return:
       success: true,
       data: parsed,
@@ -99,8 +101,9 @@ export function validateBody<T>( // T = generic type, so anything from str to bo
       });
       
       // log the error
+      const reqAny = req as any;
       logger.warn('Request body validation failed', {
-        path: req.path,
+        path: reqAny.path,
         errors,
       });
 

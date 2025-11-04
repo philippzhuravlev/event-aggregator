@@ -1,7 +1,7 @@
 {
   "name": "dtuevent",
   "version": "1.0.0",
-  "description": "This website will be a central registry for Technical University of Denmark (DTU)'s campus events from bars and cafes. JS/Node.js/REACT/Tailwind frontend, Firestore backend for hosting and DB. The site pulls through facebook's API from a number of DTU Campus bars and nearby form bars. Can be filtered by Lyngby Campus, Ballerup Campus and Dorms.",
+  "description": "This website will be a central registry for Technical University of Denmark (DTU)'s campus events from bars and cafes. JS/Node.js/REACT/Tailwind frontend, Supabase backend for hosting and DB. The site pulls through facebook's API from a number of DTU Campus bars and nearby form bars. Can be filtered by Lyngby Campus, Ballerup Campus and Dorms.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -21,13 +21,11 @@
   },
   "homepage": "https://github.com/philippzhuravlev/DTUEvent#readme",
   "devDependencies": {
-    "@google-cloud/secret-manager": "^6.1.0",
-    "firebase-admin": "^13.5.0",
     "node-fetch": "^3.3.2"
   },
   "dependencies": {
     "axios": "^1.12.2",
-  "dotenv": "^17.2.3",
+    "dotenv": "^17.2.3",
     "express": "^5.1.0"
   }
   ,"overrides": {

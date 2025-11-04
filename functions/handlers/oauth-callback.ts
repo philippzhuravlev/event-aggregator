@@ -1,19 +1,16 @@
-import * as admin from 'firebase-admin';
-import { Request } from 'firebase-functions/v2/https';
+import { Request, Response } from 'express';
 import { exchangeCodeForToken, exchangeForLongLivedToken, getUserPages, getAllRelevantEvents } from '../services/facebook-api';
-import { storePageToken, getPageToken } from '../services/secret-manager';
-import { savePage, batchWriteEvents } from '../services/firestore-service';
-import { processEventCoverImage, initializeStorageBucket } from '../services/image-service';
+import { storePageToken, getPageToken, savePage, batchWriteEvents } from '../services/supabase-service';
 import { normalizeEvent } from '../utils/event-normalizer';
-import { URLS, ERROR_CODES } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { verifyStateHmac } from '../utils/oauth';
-import { EventBatchItem } from '../types';
 import { oauthCallbackQuerySchema } from '../schemas/oauth-callback.schema';
+import { URLS, ERROR_CODES } from '../utils/constants';
+import type { EventBatchItem } from '../types';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
-// something to an existing service, e.g. facebook or google secrets manager
+// something to an existing service, e.g. facebook or supabase vault
 
 // So handlers "do something", in this case handle the oauth callback from facebook;
 // what this actually means is that you click "connect to facebook" on the web app, which
@@ -27,7 +24,7 @@ import { oauthCallbackQuerySchema } from '../schemas/oauth-callback.schema';
  * 3. Exchanges short-lived token for long-lived token (60 days)
  * 4. Gets user's Facebook Pages with token
  * 5. Puts page tokens securely in Secret Manager
- * 6. Puts page metadata in Firestore
+ * 6. Puts page metadata in Supabase
  * 7. helpfully places data directly
  * @param req - HTTP request object (contains .query with Facebook's response)
  * @param res - HTTP response object (use .redirect() to send user back)
@@ -36,10 +33,11 @@ import { oauthCallbackQuerySchema } from '../schemas/oauth-callback.schema';
  */
 export async function handleOAuthCallback(
   req: Request, 
-  res: any, 
+  res: Response, 
   appId: string, 
   appSecret: string
 ): Promise<void> {
+  const supabase = (req as any).supabase;
   // Here, we use a Node module called Zod which lets us define so-called "schemas"; they're kind of like
   // "types" in that they're blueprints for data, but schemas relate not the data's type (string, number, 
   // boolean etc) but also its structure, so it'll fit nicely in our database and not have missing fields etc.
@@ -120,44 +118,32 @@ export async function handleOAuthCallback(
     }
 
     // 1: get code for short-lived token
-    // uses firebook-api service in /functions/service
+    // uses supabase-api service in /functions/service
     const shortLivedToken = await exchangeCodeForToken(code, appId, appSecret, URLS.OAUTH_CALLBACK);
     
     // 2: get code for long-lived token (60 days)
-    // also uses firebook-api service also in /functions/service
+    // also uses supabase-api service also in /functions/service
     const longLivedToken = await exchangeForLongLivedToken(shortLivedToken, appId, appSecret);
 
     // 3: get user's pages with token
-    // this is now done thru firestore-service service
+    // this is now done thru supabase-api service
     const pages = await getUserPages(longLivedToken);
     if (pages.length === 0) {
       res.redirect(`${redirectBase}/?error=no_pages`);
       return;
     }
 
-    // Step 4: Store page tokens in Secret Manager and metadata in Firestore
-    const db = admin.firestore(); // 'firebase-admin' 
+        // Step 4: Store page tokens in Secret Manager and metadata in Supabase
+        for (const page of pages) {
+          // store page also thru our supabase-api service
+          await storePageToken(supabase, page.id, page.access_token);
 
-    for (const page of pages) {
-      // store page also thru our firestore-service service
-      await storePageToken(page.id, page.access_token);
-      
-      // save page metadata to firestore also thru firebase service
-      await savePage(db, page.id, {
-        name: page.name,
-      });
-    }
-
-    // step 5: Initialize storage bucket for image processing
-    let storageBucket: any = null;
-    try {
-      storageBucket = initializeStorageBucket();
-      logger.info('Storage bucket initialized for OAuth event image processing');
-    } catch (error: any) {
-      logger.warn('Storage bucket not available during OAuth - using Facebook URLs', { 
-        error: error.message 
-      });
-    }
+          // save page metadata to supabase also thru supabase-api service
+          await savePage(supabase, page.id, {
+            name: page.name,
+          });
+        }
+    // step 5: TODO: Add back image processing
 
     // step 6: Fetch and store events for each page
     let totalEvents = 0;
@@ -166,7 +152,7 @@ export async function handleOAuthCallback(
     for (const page of pages) {
       try {
         // get token thru secret-manager service in /functions/service
-        const accessToken = await getPageToken(page.id);
+        const accessToken = await getPageToken(supabase, page.id);
         if (!accessToken) {
           logger.warn('Could not retrieve token for page during OAuth', {
             pageId: page.id,
@@ -183,43 +169,23 @@ export async function handleOAuthCallback(
           if (eventError.response && eventError.response.data && eventError.response.data.error) {
             const fbError = eventError.response.data.error;
             if (fbError.code === ERROR_CODES.FACEBOOK_TOKEN_INVALID) {
-              logger.error('Token expired during OAuth - marking page inactive', eventError, {
+              logger.error('Token expired during OAuth - skip page sync', eventError, {
                 pageId: page.id,
                 pageName: page.name,
                 facebookErrorCode: fbError.code,
               });
-              // Mark the page as inactive so it won't be synced until re-authorized
-              await savePage(db, page.id, { active: false });
-              continue; // Skip to next page
+              // Skip to next page when token is invalid
+              continue;
             }
           }
           // Re-throw if it's not a token error
           throw eventError;
         }
-        
-        // normalization before putting into Firestore
-        for (const event of events) {
-          // process cover image using the image service util inside /utils/ to connect between facebook and firestore
-          let coverImageUrl: string | null = null;
-          if (storageBucket) {
-            try {
-              coverImageUrl = await processEventCoverImage(event, page.id, storageBucket);
-            } catch (error: any) {
-              logger.warn('Image processing failed during OAuth - using Facebook URL', {
-                eventId: event.id,
-                pageId: page.id,
-                error: error.message,
-              });
-              // Fallback to original Facebook URL
-              coverImageUrl = event.cover ? event.cover.source : null;
-            }
-          } else {
-            // No storage available, use original URL
-            coverImageUrl = event.cover ? event.cover.source : null;
-          }
 
+        // normalization before putting into Supabase
+        for (const event of events) {
           // Use centralized normalizer for consistent schema
-          const normalized = normalizeEvent(event, page.id, coverImageUrl);
+          const normalized = normalizeEvent(event, page.id, event.cover ? event.cover.source : null);
 
           eventData.push({
             id: event.id,
@@ -227,7 +193,8 @@ export async function handleOAuthCallback(
           });
           totalEvents++;
         }
-      } catch (eventError: any) {
+      }
+      catch (eventError: any) {
         logger.error('Failed to fetch events for page during OAuth', eventError, {
           pageId: page.id,
           pageName: page.name,
@@ -236,7 +203,7 @@ export async function handleOAuthCallback(
     }
 
     if (eventData.length > 0) {
-      await batchWriteEvents(db, eventData);
+      await batchWriteEvents(supabase, eventData);
       logger.info('OAuth callback completed - events stored', {
         totalEvents,
         totalPages: pages.length,

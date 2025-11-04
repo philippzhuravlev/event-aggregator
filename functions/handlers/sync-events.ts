@@ -1,9 +1,7 @@
-import * as admin from 'firebase-admin';
-import { Request } from 'firebase-functions/v2/https';
+import { Request, Response } from 'express';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { getAllRelevantEvents } from '../services/facebook-api';
-import { getPageToken, checkTokenExpiry, markTokenExpired } from '../services/secret-manager';
-import { getActivePages, batchWriteEvents } from '../services/firestore-service';
-import { processEventCoverImage, initializeStorageBucket } from '../services/image-service';
+import { getPageToken, checkTokenExpiry, markTokenExpired, getActivePages, batchWriteEvents } from '../services/supabase-service';
 import { normalizeEvent } from '../utils/event-normalizer';
 import { ERROR_CODES, TOKEN_REFRESH, EVENT_SYNC, HTTP_STATUS } from '../utils/constants';
 import { logger } from '../utils/logger';
@@ -12,10 +10,10 @@ import { createErrorResponse } from '../utils/error-sanitizer';
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect 
-// something to an existing service, e.g. facebook or google secrets manager
+// something to an existing service, e.g. facebook or supabase vault
 
 // Syncing events means getting events from facebook and putting them
-// into our firestore database. We have two ways of doing this: manually
+// into our supabase database. We have two ways of doing this: manually
 // via an http endpoint (handleManualSync) or automatically via a cron
 // job (handleScheduledSync). Both use the same underlying function
 // syncAllPageEvents which does the actual work, which also includes 
@@ -25,30 +23,21 @@ import { createErrorResponse } from '../utils/error-sanitizer';
 /**
  * Sync events, simple as. We have a manual and cron version
  */
-export async function syncAllPageEvents(): Promise<SyncResult> {
-  const db = admin.firestore();
+export async function syncAllPageEvents(supabase: SupabaseClient): Promise<SyncResult> { 
   
-  // get all active pages from our firestore service in /functions/services/
-  const pages = await getActivePages(db);
-  
+  // Get all active pages from Supabase
+  const pages = await getActivePages(supabase);
+
   if (pages.length === 0) {
     logger.info('No active pages to sync');
     return { syncedPages: 0, syncedEvents: 0, expiringTokens: 0, expiringTokenDetails: [] };
   }
-
-  // Storage bucket is googles way of passing data thru objects, often images. It's quite
-  // similar to e.g. http req res objects, firebase's snapshots or reaally any object that
+  
+  // Storage bucket is supabase way of passing data thru objects, often images. It's quite
+  // similar to e.g. http req res objects, supabase's snapshots or really any object that
   // has methods and properties. If it fails, we just use the original facebook url
   // instead of downloading and reuploading it to our own storage bucket
-  let storageBucket: any = null;
-  try {
-    storageBucket = initializeStorageBucket();
-    logger.info('Storage bucket initialized for image processing');
-  } catch (error: any) {
-    logger.warn('Storage bucket not available; using original Facebook URLs', { 
-      error: error.message 
-    });
-  }
+  // TODO: Add back image processing
 
   let totalEvents = 0;
   const eventData: EventBatchItem[] = [];
@@ -61,7 +50,7 @@ export async function syncAllPageEvents(): Promise<SyncResult> {
       try {
         // 1. In this try-catch, first we check if token is expiring soon 
         // (so within 7 days)
-        const tokenStatus = await checkTokenExpiry(db, page.id, TOKEN_REFRESH.WARNING_DAYS);
+        const tokenStatus = await checkTokenExpiry(supabase, page.id, TOKEN_REFRESH.WARNING_DAYS);
         if (tokenStatus.isExpiring) {
           logger.warn('Token expiring soon', {
             pageId: page.id,
@@ -79,7 +68,7 @@ export async function syncAllPageEvents(): Promise<SyncResult> {
         }
 
         // 2. Then, we get access token from Secret Manager (thru the secret manager service)
-        const accessToken = await getPageToken(page.id); // in secret-manager service
+        const accessToken = await getPageToken(supabase, page.id); // in secret-manager service
         if (!accessToken) {
           logger.error('No access token found for page', null, {
             pageId: page.id,
@@ -110,7 +99,7 @@ export async function syncAllPageEvents(): Promise<SyncResult> {
                 facebookErrorCode: fbError.code,
               });
               // 4. set the page as inactive and token as expired
-              await markTokenExpired(db, page.id); // in secret-manager service
+              await markTokenExpired(supabase, page.id); // in secret-manager service
               return { events: [], pageId: page.id }; // skips this page
             }
           }
@@ -130,31 +119,7 @@ export async function syncAllPageEvents(): Promise<SyncResult> {
         // Promise.all to make it real fast
         const pageEventData: EventBatchItem[] = [];
         for (const event of events) { // go thru all events...
-          // 6 Start with image processing
-          // Process cover image using our dedicated image service
-          let coverImageUrl: string | null = null;
-          if (storageBucket) {
-            try {
-              coverImageUrl = await processEventCoverImage(event, page.id, storageBucket);
-              // ^^^ there it is
-            } catch (error: any) {
-              logger.warn('Image processing failed - using Facebook URL', {
-                eventId: event.id,
-                pageId: page.id,
-                error: error.message,
-              });
-              // Fallback image to the original event's image in case we cant process t
-              coverImageUrl = event.cover ? event.cover.source : null;
-            }
-          } else {
-            // Else: Fallback in the same way
-            coverImageUrl = event.cover ? event.cover.source : null;
-          }
-
-          // 7. "Normalize" events, i.e. put it into a format we use for e.g. firebase
-          // here we use our "normalizer" util in /functions/utils which basically matches
-          // facebook's event object to our firestore event object
-          const normalized = normalizeEvent(event, page.id, coverImageUrl);
+          const normalized = normalizeEvent(event, page.id, event.cover ? event.cover.source : null);
 
           pageEventData.push({
             id: event.id,
@@ -181,7 +146,7 @@ export async function syncAllPageEvents(): Promise<SyncResult> {
 
   // Batch write all events. Again, batch writing is doing it all at once
   if (eventData.length > 0) {
-    await batchWriteEvents(db, eventData);
+    await batchWriteEvents(supabase, eventData);
     logger.info('Sync completed successfully', {
       totalEvents,
       totalPages: pages.length,
@@ -214,25 +179,11 @@ export async function syncAllPageEvents(): Promise<SyncResult> {
  * Now requires authentication via API key
  * @param req - HTTP request object
  * @param res - HTTP response object
- * @param authMiddleware - Authentication middleware function
  */
-export async function handleManualSync(
-  req: Request, 
-  res: any, 
-  authMiddleware: (req: Request, res: any) => Promise<boolean>
-): Promise<void> {
-  // For safety, we start by authenticating our attempted sync, which is 
-  // technically a kind of HTTP request ("req") object. As a result, it will 
-  // send back a result object ("res"); both have attached attributes etc etc 
-  const isAuthenticated = await authMiddleware(req, res);
-  // the authentication is done in /middleware/ in auth.ts
-  if (!isAuthenticated) {
-    return; // middleware already sent error
-  }
-
+export async function handleManualSync(req: Request, res: Response): Promise<void> {
   try {
     logger.info('Manual sync started');
-    const result = await syncAllPageEvents();
+    const result = await syncAllPageEvents((req as any).supabase);
     logger.info('Manual sync completed successfully', result);
     res.json({ 
       success: true,
@@ -247,16 +198,18 @@ export async function handleManualSync(
       // NB: "createErrorResponse" is a utility function in /utils/ that sanitizes errors
     );
   }
-}/**
+}
+
+/**
  * Handle scheduled sync (cron job)
  */
-export async function handleScheduledSync(): Promise<void> {
+export async function handleScheduledSync(supabase: SupabaseClient): Promise<void> { 
   // The method before this one was manual; this one's scheduled as a cron job.
   // it's actually called in index.ts, i.e. the list of methods accepted by 
-  // firebase, which also specifies how often the sync is run on schedule:))
+  // supabase, which also specifies how often the sync is run on schedule:))
   try {
     logger.info('Scheduled sync started');
-    const result = await syncAllPageEvents();
+    const result = await syncAllPageEvents(supabase);
     logger.info('Scheduled sync completed', result);
   } catch (error: any) {
     logger.error('Scheduled sync failed', error);

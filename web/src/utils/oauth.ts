@@ -12,18 +12,16 @@ export function buildFacebookLoginUrl(): string {
   // - FB_SCOPES (what permissions are being requested, for us just reading things)
   // - currentOrigin (where the request came from, i.e. localhost, dtuevent.dk etc)
   const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID;
-  const FB_REDIRECT_URI = encodeURIComponent(
-    import.meta.env.VITE_OAUTH_CALLBACK_URL || 'https://europe-west1-dtuevent-8105b.cloudfunctions.net/facebookCallback'
-  );
+  const FB_REDIRECT_URI = import.meta.env.VITE_OAUTH_CALLBACK_URL || 'http://localhost:8080/oauth-callback';
   const FB_SCOPES = [ // again, what permissions we want (just read stuff, basically
     'pages_show_list',
     'pages_read_engagement'
   ].join(',');
 
-  const currentOrigin = encodeURIComponent(window.location.origin); // again, e.g. https://dtuevent.dk or http://localhost:3000;
+  const currentOrigin = window.location.origin; // e.g. http://localhost:5173 or https://dtuevent.dk
   // this way, after oauth, we can return to the right place: localhost for dev, dtuevent.dk for prod
   
-  return `https://www.facebook.com/v23.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${FB_REDIRECT_URI}&scope=${FB_SCOPES}&state=${currentOrigin}`;
+  return `https://www.facebook.com/v23.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(FB_REDIRECT_URI)}&scope=${FB_SCOPES}&state=${encodeURIComponent(currentOrigin)}`;
 }
 
 /**

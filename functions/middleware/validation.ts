@@ -1,8 +1,7 @@
-import { Request } from 'firebase-functions/v2/https';
-import { ALLOWED_ORIGINS, FACEBOOK_ORIGIN } from '../utils/constants';
+
 import { logger } from '../utils/logger';
 import { sanitizeErrorMessage } from '../utils/error-sanitizer';
-import { HTTP_STATUS } from '../utils/constants';
+import { ALLOWED_ORIGINS, FACEBOOK_ORIGIN, HTTP_STATUS } from '../utils/constants';
 
 // So in the broadest sense middleware is any software that works between apps and 
 // services etc. Usually that means security, little "checkpoints". In many ways they're 
@@ -142,7 +141,8 @@ export function validateOAuthCallback(query: Record<string, any>): OAuthCallback
  * @returns True if request should continue, false if preflight handled
  */
 export function handleCORS(req: Request, res: any): boolean {
-  const origin = req.headers.origin || req.headers.referer;
+  const reqAny = req as any;
+  const origin = reqAny.headers?.origin || reqAny.headers?.referer;
   // generally, we want to allow requests from the same origin. However, CORS is an intentional, 
   // safe way to bypass this "same origin policy" CORS is a classic concern, and browsers and serves
   // do a lot of it automatically ir have built-in support to do things safely.
@@ -165,7 +165,7 @@ export function handleCORS(req: Request, res: any): boolean {
       } else {
         logger.warn('CORS request from unauthorized origin', { 
           origin: originBase,
-          path: req.path,
+          path: reqAny.path,
         });
       }
     } catch (error: any) {

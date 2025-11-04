@@ -1,21 +1,18 @@
-import { Timestamp } from '@google-cloud/firestore';
-import type { Bucket as StorageBucket } from '@google-cloud/storage';
-
-// Typescript is called that because its an upgraded version of javascript that has
-// types (and much much more). Types (str, bool, null) are structured like interfaces in
-// java/c#, but they're just used for "type checking", i.e. the compiler checks that the
-// types are correct; the object that is a string is indeed supposed to be a string, etc.
-
-// Notice that this file is called "index.ts"; also notice that in root, we also have an
-// index.ts file. That's because the name index usually just means the main "entry point" 
-// for a system. The root index is for firebase functions, but this one is the main entry
-// point for something completely different - our types. Ones for events, places, locations etc
+/**
+ * Consolidated types/index.ts - central export file for all type definitions
+ * This file re-exports types from other files and defines shared types
+ */
 
 // Re-export handler types
-export * from './handlers';
-export type { StorageBucket };
+export type { HttpResponse, AuthMiddleware, StorageBucket, TypedError, HandlerResult, QueryParams } from './handlers';
+export { isTypedError, toTypedError, successResult, errorResult, getQueryParam, getQueryParamBoolean, getQueryParamNumber } from './handlers';
 
-// Facebook API Types
+// Re-export supabase types
+export type { Page } from './supabase';
+
+/**
+ * Facebook API Types
+ */
 export interface FacebookEvent {
   id: string;
   name: string;
@@ -62,45 +59,60 @@ export interface FacebookErrorResponse {
   error: FacebookError;
 }
 
-
-// Firestore Schema Types
+/**
+ * Supabase Schema Types
+ */
 export interface NormalizedEvent {
-  id: string;
-  pageId: string;
-  title: string;
-  description?: string;
-  startTime: string;
-  endTime?: string;
-  place?: PlaceData;
-  coverImageUrl?: string;
-  eventURL: string;
-  createdAt: Timestamp | typeof Timestamp.now;
-  updatedAt: Timestamp | typeof Timestamp.now;
+  id?: string; // UUID (auto-generated)
+  page_id: number; // Facebook page ID
+  event_id: string; // Facebook event ID
+  event_data: FacebookEventData; // JSONB containing the event details
+  created_at?: string; // ISO 8601 timestamp
+  updated_at?: string; // ISO 8601 timestamp
 }
 
-export interface PlaceData {
-  name?: string;
-  location?: FacebookLocation;
+export interface FacebookEventData {
+  id: string;
+  name: string;
+  description?: string;
+  start_time: string;
+  end_time?: string;
+  place?: {
+    name?: string;
+    location?: {
+      city?: string;
+      country?: string;
+      latitude?: number;
+      longitude?: number;
+      street?: string;
+      zip?: string;
+    };
+  };
+  cover?: {
+    source: string;
+    id?: string;
+  };
 }
 
 export interface PageDocument {
   id: string;
   name: string;
-  url: string;
+  url?: string;
   active: boolean;
-  connectedAt: Timestamp | typeof Timestamp.now;
-  updatedAt: Timestamp | typeof Timestamp.now;
-  tokenStoredAt?: Timestamp;
-  tokenExpiresAt?: Timestamp;
+  connectedAt?: string; // ISO 8601 timestamp
+  updatedAt?: string; // ISO 8601 timestamp
+  tokenStoredAt?: string;
+  tokenExpiresAt?: string;
   tokenExpiresInDays?: number;
   tokenStatus?: 'valid' | 'expired' | 'expiring';
-  tokenExpiredAt?: Timestamp;
+  tokenExpiredAt?: string;
 }
 
-export type EventDocument = NormalizedEvent
+export type EventDocument = NormalizedEvent;
 
-
-// Service Return Types
+/**
+ * Service Return Types
+ */
 export interface TokenExpiryStatus {
   isExpiring: boolean;
   daysUntilExpiry: number;
@@ -138,18 +150,9 @@ export interface PageTokenInfo {
   error?: string;
 }
 
-
-// Image Service Types
-export interface ImageUploadOptions {
-  bucket: StorageBucket;
-  maxRetries?: number;
-  timeoutMs?: number;
-  makePublic?: boolean;
-  signedUrlExpiryYears?: number;
-}
-
-
-// Utility Types
+/**
+ * Batch operations
+ */
 export interface EventBatchItem {
   id: string;
   data: NormalizedEvent;
@@ -161,56 +164,20 @@ export interface PageInfo {
   data: any;
 }
 
-// Constants Structure Types
-export interface FacebookConstants {
-  API_VERSION: string;
-  BASE_URL: string;
-  pageUrl: (pageId: string) => string;
-  eventUrl: (eventId: string) => string;
+/**
+ * Image Service Types
+ */
+export interface ImageUploadOptions {
+  bucket: any;
+  maxRetries?: number;
+  timeoutMs?: number;
+  makePublic?: boolean;
+  signedUrlExpiryYears?: number;
 }
 
-export interface URLConstants {
-  WEB_APP: string;
-  OAUTH_CALLBACK: string;
-}
-
-export interface ImageServiceConstants {
-  MAX_RETRIES: number;
-  TIMEOUT_MS: number;
-  CACHE_MAX_AGE: number;
-  ALLOWED_EXTENSIONS: string[];
-  BACKOFF_BASE_MS: number;
-  BACKOFF_MAX_MS: number;
-}
-
-export interface SyncConstants {
-  SCHEDULE: string;
-  TIMEZONE: string;
-}
-
-export interface FirestoreConstants {
-  MAX_BATCH_SIZE: number;
-}
-
-export interface ErrorCodes {
-  FACEBOOK_TOKEN_INVALID: number;
-  FACEBOOK_PERMISSION_DENIED: number;
-  FACEBOOK_RATE_LIMIT: number;
-}
-
-export interface RateLimitConfig {
-  WINDOW_MS: number;
-  MAX_REQUESTS: number;
-}
-
-export interface RateLimitsConstants {
-  STANDARD: RateLimitConfig;
-  WEBHOOK: RateLimitConfig;
-  OAUTH: RateLimitConfig;
-}
-
-
-// Facebook Webhooks Types
+/**
+ * Webhook Types
+ */
 export type WebhookEventVerb = 'create' | 'update' | 'delete';
 
 export interface FacebookWebhookChange {
@@ -257,7 +224,9 @@ export interface WebhookEventDetail {
   reason?: string;
 }
 
-// Event Cleanup Types
+/**
+ * Event Cleanup Types
+ */
 export interface CleanupResult {
   deletedCount: number;
   archivedCount: number;
@@ -274,3 +243,52 @@ export interface CleanupOptions {
   batchSize?: number;
 }
 
+/**
+ * Constants Structure Types
+ */
+export interface FacebookConstants {
+  API_VERSION: string;
+  BASE_URL: string;
+  pageUrl: (pageId: string) => string;
+  eventUrl: (eventId: string) => string;
+}
+
+export interface URLConstants {
+  WEB_APP: string;
+  OAUTH_CALLBACK: string;
+}
+
+export interface ImageServiceConstants {
+  MAX_RETRIES: number;
+  TIMEOUT_MS: number;
+  CACHE_MAX_AGE: number;
+  ALLOWED_EXTENSIONS: string[];
+  BACKOFF_BASE_MS: number;
+  BACKOFF_MAX_MS: number;
+}
+
+export interface SyncConstants {
+  SCHEDULE: string;
+  TIMEZONE: string;
+}
+
+export interface DatabaseConstants {
+  MAX_BATCH_SIZE: number;
+}
+
+export interface ErrorCodes {
+  FACEBOOK_TOKEN_INVALID: number;
+  FACEBOOK_PERMISSION_DENIED: number;
+  FACEBOOK_RATE_LIMIT: number;
+}
+
+export interface RateLimitConfig {
+  WINDOW_MS: number;
+  MAX_REQUESTS: number;
+}
+
+export interface RateLimitsConstants {
+  STANDARD: RateLimitConfig;
+  WEBHOOK: RateLimitConfig;
+  OAUTH: RateLimitConfig;
+}
