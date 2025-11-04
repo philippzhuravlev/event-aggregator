@@ -1,49 +1,13 @@
-import { ErrorReporting } from '@google-cloud/error-reporting';
-
 // So this is a util, a helper function that is neither "what to do" (handler) nor 
 // "how to connect to an external service" (service). It just does pure logic that 
 // either makes sense to compartmentalize or is used in multiple places.
 
 // This could honestly very well be a /service/ or /infrastructure/ file, but since
-// it's not really connecting to an external service (like facebook, firestore or
-// secret manager) but rather to Google Cloud's own monitoring stack, it feels
+// it's not really connecting to an external service (like facebook, supabase or
+// secret manager) but rather to Supabase's own monitoring stack, it feels
 // more like a util. It's also used many, many places across the codebase.
 
-// the error's general sturctures are info, warning, error, critical and debug
-
-// Begin Google Cloud Error Reporting
-// This automatically uses your Firebase project credentials 
-// Only initialize Error Reporting in production or when explicitly requested
-let errors: any = null;
-
-function getErrorReporting() {
-  if (!errors && process.env.GCLOUD_PROJECT) {
-    // Suppress the NODE_ENV warning in test environments
-    const originalEnv = process.env.NODE_ENV;
-    if (process.env.NODE_ENV !== 'production') {
-      process.env.NODE_ENV = 'production';
-    }
-    
-    try {
-      errors = new ErrorReporting({
-        projectId: process.env.GCLOUD_PROJECT, // not .env, auto-detected by Google Cloud
-        reportMode: 'production', // Set to 'always' for testing, 'production' for prod
-        serviceContext: {
-          service: 'dtuevent-functions',
-          version: process.env.K_REVISION || '1.0.0', // Cloud Functions also provides this
-        },
-      });
-    } finally {
-      // Restore original NODE_ENV
-      if (originalEnv !== undefined) {
-        process.env.NODE_ENV = originalEnv;
-      } else {
-        delete process.env.NODE_ENV;
-      }
-    }
-  }
-  return errors;
-}
+// the error's general structures are info, warning, error, critical and debug
 
 interface LogMetadata {
   [key: string]: any;
@@ -84,7 +48,7 @@ export const logger = {
   },
 
   /**
-   * log errors and report to Google Cloud Error Reporting
+   * log errors to Supabase logs
    * @param message - Error message
    * @param error - Error object or metadata
    * @param metadata - Additional context
@@ -97,22 +61,13 @@ export const logger = {
       timestamp: new Date().toISOString(),
     };
 
-    // if the error is an Error object, do the entire stack trace
+    // if the error is an Error object, include the stack trace
     if (error instanceof Error) {
       errorData.error = {
         message: error.message,
         stack: error.stack,
         name: error.name,
       };
-      
-      // do the actual report to Google Cloud Error Reporting
-      const errorReporting = getErrorReporting();
-      if (errorReporting) {
-        errorReporting.report(error, {
-          user: metadata.userId || metadata.pageId || 'unknown',
-          context: JSON.stringify(metadata),
-        });
-      }
     } else if (error) {
       errorData.errorDetails = error;
     }
@@ -140,15 +95,6 @@ export const logger = {
         stack: error.stack,
         name: error.name,
       };
-      
-      // Report critical errors with higher priority
-      const errorReporting = getErrorReporting();
-      if (errorReporting) {
-        errorReporting.report(error, {
-          user: metadata.userId || metadata.pageId || 'unknown',
-          context: JSON.stringify({ ...metadata, priority: 'CRITICAL' }),
-        });
-      }
     }
 
     console.error(JSON.stringify(errorData));
@@ -156,19 +102,15 @@ export const logger = {
 
   /**
    * Log debug messages (only in non-production environments)
-   * Auto-detects: emulator or local dev (no GCLOUD_PROJECT)
+   * Auto-detects: development or local dev (no NODE_ENV=production)
    * @param message - Debug message
    * @param metadata - Additional context
    */
   debug(message: string, metadata: LogMetadata = {}): void {
-    // Only log debug when NOT in Google Cloud production
-    // The easy and amazing way to do this is thru google's own env 
-    // vars which they autodetect; you don't need to set any in .env:
-    //   - Local/emulator: GCLOUD_PROJECT is undefined → logs enabled
-    //   - Production: GCLOUD_PROJECT is set → logs disabled
-    // Note: We use console.debug() directly here (not logger.debug) 
-    // because we **are** the logger - we can't call ourselves!
-    if (!process.env.GCLOUD_PROJECT || process.env.FUNCTIONS_EMULATOR === 'true') {
+    // Only log debug when NOT in production
+    // In Supabase Edge Functions, NODE_ENV is set to 'production' in production
+    // In local development, it's undefined or 'development'
+    if (process.env.NODE_ENV !== 'production') {
       console.debug(JSON.stringify({
         severity: 'DEBUG',
         message,
