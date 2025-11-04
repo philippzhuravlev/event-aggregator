@@ -9,6 +9,9 @@ node_modules/
 
 # Build output (Vite / general)
 dist/
+*.js.map
+*.css.map
+functions/lib/
 
 # Coverage
 coverage/
@@ -34,16 +37,6 @@ coverage/
 !.env.example
 *.local
 .runtimeconfig.json
-
-# Firebase & emulator artifacts
-.firebase/
-firebase-debug.log
-firestore-debug.log
-firebase-export-* 
-firebase/exports/
-*firebase-adminsdk*.json
-*serviceAccount*.json
-*.serviceAccount.json
 
 # IDE / Editor
 .vscode/
