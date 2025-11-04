@@ -203,6 +203,7 @@ export const ALLOWED_ORIGINS = [
   'http://localhost:5000',
   'http://localhost:5173',
   'http://localhost:8080',
+  'https://event-aggregator-nine.vercel.app',
   process.env.WEB_APP_URL || 'http://localhost:3000',
   // Add production origins in environment variables
 ];

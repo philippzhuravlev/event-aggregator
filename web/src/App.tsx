@@ -54,7 +54,10 @@ function App() {
       {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
 
       {/* Empty state text */}
-      {filtered.length === 0 && !loading && (
+      {!loading && events.length === 0 && (
+        <p className="text-sm text-gray-600 mb-4">No events in the database yet. Sync events from Facebook to get started!</p>
+      )}
+      {!loading && events.length > 0 && filtered.length === 0 && (
         <p className="text-sm text-gray-600 mb-4">No events found for this page.</p>
       )}
 
