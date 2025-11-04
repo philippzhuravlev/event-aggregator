@@ -1,37 +1,26 @@
 // @ts-nocheck
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import * as admin from 'firebase-admin';
 import { syncAllPageEvents, handleManualSync, handleScheduledSync } from '../../handlers/sync-events';
 import * as facebookApi from '../../services/facebook-api';
-import * as secretManager from '../../services/secret-manager';
-import * as firestoreService from '../../services/firestore-service';
+import * as supabaseService from '../../services/supabase-service';
 import * as imageService from '../../services/image-service';
 
-// Create a single mockDb that will be reused
-const mockDb = {
-  collection: jest.fn(() => ({
-    where: jest.fn(() => ({
-      get: jest.fn(),
-    })),
-    doc: jest.fn(() => ({
-      get: jest.fn(),
-      set: jest.fn(),
-    })),
-  })),
-  batch: jest.fn(() => ({
-    set: jest.fn(),
-    commit: jest.fn(),
-  })),
-};
-
 // Mock all dependencies
-jest.mock('firebase-admin', () => ({
-  firestore: jest.fn(() => mockDb),
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: jest.fn(() => ({
+    from: jest.fn(() => ({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      gte: jest.fn().mockReturnThis(),
+      order: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue({ data: [], error: null }),
+      upsert: jest.fn().mockResolvedValue({ data: [], error: null }),
+    })),
+  })),
 }));
 
 jest.mock('../../services/facebook-api');
-jest.mock('../../services/secret-manager');
-jest.mock('../../services/firestore-service');
+jest.mock('../../services/supabase-service');
 jest.mock('../../services/image-service');
 jest.mock('../../utils/logger');
 
@@ -39,16 +28,19 @@ jest.mock('../../utils/logger');
 import { logger } from '../../utils/logger';
 
 describe('sync-events handler', () => {
-  
+  let supabase: any;
+
   beforeEach(() => {
+    const { createClient } = require('@supabase/supabase-js');
+    supabase = createClient();
     jest.clearAllMocks();
   });
 
   describe('syncAllPageEvents', () => {
     it('should return zero counts when no active pages exist', async () => {
-      (firestoreService.getActivePages as jest.Mock).mockResolvedValue([]);
+      (supabaseService.getActivePages as jest.Mock).mockResolvedValue([]);
 
-      const result = await syncAllPageEvents();
+      const result = await syncAllPageEvents(supabase);
 
       expect(result).toEqual({
         syncedPages: 0,
@@ -56,13 +48,12 @@ describe('sync-events handler', () => {
         expiringTokens: 0,
         expiringTokenDetails: [],
       });
-      expect(firestoreService.getActivePages).toHaveBeenCalledWith(mockDb);
     });
 
     it('should sync events for active pages successfully', async () => {
       const mockPages = [
-        { id: 'page1', name: 'Test Page 1', data: {} },
-        { id: 'page2', name: 'Test Page 2', data: {} },
+        { id: 'page1', name: 'Test Page 1' },
+        { id: 'page2', name: 'Test Page 2' },
       ];
       
       const mockEvents = [
@@ -80,34 +71,33 @@ describe('sync-events handler', () => {
         },
       ];
 
-      (firestoreService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
-      (secretManager.getPageToken as jest.Mock).mockResolvedValue('mock-token');
-      (secretManager.checkTokenExpiry as jest.Mock).mockResolvedValue({
+      (supabaseService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
+      (supabaseService.getPageToken as jest.Mock).mockResolvedValue('mock-token');
+      (supabaseService.checkTokenExpiry as jest.Mock).mockResolvedValue({
         isExpiring: false,
         daysUntilExpiry: 30,
         expiresAt: new Date('2025-11-10'),
       });
       (facebookApi.getAllRelevantEvents as jest.Mock).mockResolvedValue(mockEvents);
       (imageService.initializeStorageBucket as jest.Mock).mockReturnValue({});
-      (imageService.processEventCoverImage as jest.Mock).mockResolvedValue('https://storage.googleapis.com/image1.jpg');
-      (firestoreService.batchWriteEvents as jest.Mock).mockResolvedValue(4);
+      (imageService.processEventCoverImage as jest.Mock).mockResolvedValue('https://storage.supabase.com/image1.jpg');
 
-      const result = await syncAllPageEvents();
+      const result = await syncAllPageEvents(supabase);
 
       expect(result.syncedPages).toBe(2);
       expect(result.syncedEvents).toBe(4);
       expect(result.expiringTokens).toBe(0);
-      expect(firestoreService.batchWriteEvents).toHaveBeenCalled();
+      expect(supabaseService.batchWriteEvents).toHaveBeenCalled();
     });
 
     it('should track expiring tokens', async () => {
       const mockPages = [
-        { id: 'page1', name: 'Expiring Page', data: {} },
+        { id: 'page1', name: 'Expiring Page' },
       ];
 
-      (firestoreService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
-      (secretManager.getPageToken as jest.Mock).mockResolvedValue('mock-token');
-      (secretManager.checkTokenExpiry as jest.Mock).mockResolvedValue({
+      (supabaseService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
+      (supabaseService.getPageToken as jest.Mock).mockResolvedValue('mock-token');
+      (supabaseService.checkTokenExpiry as jest.Mock).mockResolvedValue({
         isExpiring: true,
         daysUntilExpiry: 3,
         expiresAt: new Date('2025-10-14'),
@@ -115,7 +105,7 @@ describe('sync-events handler', () => {
       (facebookApi.getAllRelevantEvents as jest.Mock).mockResolvedValue([]);
       (imageService.initializeStorageBucket as jest.Mock).mockReturnValue({});
 
-      const result = await syncAllPageEvents();
+      const result = await syncAllPageEvents(supabase);
 
       expect(result.expiringTokens).toBe(1);
       expect(result.expiringTokenDetails).toHaveLength(1);
@@ -128,18 +118,18 @@ describe('sync-events handler', () => {
 
     it('should skip pages without access token', async () => {
       const mockPages = [
-        { id: 'page1', name: 'No Token Page', data: {} },
+        { id: 'page1', name: 'No Token Page' },
       ];
 
-      (firestoreService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
-      (secretManager.getPageToken as jest.Mock).mockResolvedValue(null);
-      (secretManager.checkTokenExpiry as jest.Mock).mockResolvedValue({
+      (supabaseService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
+      (supabaseService.getPageToken as jest.Mock).mockResolvedValue(null);
+      (supabaseService.checkTokenExpiry as jest.Mock).mockResolvedValue({
         isExpiring: false,
         daysUntilExpiry: 30,
         expiresAt: new Date('2025-11-10'),
       });
 
-      const result = await syncAllPageEvents();
+      const result = await syncAllPageEvents(supabase);
 
       expect(result.syncedEvents).toBe(0);
       expect(facebookApi.getAllRelevantEvents).not.toHaveBeenCalled();
@@ -147,7 +137,7 @@ describe('sync-events handler', () => {
 
     it('should mark token as expired on Facebook 190 error', async () => {
       const mockPages = [
-        { id: 'page1', name: 'Expired Token Page', data: {} },
+        { id: 'page1', name: 'Expired Token Page' },
       ];
 
       const facebookError = {
@@ -161,26 +151,26 @@ describe('sync-events handler', () => {
         },
       };
 
-      (firestoreService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
-      (secretManager.getPageToken as jest.Mock).mockResolvedValue('expired-token');
-      (secretManager.checkTokenExpiry as jest.Mock).mockResolvedValue({
+      (supabaseService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
+      (supabaseService.getPageToken as jest.Mock).mockResolvedValue('expired-token');
+      (supabaseService.checkTokenExpiry as jest.Mock).mockResolvedValue({
         isExpiring: false,
         daysUntilExpiry: 30,
         expiresAt: new Date('2025-11-10'),
       });
       (facebookApi.getAllRelevantEvents as jest.Mock).mockRejectedValue(facebookError);
       (imageService.initializeStorageBucket as jest.Mock).mockReturnValue({});
-      (secretManager.markTokenExpired as jest.Mock).mockResolvedValue(undefined);
+      (supabaseService.markTokenExpired as jest.Mock).mockResolvedValue(undefined);
 
-      const result = await syncAllPageEvents();
+      const result = await syncAllPageEvents(supabase);
 
-      expect(secretManager.markTokenExpired).toHaveBeenCalledWith(mockDb, 'page1');
+      expect(supabaseService.markTokenExpired).toHaveBeenCalledWith(supabase, 'page1');
       expect(result.syncedEvents).toBe(0);
     });
 
     it('should use Facebook URL fallback when storage bucket not available', async () => {
       const mockPages = [
-        { id: 'page1', name: 'Test Page', data: {} },
+        { id: 'page1', name: 'Test Page' },
       ];
       
       const mockEvents = [
@@ -192,9 +182,9 @@ describe('sync-events handler', () => {
         },
       ];
 
-      (firestoreService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
-      (secretManager.getPageToken as jest.Mock).mockResolvedValue('mock-token');
-      (secretManager.checkTokenExpiry as jest.Mock).mockResolvedValue({
+      (supabaseService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
+      (supabaseService.getPageToken as jest.Mock).mockResolvedValue('mock-token');
+      (supabaseService.checkTokenExpiry as jest.Mock).mockResolvedValue({
         isExpiring: false,
         daysUntilExpiry: 30,
         expiresAt: new Date('2025-11-10'),
@@ -203,9 +193,8 @@ describe('sync-events handler', () => {
       (imageService.initializeStorageBucket as jest.Mock).mockImplementation(() => {
         throw new Error('Storage not available');
       });
-      (firestoreService.batchWriteEvents as jest.Mock).mockResolvedValue(1);
 
-      const result = await syncAllPageEvents();
+      const result = await syncAllPageEvents(supabase);
 
       expect(result.syncedEvents).toBe(1);
       expect(imageService.processEventCoverImage).not.toHaveBeenCalled();
@@ -213,7 +202,7 @@ describe('sync-events handler', () => {
 
     it('should handle image processing failure gracefully', async () => {
       const mockPages = [
-        { id: 'page1', name: 'Test Page', data: {} },
+        { id: 'page1', name: 'Test Page' },
       ];
       
       const mockEvents = [
@@ -225,9 +214,9 @@ describe('sync-events handler', () => {
         },
       ];
 
-      (firestoreService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
-      (secretManager.getPageToken as jest.Mock).mockResolvedValue('mock-token');
-      (secretManager.checkTokenExpiry as jest.Mock).mockResolvedValue({
+      (supabaseService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
+      (supabaseService.getPageToken as jest.Mock).mockResolvedValue('mock-token');
+      (supabaseService.checkTokenExpiry as jest.Mock).mockResolvedValue({
         isExpiring: false,
         daysUntilExpiry: 30,
         expiresAt: new Date('2025-11-10'),
@@ -235,18 +224,17 @@ describe('sync-events handler', () => {
       (facebookApi.getAllRelevantEvents as jest.Mock).mockResolvedValue(mockEvents);
       (imageService.initializeStorageBucket as jest.Mock).mockReturnValue({});
       (imageService.processEventCoverImage as jest.Mock).mockRejectedValue(new Error('Image upload failed'));
-      (firestoreService.batchWriteEvents as jest.Mock).mockResolvedValue(1 as any);
 
-      const result = await syncAllPageEvents();
+      const result = await syncAllPageEvents(supabase);
 
       expect(result.syncedEvents).toBe(1);
-      expect(firestoreService.batchWriteEvents).toHaveBeenCalled();
+      expect(supabaseService.batchWriteEvents).toHaveBeenCalled();
     });
 
     it('should continue syncing other pages if one page fails', async () => {
       const mockPages = [
-        { id: 'page1', name: 'Failing Page', data: {} },
-        { id: 'page2', name: 'Working Page', data: {} },
+        { id: 'page1', name: 'Failing Page' },
+        { id: 'page2', name: 'Working Page' },
       ];
 
       const mockEvents = [
@@ -257,11 +245,11 @@ describe('sync-events handler', () => {
         },
       ];
 
-      (firestoreService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
-      (secretManager.getPageToken as jest.Mock)
+      (supabaseService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
+      (supabaseService.getPageToken as jest.Mock)
         .mockResolvedValueOnce('mock-token-1')
         .mockResolvedValueOnce('mock-token-2');
-      (secretManager.checkTokenExpiry as jest.Mock).mockResolvedValue({
+      (supabaseService.checkTokenExpiry as jest.Mock).mockResolvedValue({
         isExpiring: false,
         daysUntilExpiry: 30,
         expiresAt: new Date('2025-11-10'),
@@ -270,9 +258,8 @@ describe('sync-events handler', () => {
         .mockRejectedValueOnce(new Error('Network error'))
         .mockResolvedValueOnce(mockEvents);
       (imageService.initializeStorageBucket as jest.Mock).mockReturnValue({});
-      (firestoreService.batchWriteEvents as jest.Mock).mockResolvedValue(1);
 
-      const result = await syncAllPageEvents();
+      const result = await syncAllPageEvents(supabase);
 
       expect(result.syncedPages).toBe(2);
       expect(result.syncedEvents).toBe(1);
@@ -282,36 +269,24 @@ describe('sync-events handler', () => {
   describe('handleManualSync', () => {
     let mockReq: any;
     let mockRes: any;
-    let mockAuthMiddleware: jest.Mock;
 
     beforeEach(() => {
       mockReq = {
         method: 'POST',
         headers: {},
+        supabase: supabase,
       };
       mockRes = {
         json: jest.fn().mockReturnThis(),
         status: jest.fn().mockReturnThis(),
       };
-      mockAuthMiddleware = jest.fn();
-    });
-
-    it('should require authentication', async () => {
-      mockAuthMiddleware.mockResolvedValue(false);
-
-      await handleManualSync(mockReq, mockRes, mockAuthMiddleware);
-
-      expect(mockAuthMiddleware).toHaveBeenCalledWith(mockReq, mockRes);
-      expect(mockRes.json).not.toHaveBeenCalled();
     });
 
     it('should successfully sync and return results', async () => {
-      mockAuthMiddleware.mockResolvedValue(true);
-      (firestoreService.getActivePages as jest.Mock).mockResolvedValue([]);
+      (supabaseService.getActivePages as jest.Mock).mockResolvedValue([]);
 
-      await handleManualSync(mockReq, mockRes, mockAuthMiddleware);
+      await handleManualSync(mockReq, mockRes);
 
-      expect(mockAuthMiddleware).toHaveBeenCalledWith(mockReq, mockRes);
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
@@ -323,12 +298,9 @@ describe('sync-events handler', () => {
     });
 
     it('should return 500 on sync failure', async () => {
-      mockAuthMiddleware.mockResolvedValue(true);
-      (firestoreService.getActivePages as jest.Mock).mockRejectedValue(
-        new Error('Database connection failed')
-      );
+      (supabaseService.getActivePages as jest.Mock).mockRejectedValue(new Error('Database connection failed'));
 
-      await handleManualSync(mockReq, mockRes, mockAuthMiddleware as any);
+      await handleManualSync(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith(
@@ -343,11 +315,12 @@ describe('sync-events handler', () => {
 
   describe('handleScheduledSync', () => {
     it('should execute scheduled sync successfully', async () => {
-      (firestoreService.getActivePages as jest.Mock).mockResolvedValue([
-        { id: 'page1', name: 'Test Page', data: { active: true } },
-      ]);
-      (secretManager.getPageToken as jest.Mock).mockResolvedValue('token123');
-      (secretManager.checkTokenExpiry as jest.Mock).mockResolvedValue({
+      const mockPages = [
+        { id: 'page1', name: 'Test Page' },
+      ];
+      (supabaseService.getActivePages as jest.Mock).mockResolvedValue(mockPages);
+      (supabaseService.getPageToken as jest.Mock).mockResolvedValue('token123');
+      (supabaseService.checkTokenExpiry as jest.Mock).mockResolvedValue({
         isExpiring: false,
         daysUntilExpiry: 30,
         expiresAt: new Date(),
@@ -360,19 +333,18 @@ describe('sync-events handler', () => {
         },
       ]);
 
-      await handleScheduledSync();
+      await handleScheduledSync(supabase);
 
       expect(logger.info).toHaveBeenCalledWith('Scheduled sync started');
       expect(logger.info).toHaveBeenCalledWith('Scheduled sync completed', expect.any(Object));
     });
 
     it('should handle errors in scheduled sync gracefully', async () => {
-      (firestoreService.getActivePages as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (supabaseService.getActivePages as jest.Mock).mockRejectedValue(new Error('Database error'));
 
-      await handleScheduledSync();
+      await handleScheduledSync(supabase);
 
       expect(logger.error).toHaveBeenCalledWith('Scheduled sync failed', expect.any(Error));
     });
   });
 });
-

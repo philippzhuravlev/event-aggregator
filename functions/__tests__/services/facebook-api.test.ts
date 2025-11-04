@@ -7,7 +7,7 @@ import {
   getPageEvents,
   getAllRelevantEvents,
 } from '../../services/facebook-api';
-import { FACEBOOK_API } from '../../utils/constants';
+import { FACEBOOK } from '../../utils/constants';
 
 // Mock axios
 jest.mock('axios');
@@ -110,7 +110,7 @@ describe('facebook-api service', () => {
       // mockRejectedValue will cause each call to reject
       mockedAxios.get.mockRejectedValue(serverError);
 
-      const maxRetries = FACEBOOK_API.MAX_RETRIES;
+      const maxRetries = FACEBOOK.MAX_RETRIES;
 
       await expect(
         exchangeCodeForToken('auth-code', 'app-id', 'app-secret', 'https://example.com/callback')

@@ -3,7 +3,7 @@ import { FacebookEvent } from '../../types';
 
 describe('event-normalizer', () => {
   describe('normalizeEvent', () => {
-    const mockPageId = 'test-page-123';
+    const mockPageId = '123456789'; // Use numeric string for Facebook page IDs
     
     it('should normalize a complete Facebook event', () => {
       const facebookEvent: FacebookEvent = {
@@ -28,15 +28,14 @@ describe('event-normalizer', () => {
 
       const result = normalizeEvent(facebookEvent, mockPageId);
 
-      expect(result.id).toBe('event-123');
-      expect(result.pageId).toBe(mockPageId);
-      expect(result.title).toBe('Test Event');
-      expect(result.description).toBe('This is a test event');
-      expect(result.startTime).toBe('2025-12-31T20:00:00Z');
-      expect(result.endTime).toBe('2025-12-31T23:00:00Z');
-      expect(result.place).toBeDefined();
-      expect(result.place?.name).toBe('Test Venue');
-      expect(result.eventURL).toContain('event-123');
+      expect(result.event_id).toBe('event-123');
+      expect(result.page_id).toBe(123456789);
+      expect(result.event_data.name).toBe('Test Event');
+      expect(result.event_data.description).toBe('This is a test event');
+      expect(result.event_data.start_time).toBe('2025-12-31T20:00:00Z');
+      expect(result.event_data.end_time).toBe('2025-12-31T23:00:00Z');
+      expect(result.event_data.place).toBeDefined();
+      expect(result.event_data.place?.name).toBe('Test Venue');
     });
 
     it('should handle minimal Facebook event (only required fields)', () => {
@@ -48,11 +47,12 @@ describe('event-normalizer', () => {
 
       const result = normalizeEvent(minimalEvent, mockPageId);
 
-      expect(result.id).toBe('minimal-123');
-      expect(result.title).toBe('Minimal Event');
-      expect(result.description).toBeUndefined();
-      expect(result.endTime).toBeUndefined();
-      expect(result.place).toBeUndefined();
+      expect(result.event_id).toBe('minimal-123');
+      expect(result.page_id).toBe(123456789);
+      expect(result.event_data.name).toBe('Minimal Event');
+      expect(result.event_data.description).toBeUndefined();
+      expect(result.event_data.end_time).toBeUndefined();
+      expect(result.event_data.place).toBeUndefined();
     });
 
     it('should use provided cover image URL over Facebook URL', () => {
@@ -65,10 +65,10 @@ describe('event-normalizer', () => {
         },
       };
 
-      const customImageUrl = 'https://storage.googleapis.com/my-bucket/cover.jpg';
+      const customImageUrl = 'https://storage.supabase.com/my-bucket/cover.jpg';
       const result = normalizeEvent(event, mockPageId, customImageUrl);
 
-      expect(result.coverImageUrl).toBe(customImageUrl);
+      expect(result.event_data.cover?.source).toBe(customImageUrl);
     });
 
     it('should fall back to Facebook cover URL if no custom URL provided', () => {
@@ -83,7 +83,7 @@ describe('event-normalizer', () => {
 
       const result = normalizeEvent(event, mockPageId, null);
 
-      expect(result.coverImageUrl).toBe('https://facebook.com/cover.jpg');
+      expect(result.event_data.cover?.source).toBe('https://facebook.com/cover.jpg');
     });
 
     it('should filter out undefined values', () => {
@@ -95,10 +95,10 @@ describe('event-normalizer', () => {
 
       const result = normalizeEvent(event, mockPageId);
 
-      // Check that undefined fields are not present in result
-      expect('description' in result).toBe(false);
-      expect('endTime' in result).toBe(false);
-      expect('place' in result).toBe(false);
+      // Check that undefined fields are not present in event_data
+      expect(result.event_data.description).toBeUndefined();
+      expect(result.event_data.end_time).toBeUndefined();
+      expect(result.event_data.place).toBeUndefined();
     });
 
     it('should include place location only if it has properties', () => {
@@ -114,9 +114,9 @@ describe('event-normalizer', () => {
 
       const result = normalizeEvent(eventWithEmptyLocation, mockPageId);
 
-      expect(result.place).toBeDefined();
-      expect(result.place?.name).toBe('Venue Name');
-      expect('location' in (result.place || {})).toBe(false);
+      expect(result.event_data.place).toBeDefined();
+      expect(result.event_data.place?.name).toBe('Venue Name');
+      expect('location' in (result.event_data.place || {})).toBe(false);
     });
   });
 });

@@ -76,7 +76,6 @@ export async function getEvents(options?: GetEventsOptions): Promise<Event[]> {
     return mockEvents;
   }
 
-  
   const params = new URLSearchParams(); // URLSearchParams is a built-in js class that makes it easy to build URL parameters
 
   // the "options" object is something we defined above, but basically it's a container for all the

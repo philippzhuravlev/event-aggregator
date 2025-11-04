@@ -8,11 +8,6 @@ describe('validation middleware', () => {
       expect(isAllowedOrigin('http://localhost:5000')).toBe(true);
     });
 
-    it('should allow Firebase hosting domains', () => {
-      expect(isAllowedOrigin('https://dtuevent-8105b.web.app')).toBe(true);
-      expect(isAllowedOrigin('https://dtuevent-8105b.firebaseapp.com')).toBe(true);
-    });
-
     it('should reject unauthorized origins', () => {
       expect(isAllowedOrigin('https://evil-site.com')).toBe(false);
       expect(isAllowedOrigin('http://malicious.org')).toBe(false);

@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { validateQueryParams, validateBody } from '../../middleware/validation-schemas';
-import { Request } from 'firebase-functions/v2/https';
 import { logger } from '../../utils/logger';
 
 jest.mock('../../utils/logger');

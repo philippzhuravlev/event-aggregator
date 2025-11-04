@@ -4,8 +4,11 @@ const config: Config.InitialOptions = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>'],
+  setupFilesAfterEnv: ['<rootDir>/__tests__/setup/jest.setup.ts'],
   testMatch: [
     '**/__tests__/**/*.ts',
+    '!**/__tests__/**/*.helper.ts',
+    '!**/__tests__/setup/jest.setup.ts',
     '**/?(*.)+(spec|test).ts'
   ],
   transform: {
@@ -14,6 +17,7 @@ const config: Config.InitialOptions = {
   collectCoverageFrom: [
     '**/*.ts',
     '!**/*.d.ts',
+    '!**/*.helper.ts',
     '!**/node_modules/**',
     '!**/lib/**',
     '!**/coverage/**',

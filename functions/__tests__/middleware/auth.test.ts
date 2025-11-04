@@ -1,10 +1,22 @@
 // @ts-nocheck
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { requireApiKey, logRequest } from '../../middleware/auth';
-import * as secretManager from '../../services/secret-manager';
+import * as supabaseService from '../../services/supabase-service';
 
 // Mock dependencies
-jest.mock('../../services/secret-manager');
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: jest.fn(() => ({
+    from: jest.fn(() => ({
+      select: jest.fn().mockResolvedValue({ data: [], error: null }),
+      update: jest.fn().mockResolvedValue({ data: [], error: null }),
+      insert: jest.fn().mockResolvedValue({ data: [], error: null }),
+      upsert: jest.fn().mockResolvedValue({ data: [], error: null }),
+      delete: jest.fn().mockResolvedValue({ data: [], error: null }),
+    })),
+  })),
+}));
+
+jest.mock('../../services/supabase-service');
 jest.mock('../../utils/logger');
 
 describe('auth middleware', () => {
@@ -27,7 +39,7 @@ describe('auth middleware', () => {
 
   describe('requireApiKey', () => {
     it('should return false when API key is not configured', async () => {
-      (secretManager.getApiKey as jest.Mock).mockResolvedValue(null as any);
+      (supabaseService.getApiKey as jest.Mock).mockResolvedValue(null as any);
 
       const result = await requireApiKey(mockReq, mockRes);
 
@@ -42,7 +54,7 @@ describe('auth middleware', () => {
 
     it('should authenticate with Bearer token', async () => {
       const validKey = 'test-api-key-123';
-      (secretManager.getApiKey as jest.Mock).mockResolvedValue(validKey);
+      (supabaseService.getApiKey as jest.Mock).mockResolvedValue(validKey);
       mockReq.headers.authorization = `Bearer ${validKey}`;
 
       const result = await requireApiKey(mockReq, mockRes);
@@ -53,7 +65,7 @@ describe('auth middleware', () => {
 
     it('should authenticate with x-api-key header', async () => {
       const validKey = 'test-api-key-123';
-      (secretManager.getApiKey as jest.Mock).mockResolvedValue(validKey);
+      (supabaseService.getApiKey as jest.Mock).mockResolvedValue(validKey);
       mockReq.headers['x-api-key'] = validKey;
 
       const result = await requireApiKey(mockReq, mockRes);
@@ -64,7 +76,7 @@ describe('auth middleware', () => {
 
     it('should reject invalid Bearer token', async () => {
       const validKey = 'test-api-key-123';
-      (secretManager.getApiKey as jest.Mock).mockResolvedValue(validKey);
+      (supabaseService.getApiKey as jest.Mock).mockResolvedValue(validKey);
       mockReq.headers.authorization = 'Bearer wrong-key';
 
       const result = await requireApiKey(mockReq, mockRes);
@@ -80,7 +92,7 @@ describe('auth middleware', () => {
 
     it('should reject invalid x-api-key', async () => {
       const validKey = 'test-api-key-123';
-      (secretManager.getApiKey as jest.Mock).mockResolvedValue(validKey);
+      (supabaseService.getApiKey as jest.Mock).mockResolvedValue(validKey);
       mockReq.headers['x-api-key'] = 'wrong-key';
 
       const result = await requireApiKey(mockReq, mockRes);
@@ -91,7 +103,7 @@ describe('auth middleware', () => {
 
     it('should reject request with no authentication', async () => {
       const validKey = 'test-api-key-123';
-      (secretManager.getApiKey as jest.Mock).mockResolvedValue(validKey);
+      (supabaseService.getApiKey as jest.Mock).mockResolvedValue(validKey);
 
       const result = await requireApiKey(mockReq, mockRes);
 
@@ -101,7 +113,7 @@ describe('auth middleware', () => {
 
     it('should reject malformed Bearer header', async () => {
       const validKey = 'test-api-key-123';
-      (secretManager.getApiKey as jest.Mock).mockResolvedValue(validKey);
+      (supabaseService.getApiKey as jest.Mock).mockResolvedValue(validKey);
       mockReq.headers.authorization = 'BearerInvalid';
 
       const result = await requireApiKey(mockReq, mockRes);
@@ -111,7 +123,7 @@ describe('auth middleware', () => {
     });
 
     it('should handle API key retrieval error', async () => {
-      (secretManager.getApiKey as jest.Mock).mockRejectedValue(
+      (supabaseService.getApiKey as jest.Mock).mockRejectedValue(
         new Error('Secret Manager unavailable')
       );
 
@@ -130,7 +142,7 @@ describe('auth middleware', () => {
 
     it('should prioritize Bearer token over x-api-key', async () => {
       const validKey = 'test-api-key-123';
-      (secretManager.getApiKey as jest.Mock).mockResolvedValue(validKey);
+      (supabaseService.getApiKey as jest.Mock).mockResolvedValue(validKey);
       mockReq.headers.authorization = `Bearer ${validKey}`;
       mockReq.headers['x-api-key'] = 'wrong-key';
 
@@ -141,7 +153,7 @@ describe('auth middleware', () => {
 
     it('should extract IP from x-forwarded-for header', async () => {
       const validKey = 'test-api-key-123';
-      (secretManager.getApiKey as jest.Mock).mockResolvedValue(validKey);
+      (supabaseService.getApiKey as jest.Mock).mockResolvedValue(validKey);
       mockReq.ip = undefined;
       mockReq.headers['x-forwarded-for'] = '203.0.113.1';
 
