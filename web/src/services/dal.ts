@@ -96,7 +96,7 @@ export async function getEvents(options?: GetEventsOptions): Promise<Event[]> {
   const response = await fetch(url);
   
   if (!response.ok) {
-    throw new Error(`Failed to fetch events: ${response.statusText}`);
+    throw new Error(`Failed to fetch events: ${response.status} ${response.statusText}`);
   }
   const data = await response.json();
   return data.events as Event[];
@@ -127,7 +127,7 @@ export async function getEventsPaginated(options?: GetEventsOptions): Promise<Pa
 
   const response = await fetch(`${backendURL}/get-events?${params.toString()}`);
   if (!response.ok) {
-    throw new Error(`Failed to fetch events: ${response.statusText}`);
+    throw new Error(`Failed to fetch events: ${response.status} ${response.statusText}`);
   }
   
   return await response.json();
