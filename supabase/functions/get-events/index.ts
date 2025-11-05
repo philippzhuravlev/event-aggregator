@@ -8,6 +8,7 @@ import {
 import { HTTP_STATUS, PAGINATION } from "../_shared/utils/constants-util.ts";
 import { GetEventsQuery } from "../_shared/types.ts";
 import { GetEventsResponse } from "./types.ts";
+import { SlidingWindowRateLimiter, getClientIp, getRateLimitExceededResponse, getRateLimitHeaders } from "../_shared/validation/rate-limiting.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
 // or help etc), but because we've refactored to supabase, it's now a "Edge Function".
@@ -19,9 +20,22 @@ import { GetEventsResponse } from "./types.ts";
 // have 1000 events, you don't want the frontend to fetch them all at once, because that will be slow
 // and might crash. And so, we split them up into e.g. 50 events per page, and send them that way
 
+// Rate limiter for public API: 100 requests per minute per IP
+const apiRateLimiter = new SlidingWindowRateLimiter();
+apiRateLimiter.initialize("get-events", 100, 60000);
+
 /**
  * Validate and parse query parameters for get-events
  */
+function sanitizeSearchQuery(input: string): string {
+  // Remove anything that's not alphanumeric, spaces, or basic punctuation
+  // This prevents XSS/injection attacks
+  return input
+    .replace(/[^a-zA-Z0-9\s\-'",.&]/g, "")
+    .trim()
+    .substring(0, 200); // Max length
+}
+
 function validateQueryParams(
   url: URL,
 ): { success: boolean; data?: GetEventsQuery; error?: string } {
@@ -51,7 +65,7 @@ function validateQueryParams(
     // Parse search (optional)
     let search = params.get("search") || undefined;
     if (search) {
-      search = search.trim();
+      search = sanitizeSearchQuery(search);
       if (search.length === 0) search = undefined;
       if (search && search.length > PAGINATION.MAX_SEARCH_LENGTH) {
         return {
@@ -198,7 +212,16 @@ async function handler(req: Request): Promise<Response> {
       );
     }
 
-    // 2. Parse and validate query parameters
+    // 2. Rate limiting check (100 requests per minute per IP)
+    const clientIp = getClientIp(req);
+    const isLimited = !apiRateLimiter.check("get-events", clientIp);
+    
+    if (isLimited) {
+      logger.warn(`Rate limit exceeded for IP: ${clientIp}`);
+      return getRateLimitExceededResponse();
+    }
+
+    // 3. Parse and validate query parameters
     const url = new URL(req.url);
     const validation = validateQueryParams(url);
 

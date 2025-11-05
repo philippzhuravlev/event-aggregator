@@ -9,4 +9,7 @@
 export interface Request {
   method: string;
   url: string;
+  headers: {
+    get(name: string): string | null;
+  };
 }

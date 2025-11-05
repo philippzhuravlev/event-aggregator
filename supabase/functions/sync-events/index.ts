@@ -10,6 +10,8 @@ import {
   createSuccessResponse,
   handleCORSPreflight,
 } from "../_shared/utils/error-response-util.ts";
+import { verifyBearerToken } from "../_shared/validation/auth-validation.ts";
+import { TokenBucketRateLimiter, getRateLimitExceededResponse } from "../_shared/validation/rate-limiting.ts";
 import { SyncResult } from "./types.ts";
 import { syncSinglePage } from "./helpers.ts";
 
@@ -24,6 +26,9 @@ import { syncSinglePage } from "./helpers.ts";
 // syncAllPageEvents which does the actual work, which also includes
 // processing event cover images and normalizing event data - could have
 // been split into separate functions honestly
+
+// Rate limiter for sync endpoint: 10 calls per day per token
+const syncRateLimiter = new TokenBucketRateLimiter();
 
 /**
  * Sync events, simple as. We have a manual and cron version
@@ -112,6 +117,38 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // Verify Bearer token for authorization
+    const authHeader = req.headers.get("authorization");
+    const expectedToken = Deno.env.get("SYNC_TOKEN");
+
+    if (!expectedToken) {
+      logger.error("Missing SYNC_TOKEN environment variable", null);
+      return createErrorResponse(
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        "Server configuration error",
+      );
+    }
+
+    const authResult = verifyBearerToken(authHeader, expectedToken);
+    if (!authResult.valid) {
+      logger.warn("Unauthorized sync-events request", {
+        error: authResult.error,
+      });
+      return createErrorResponse(
+        HTTP_STATUS.UNAUTHORIZED,
+        authResult.error || "Unauthorized",
+      );
+    }
+
+    // Rate limiting check: 10 calls per day per token
+    const tokenId = authResult.token || "unknown";
+    const isRateLimited = !syncRateLimiter.check(tokenId, 1, 10, 86400000); // 10 tokens per 24 hours
+    
+    if (isRateLimited) {
+      logger.warn(`Sync endpoint rate limit exceeded for token: ${tokenId}`);
+      return getRateLimitExceededResponse();
+    }
+
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";

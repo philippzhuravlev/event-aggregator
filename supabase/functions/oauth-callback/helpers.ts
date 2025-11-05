@@ -18,6 +18,8 @@
 // for token-refresh because otherwise, it'd be 500 lines; better yet, it's easy to
 // separate concerns that way into a single file
 
+import { verifyHmacSignature } from "../_shared/validation/auth-validation.ts";
+
 /**
  * Compute HMAC-SHA256 for OAuth state parameter
  * @param payload - The decoded payload (e.g., origin like 'http://localhost:5173')
@@ -54,7 +56,7 @@ export async function computeStateHmac(
 
 /**
  * Verify HMAC-SHA256 signature for OAuth state parameter
- * Uses timing-safe comparison to prevent timing attacks
+ * Uses centralized verification from auth-validation.ts
  * @param encodedPayload - The URL-encoded payload from state parameter
  * @param providedSigHex - The signature provided in the state (hex format)
  * @param secret - The app secret for verification
@@ -65,37 +67,13 @@ export async function verifyStateHmac(
   providedSigHex: string,
   secret: string,
 ): Promise<boolean> {
-  // Again, HMAC ("Hash-based Message Authentication Code") is a way to ensure
-  // that messages (here, the OAuth state parameter) are authentic and untampered.
-  // you compare how the message "should" look like (computed HMAC) vs how it
-  // "actually" looks like (provided HMAC). If they match, message is valid.
-  // The key here is encryption, not secrecy - HMACs dont encrypt the message,
-  // they just verify it.
-
   try {
-    // Decode the payload
+    // Decode the payload first
     const decoded = decodeURIComponent(encodedPayload);
 
-    // Compute expected signature
-    const expectedSig = await computeStateHmac(decoded, secret);
-
-    // Timing-safe comparison using Uint8Array
-    const encoder = new TextEncoder();
-    const expected = encoder.encode(expectedSig);
-    const provided = encoder.encode(providedSigHex);
-
-    // Check lengths first
-    if (expected.length !== provided.length) {
-      return false;
-    }
-
-    // Compare bytes - XOR accumulates differences
-    let mismatch = 0;
-    for (let i = 0; i < expected.length; i++) {
-      mismatch |= expected[i] ^ provided[i];
-    }
-
-    return mismatch === 0;
+    // Use centralized HMAC verification (hex format, not 'sha256=hex')
+    const result = await verifyHmacSignature(decoded, providedSigHex, secret, "hex");
+    return result.valid;
   } catch {
     return false;
   }

@@ -5,6 +5,7 @@ import { exchangeForLongLivedToken } from "../_shared/services/facebook-service.
 import {
   sendTokenRefreshFailedAlert,
 } from "../_shared/services/mail-service.ts";
+import { TokenBucketRateLimiter } from "../_shared/validation/rate-limiting.ts";
 import { PageToken, RefreshResult } from "./types.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
@@ -13,6 +14,9 @@ import { PageToken, RefreshResult } from "./types.ts";
 // we had before - basically, functions that run on demand or on a schedule.
 
 // this function handles refreshing facebook page access tokens that are about to expire.
+
+// Rate limiter for token refresh: max 24 refreshes per day per page (roughly 1 per hour)
+const tokenRefreshLimiter = new TokenBucketRateLimiter();
 
 /**
  * Token Refresh Handler
@@ -61,6 +65,20 @@ async function refreshExpiredTokens(
     // Check each page's token expiry
     for (const page of pages as PageToken[]) {
       try {
+        // Rate limit: max 24 refreshes per day per page (1 per hour)
+        const isLimited = !tokenRefreshLimiter.check(page.page_id, 1, 24, 86400000);
+        
+        if (isLimited) {
+          logger.debug(`Token refresh rate limited for page ${page.page_id}`);
+          results.push({
+            pageId: page.page_id,
+            success: false,
+            error: "Rate limited - too many refresh attempts today",
+          });
+          failedCount++;
+          continue;
+        }
+
         if (!page.expires_at) {
           logger.warn(`No expiry data found for page ${page.page_id}`);
           continue;

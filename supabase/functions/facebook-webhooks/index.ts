@@ -11,9 +11,9 @@ import {
 import {
   isWebhookRateLimited,
   processWebhookChanges,
-  verifyWebhookSignature,
 } from "./helpers.ts";
 import { sendEventSyncFailedAlert } from "../_shared/services/mail-service.ts";
+import { verifyHmacSignature } from "../_shared/validation/auth-validation.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
 // or help etc), but because we've refactored to supabase, it's now a "Edge Function".
@@ -101,6 +101,26 @@ async function handleWebhookPost(
       throw new Error("Missing FACEBOOK_APP_SECRET");
     }
 
+    // Validate request size to prevent DoS attacks
+    const contentLength = req.headers.get("content-length");
+    const MAX_BODY_SIZE = 1024 * 1024; // 1MB max
+    if (contentLength && parseInt(contentLength) > MAX_BODY_SIZE) {
+      logger.warn("Request body exceeds maximum size", {
+        contentLength: parseInt(contentLength),
+        maxAllowed: MAX_BODY_SIZE,
+      });
+      return new Response(
+        JSON.stringify({
+          error: "Request body too large",
+          maxBytes: MAX_BODY_SIZE,
+        }),
+        {
+          status: 413, // Payload Too Large
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
     // Get request body
     const rawBody = await req.text();
 
@@ -114,13 +134,14 @@ async function handleWebhookPost(
       });
     }
 
-    const isValidSignature = await verifyWebhookSignature(
+    const signatureResult = await verifyHmacSignature(
       rawBody,
       signature,
       appSecret,
+      "sha256=hex",
     );
 
-    if (!isValidSignature) {
+    if (!signatureResult.valid) {
       logger.warn("Invalid webhook signature");
       return new Response(JSON.stringify({ error: "Invalid signature" }), {
         status: 401,
