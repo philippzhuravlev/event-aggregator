@@ -1,0 +1,145 @@
+import { createClient } from "@supabase/supabase-js";
+import {
+  batchWriteEvents,
+  getActivePages,
+} from "../_shared/services/supabase-service.ts";
+import { HTTP_STATUS } from "../_shared/utils/constants-util.ts";
+import { logger } from "../_shared/services/logger-service.ts";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  handleCORSPreflight,
+} from "../_shared/utils/error-response-util.ts";
+import { SyncResult } from "./types.ts";
+import { syncSinglePage } from "./helpers.ts";
+
+// NB: "Handlers" like execute business logic; they "do something", like
+// syncing events or refreshing tokens, etc. Meanwhile "Services" connect
+// something to an existing service, e.g. facebook or supabase vault
+
+// Syncing events means getting events from facebook and putting them
+// into our supabase database. We have two ways of doing this: manually
+// via an http endpoint (handleManualSync) or automatically via a cron
+// job (handleScheduledSync). Both use the same underlying function
+// syncAllPageEvents which does the actual work, which also includes
+// processing event cover images and normalizing event data - could have
+// been split into separate functions honestly
+
+/**
+ * Sync events, simple as. We have a manual and cron version
+ */
+async function syncAllPageEvents(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+): Promise<SyncResult> {
+  // Get all active pages from Supabase
+  const pages = await getActivePages(supabase);
+
+  if (pages.length === 0) {
+    logger.info("No active pages to sync");
+    return {
+      success: true,
+      pagesProcessed: 0,
+      eventsAdded: 0,
+      eventsUpdated: 0,
+      errors: [],
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  let totalEvents = 0;
+  // deno-lint-ignore no-explicit-any
+  const eventsToSync: any[] = [];
+  // deno-lint-ignore no-explicit-any
+  const expiringTokens: any[] = [];
+
+  // Sync all pages in parallel using Promise.all. That's the excellent utility
+  // of Promise in JS/TS
+  const syncResults = await Promise.all(
+    pages.map((page) => syncSinglePage(page, supabase, expiringTokens)),
+  );
+
+  // Collect all events from all pages
+  // deno-lint-ignore no-explicit-any
+  const errors: any[] = [];
+  for (const result of syncResults) {
+    eventsToSync.push(...result.events);
+    totalEvents += result.events.length;
+    if (result.error) {
+      errors.push({ pageId: result.pageId, error: result.error });
+    }
+  }
+
+  // Batch write all events
+  if (eventsToSync.length > 0) {
+    await batchWriteEvents(supabase, eventsToSync);
+    logger.info("Sync completed successfully", {
+      totalEvents,
+      totalPages: pages.length,
+      expiringTokens: expiringTokens.length,
+    });
+  }
+
+  // Log expiring tokens summary
+  if (expiringTokens.length > 0) {
+    logger.warn("Multiple tokens expiring soon", {
+      count: expiringTokens.length,
+    });
+  }
+
+  return {
+    success: true,
+    pagesProcessed: pages.length,
+    eventsAdded: totalEvents,
+    eventsUpdated: 0,
+    errors,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+Deno.serve(async (req: Request) => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return handleCORSPreflight();
+  }
+
+  // Only allow POST requests
+  if (req.method !== "POST") {
+    return createErrorResponse(
+      HTTP_STATUS.METHOD_NOT_ALLOWED,
+      "Method not allowed",
+    );
+  }
+
+  try {
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+    if (!supabaseUrl || !supabaseKey) {
+      return createErrorResponse(
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        "Missing Supabase configuration",
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    logger.info("Manual sync started");
+    const result = await syncAllPageEvents(supabase);
+    logger.info("Manual sync completed successfully", {
+      // deno-lint-ignore no-explicit-any
+      totalEvents: (result as any).totalEvents,
+      // deno-lint-ignore no-explicit-any
+      totalPages: (result as any).totalPages,
+    });
+
+    return createSuccessResponse(result);
+  } catch (error) {
+    logger.error("Manual sync failed", error instanceof Error ? error : null);
+    return createErrorResponse(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to sync events from Facebook",
+    );
+  }
+});
