@@ -17,3 +17,22 @@ export interface SyncResult {
   }>;
   timestamp: string;
 }
+
+/**
+ * Result of syncing events for a single page
+ */
+export interface PageSyncResult {
+  events: unknown[];
+  pageId: string;
+  error: string | null;
+}
+
+/**
+ * Token expiring soon that needs notification
+ */
+export interface ExpiringToken {
+  pageId: number;
+  pageName: string;
+  daysUntilExpiry: number;
+  expiresAt: Date | null;
+}

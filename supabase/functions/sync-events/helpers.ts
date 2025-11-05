@@ -11,6 +11,7 @@ import {
   TOKEN_REFRESH,
 } from "../_shared/utils/index.ts";
 import { DatabasePage } from "../_shared/types.ts";
+import { ExpiringToken, PageSyncResult } from "./types.ts";
 
 // this is one of many "helper", which are different from utils; 90% of the time,
 // helpers are for one file and thus specific for domain stuff/business logic (calculating,
@@ -22,19 +23,6 @@ import { DatabasePage } from "../_shared/types.ts";
 // these helpers specifically handle syncing events for a single page, including checking
 // token expiry, retrieving tokens from vault, calling facebook api, normalizing
 // event data, and handling errors
-
-interface PageSyncResult {
-  events: unknown[];
-  pageId: string;
-  error: string | null;
-}
-
-interface ExpiringToken {
-  pageId: number;
-  pageName: string;
-  daysUntilExpiry: number;
-  expiresAt: Date | null;
-}
 
 /**
  * Sync events for a single page

@@ -4,17 +4,7 @@
  */
 
 import { PAGINATION } from "../_shared/validation/index.ts";
-
-/**
- * Query parameters for get-events endpoint
- */
-export interface GetEventsQuery {
-  limit: number;
-  pageToken?: string;
-  pageId?: string;
-  upcoming: boolean;
-  search?: string;
-}
+import { GetEventsQuery } from "../_shared/types.ts";
 
 /**
  * Validate and parse query parameters for get-events

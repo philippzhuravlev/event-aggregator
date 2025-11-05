@@ -3,13 +3,15 @@
  * Handles OAuth flow parameter validation and type definitions
  */
 
+export type { OAuthCallbackResponse } from "../_shared/types.ts";
+
 /**
  * Query parameters for OAuth callback from Facebook
  */
 export interface OAuthCallbackQuery {
-  code?: string;        // Authorization code from Facebook
-  state?: string;       // CSRF token / frontend origin
-  error?: string;       // Error message if auth failed
+  code?: string; // Authorization code from Facebook
+  state?: string; // CSRF token / frontend origin
+  error?: string; // Error message if auth failed
 }
 
 /**
@@ -18,17 +20,6 @@ export interface OAuthCallbackQuery {
 export interface ValidatedOAuthCallback {
   code: string;
   state: string;
-}
-
-/**
- * Response from OAuth callback handler
- */
-export interface OAuthCallbackResponse {
-  success: boolean;
-  pages?: number;
-  events?: number;
-  error?: string;
-  redirectUrl: string;
 }
 
 /**

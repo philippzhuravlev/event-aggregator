@@ -3,24 +3,7 @@
  * Defines request/response structures for token refresh operations
  */
 
-/**
- * Database page token record
- */
-export interface PageToken {
-  page_id: string;
-  access_token: string;
-  expires_at: string;
-}
-
-/**
- * Result of attempting to refresh a single page's token
- */
-export interface RefreshResult {
-  pageId: string;
-  success: boolean;
-  expiresInDays?: number;
-  error?: string;
-}
+import type { RefreshResult } from "./types.ts";
 
 /**
  * Response from token-refresh handler
@@ -38,7 +21,7 @@ export interface TokenRefreshResponse {
  * Manual refresh request body (if triggered via HTTP)
  */
 export interface TokenRefreshRequest {
-  pageId?: string;  // Optional - refresh specific page only
+  pageId?: string; // Optional - refresh specific page only
   dryRun?: boolean; // Validate but don't actually refresh
 }
 
