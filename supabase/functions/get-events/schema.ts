@@ -3,7 +3,7 @@
  * Defines and validates the query params for paginated event retrieval
  */
 
-import { PAGINATION } from "../_shared/utils/constants-util.ts";
+import { PAGINATION } from "../_shared/validation/index.ts";
 
 /**
  * Query parameters for get-events endpoint

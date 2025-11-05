@@ -1,7 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import { logger } from "../_shared/services/logger-service.ts";
-import { calculateDaysUntilExpiry } from "../_shared/utils/token-expiry-util.ts";
-import { sendTokenExpiryWarning } from "../_shared/services/mail-service.ts";
+import { logger, sendTokenExpiryWarning } from "../_shared/services/index.ts";
+import { calculateDaysUntilExpiry } from "../_shared/utils/index.ts";
 import {
   HealthCheckResponse,
   PageTokenStatus,

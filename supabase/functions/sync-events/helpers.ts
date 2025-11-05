@@ -1,12 +1,15 @@
-import { getAllRelevantEvents } from "../_shared/services/facebook-service.ts";
 import {
   checkTokenExpiry,
+  getAllRelevantEvents,
+  getPageToken,
+  logger,
   markTokenExpired,
-} from "../_shared/services/supabase-service.ts";
-import { getPageToken } from "../_shared/services/vault-service.ts";
-import { normalizeEvent } from "../_shared/utils/event-normalizer-util.ts";
-import { EVENT_SYNC, TOKEN_REFRESH } from "../_shared/utils/constants-util.ts";
-import { logger } from "../_shared/services/logger-service.ts";
+} from "../_shared/services/index.ts";
+import {
+  EVENT_SYNC,
+  normalizeEvent,
+  TOKEN_REFRESH,
+} from "../_shared/utils/index.ts";
 import { DatabasePage } from "../_shared/types.ts";
 
 // this is one of many "helper", which are different from utils; 90% of the time,

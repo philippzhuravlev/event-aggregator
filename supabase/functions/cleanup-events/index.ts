@@ -1,13 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
-import { logger } from "../_shared/services/logger-service.ts";
+import { deleteOldEvents, logger } from "../_shared/services/index.ts";
+import { CleanupResult } from "../_shared/types.ts";
 import {
   createErrorResponse,
   createSuccessResponse,
   handleCORSPreflight,
-} from "../_shared/utils/error-response-util.ts";
-import { HTTP_STATUS } from "../_shared/utils/constants-util.ts";
-import { deleteOldEvents } from "../_shared/services/supabase-service.ts";
-import { CleanupResult } from "../_shared/types.ts";
+  HTTP_STATUS,
+} from "../_shared/validation/index.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
 // or help etc), but because we've refactored to supabase, it's now a "Edge Function".
@@ -81,8 +80,8 @@ Deno.serve(async (req: Request) => {
   // Only allow POST requests
   if (req.method !== "POST") {
     return createErrorResponse(
-      HTTP_STATUS.METHOD_NOT_ALLOWED,
       "Method not allowed",
+      HTTP_STATUS.METHOD_NOT_ALLOWED,
     );
   }
 
@@ -95,8 +94,8 @@ Deno.serve(async (req: Request) => {
     // Validate daysToKeep
     if (isNaN(daysToKeep) || daysToKeep < 1) {
       return createErrorResponse(
-        HTTP_STATUS.BAD_REQUEST,
         "Invalid daysToKeep parameter - must be >= 1",
+        HTTP_STATUS.BAD_REQUEST,
       );
     }
 
@@ -106,8 +105,8 @@ Deno.serve(async (req: Request) => {
 
     if (!supabaseUrl || !supabaseKey) {
       return createErrorResponse(
-        HTTP_STATUS.INTERNAL_SERVER_ERROR,
         "Missing Supabase configuration",
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
       );
     }
 
@@ -127,8 +126,8 @@ Deno.serve(async (req: Request) => {
       error instanceof Error ? error : null,
     );
     return createErrorResponse(
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
       "Failed to cleanup events",
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
     );
   }
 });

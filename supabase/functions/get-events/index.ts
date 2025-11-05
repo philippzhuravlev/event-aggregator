@@ -1,14 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
-import { logger } from "../_shared/services/logger-service.ts";
+import { logger } from "../_shared/services/index.ts";
+import { GetEventsQuery } from "../_shared/types.ts";
+import { GetEventsResponse } from "./types.ts";
 import {
   createErrorResponse,
   createSuccessResponse,
+  getClientIp,
+  getRateLimitExceededResponse,
   handleCORSPreflight,
-} from "../_shared/utils/error-response-util.ts";
-import { HTTP_STATUS, PAGINATION } from "../_shared/utils/constants-util.ts";
-import { GetEventsQuery } from "../_shared/types.ts";
-import { GetEventsResponse } from "./types.ts";
-import { SlidingWindowRateLimiter, getClientIp, getRateLimitExceededResponse, getRateLimitHeaders } from "../_shared/validation/rate-limiting.ts";
+  HTTP_STATUS,
+  PAGINATION,
+  SlidingWindowRateLimiter,
+} from "../_shared/validation/index.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
 // or help etc), but because we've refactored to supabase, it's now a "Edge Function".
@@ -206,16 +209,15 @@ async function handler(req: Request): Promise<Response> {
     // 1. Validate the request method is GET
     if (req.method !== "GET") {
       return createErrorResponse(
-        HTTP_STATUS.METHOD_NOT_ALLOWED,
         "Method not allowed",
-        "Only GET requests are supported for this endpoint",
+        HTTP_STATUS.METHOD_NOT_ALLOWED,
       );
     }
 
     // 2. Rate limiting check (100 requests per minute per IP)
     const clientIp = getClientIp(req);
     const isLimited = !apiRateLimiter.check("get-events", clientIp);
-    
+
     if (isLimited) {
       logger.warn(`Rate limit exceeded for IP: ${clientIp}`);
       return getRateLimitExceededResponse();
@@ -227,9 +229,8 @@ async function handler(req: Request): Promise<Response> {
 
     if (!validation.success) {
       return createErrorResponse(
+        validation.error || "Invalid query parameters",
         HTTP_STATUS.BAD_REQUEST,
-        "Invalid query parameters",
-        validation.error,
       );
     }
 
@@ -240,8 +241,8 @@ async function handler(req: Request): Promise<Response> {
     if (!supabaseUrl || !supabaseKey) {
       logger.error("Missing Supabase environment variables", null);
       return createErrorResponse(
-        HTTP_STATUS.INTERNAL_SERVER_ERROR,
         "Server configuration error",
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
       );
     }
 
@@ -255,8 +256,8 @@ async function handler(req: Request): Promise<Response> {
   } catch (error) {
     logger.error("Failed to get events", error instanceof Error ? error : null);
     return createErrorResponse(
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
       "Failed to retrieve events",
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
     );
   }
 }

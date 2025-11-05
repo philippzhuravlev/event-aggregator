@@ -5,7 +5,10 @@
 
 import { validateOAuthCallbackQuery } from "./schema.ts";
 import { Request } from "./types.ts";
-import { BruteForceProtection } from "../_shared/validation/rate-limiting.ts";
+import {
+  BruteForceProtection,
+  createErrorResponse,
+} from "../_shared/validation/index.ts";
 
 // Brute force protection: 5 failed attempts lock out IP for 15 minutes
 const bruteForceProtection = new BruteForceProtection(5, 600000, 900000);
@@ -24,7 +27,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const url = new URL(req.url);
-    
+
     // Extract client IP from request headers
     const forwarded = req.headers.get("x-forwarded-for");
     const cfIp = req.headers.get("cf-connecting-ip");
@@ -32,15 +35,9 @@ Deno.serve(async (req: Request) => {
 
     // Brute force protection: check if IP is locked out
     if (bruteForceProtection.isLocked(clientIp)) {
-      return new Response(
-        JSON.stringify({ 
-          error: "Too many failed attempts. Please try again later.",
-          lockedUntil: bruteForceProtection.getStatus(clientIp).lockedUntil
-        }),
-        {
-          status: 429,
-          headers: { "Content-Type": "application/json", "Retry-After": "900" },
-        },
+      return createErrorResponse(
+        "Too many failed attempts. Please try again later.",
+        429,
       );
     }
 
@@ -48,8 +45,8 @@ Deno.serve(async (req: Request) => {
     const validation = validateOAuthCallbackQuery(url);
     if (!validation.success) {
       // Record failed attempt
-      const failureResult = bruteForceProtection.recordFailure(clientIp);
-      
+      bruteForceProtection.recordFailure(clientIp);
+
       // If error param is present, it's from Facebook - return error to frontend
       const errorParam = url.searchParams.get("error");
       const stateParam = url.searchParams.get("state");
@@ -65,15 +62,9 @@ Deno.serve(async (req: Request) => {
         });
       }
       // Otherwise it's a validation error
-      return new Response(
-        JSON.stringify({ 
-          error: validation.error,
-          attemptsRemaining: failureResult.attemptsRemaining
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        },
+      return createErrorResponse(
+        validation.error || "Invalid OAuth callback",
+        400,
       );
     }
 

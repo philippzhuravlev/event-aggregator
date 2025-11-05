@@ -1,11 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
-import { logger } from "../_shared/services/logger-service.ts";
-import { calculateDaysUntilExpiry } from "../_shared/utils/token-expiry-util.ts";
-import { exchangeForLongLivedToken } from "../_shared/services/facebook-service.ts";
 import {
+  exchangeForLongLivedToken,
+  logger,
   sendTokenRefreshFailedAlert,
-} from "../_shared/services/mail-service.ts";
-import { TokenBucketRateLimiter } from "../_shared/validation/rate-limiting.ts";
+} from "../_shared/services/index.ts";
+import { calculateDaysUntilExpiry } from "../_shared/utils/index.ts";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  TokenBucketRateLimiter,
+} from "../_shared/validation/index.ts";
 import { PageToken, RefreshResult } from "./types.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
@@ -66,8 +70,13 @@ async function refreshExpiredTokens(
     for (const page of pages as PageToken[]) {
       try {
         // Rate limit: max 24 refreshes per day per page (1 per hour)
-        const isLimited = !tokenRefreshLimiter.check(page.page_id, 1, 24, 86400000);
-        
+        const isLimited = !tokenRefreshLimiter.check(
+          page.page_id,
+          1,
+          24,
+          86400000,
+        );
+
         if (isLimited) {
           logger.debug(`Token refresh rate limited for page ${page.page_id}`);
           results.push({
@@ -252,32 +261,19 @@ async function handleTokenRefresh(
     const supabase = createClient(supabaseUrl, supabaseKey);
     const result = await refreshExpiredTokens(supabase);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Token refresh job completed",
-        ...result,
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return createSuccessResponse({
+      message: "Token refresh job completed",
+      ...result,
+    }, 200);
   } catch (error) {
     logger.error(
       "Token refresh handler error",
       error instanceof Error ? error : null,
     );
 
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
+    return createErrorResponse(
+      error instanceof Error ? error.message : "Unknown error",
+      500,
     );
   }
 }

@@ -18,7 +18,7 @@
 // for token-refresh because otherwise, it'd be 500 lines; better yet, it's easy to
 // separate concerns that way into a single file
 
-import { verifyHmacSignature } from "../_shared/validation/auth-validation.ts";
+import { verifyHmacSignature } from "../_shared/validation/index.ts";
 
 /**
  * Compute HMAC-SHA256 for OAuth state parameter
@@ -72,7 +72,12 @@ export async function verifyStateHmac(
     const decoded = decodeURIComponent(encodedPayload);
 
     // Use centralized HMAC verification (hex format, not 'sha256=hex')
-    const result = await verifyHmacSignature(decoded, providedSigHex, secret, "hex");
+    const result = await verifyHmacSignature(
+      decoded,
+      providedSigHex,
+      secret,
+      "hex",
+    );
     return result.valid;
   } catch {
     return false;

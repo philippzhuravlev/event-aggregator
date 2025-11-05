@@ -1,4 +1,4 @@
-import { TOKEN_REFRESH } from "../_shared/utils/constants-util.ts";
+import { TOKEN_REFRESH } from "../_shared/utils/index.ts";
 
 /**
  * Calculate days until a token expires

@@ -2,16 +2,17 @@ import { createClient } from "@supabase/supabase-js";
 import {
   batchWriteEvents,
   getActivePages,
-} from "../_shared/services/supabase-service.ts";
-import { HTTP_STATUS } from "../_shared/utils/constants-util.ts";
-import { logger } from "../_shared/services/logger-service.ts";
+  logger,
+} from "../_shared/services/index.ts";
 import {
   createErrorResponse,
   createSuccessResponse,
+  getRateLimitExceededResponse,
   handleCORSPreflight,
-} from "../_shared/utils/error-response-util.ts";
-import { verifyBearerToken } from "../_shared/validation/auth-validation.ts";
-import { TokenBucketRateLimiter, getRateLimitExceededResponse } from "../_shared/validation/rate-limiting.ts";
+  HTTP_STATUS,
+  TokenBucketRateLimiter,
+  verifyBearerToken,
+} from "../_shared/validation/index.ts";
 import { SyncResult } from "./types.ts";
 import { syncSinglePage } from "./helpers.ts";
 
@@ -111,8 +112,8 @@ Deno.serve(async (req: Request) => {
   // Only allow POST requests
   if (req.method !== "POST") {
     return createErrorResponse(
-      HTTP_STATUS.METHOD_NOT_ALLOWED,
       "Method not allowed",
+      HTTP_STATUS.METHOD_NOT_ALLOWED,
     );
   }
 
@@ -124,8 +125,8 @@ Deno.serve(async (req: Request) => {
     if (!expectedToken) {
       logger.error("Missing SYNC_TOKEN environment variable", null);
       return createErrorResponse(
-        HTTP_STATUS.INTERNAL_SERVER_ERROR,
         "Server configuration error",
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
       );
     }
 
@@ -135,15 +136,15 @@ Deno.serve(async (req: Request) => {
         error: authResult.error,
       });
       return createErrorResponse(
-        HTTP_STATUS.UNAUTHORIZED,
         authResult.error || "Unauthorized",
+        HTTP_STATUS.UNAUTHORIZED,
       );
     }
 
     // Rate limiting check: 10 calls per day per token
     const tokenId = authResult.token || "unknown";
     const isRateLimited = !syncRateLimiter.check(tokenId, 1, 10, 86400000); // 10 tokens per 24 hours
-    
+
     if (isRateLimited) {
       logger.warn(`Sync endpoint rate limit exceeded for token: ${tokenId}`);
       return getRateLimitExceededResponse();
@@ -155,8 +156,8 @@ Deno.serve(async (req: Request) => {
 
     if (!supabaseUrl || !supabaseKey) {
       return createErrorResponse(
-        HTTP_STATUS.INTERNAL_SERVER_ERROR,
         "Missing Supabase configuration",
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
       );
     }
 
@@ -175,8 +176,8 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     logger.error("Manual sync failed", error instanceof Error ? error : null);
     return createErrorResponse(
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
       "Failed to sync events from Facebook",
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
     );
   }
 });

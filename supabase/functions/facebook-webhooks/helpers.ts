@@ -3,9 +3,8 @@
  * Includes signature verification and payload processing
  */
 
-import { logger } from "../_shared/services/logger-service.ts";
-import { verifyHmacSignature } from "../_shared/validation/auth-validation.ts";
-import { SlidingWindowRateLimiter } from "../_shared/validation/rate-limiting.ts";
+import { logger } from "../_shared/services/index.ts";
+import { SlidingWindowRateLimiter } from "../_shared/validation/index.ts";
 
 // this is one of many "helper", which are different from utils; 90% of the time,
 // helpers are for one file and thus specific for domain stuff/business logic (calculating,

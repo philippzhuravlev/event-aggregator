@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { logger } from "../_shared/services/logger-service.ts";
+import { logger, sendEventSyncFailedAlert } from "../_shared/services/index.ts";
 import {
   extractEventChanges,
   extractPageIdFromEntry,
@@ -8,12 +8,14 @@ import {
   validateWebhookPayload,
   validateWebhookSubscription,
 } from "./schema.ts";
+import { isWebhookRateLimited, processWebhookChanges } from "./helpers.ts";
 import {
-  isWebhookRateLimited,
-  processWebhookChanges,
-} from "./helpers.ts";
-import { sendEventSyncFailedAlert } from "../_shared/services/mail-service.ts";
-import { verifyHmacSignature } from "../_shared/validation/auth-validation.ts";
+  createErrorResponse,
+  createSuccessResponse,
+  SIZE_LIMITS,
+  validateBodySize,
+  verifyHmacSignature,
+} from "../_shared/validation/index.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
 // or help etc), but because we've refactored to supabase, it's now a "Edge Function".
@@ -68,10 +70,10 @@ function handleWebhookGet(url: URL): Response {
     logger.warn("Webhook subscription validation failed", {
       error: validation.error,
     });
-    return new Response(JSON.stringify({ error: validation.error }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return createErrorResponse(
+      validation.error || "Invalid subscription validation",
+      400,
+    );
   }
 
   // Verify the token matches our expected verify token
@@ -80,10 +82,10 @@ function handleWebhookGet(url: URL): Response {
   const token = url.searchParams.get("hub.verify_token");
   if (token !== WEBHOOK_VERIFY_TOKEN) {
     logger.warn("Webhook verify token mismatch");
-    return new Response(JSON.stringify({ error: "Invalid verify token" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" },
-    });
+    return createErrorResponse(
+      "Invalid verify token",
+      403,
+    );
   }
 
   logger.info("Webhook subscription verified");
@@ -101,24 +103,23 @@ async function handleWebhookPost(
       throw new Error("Missing FACEBOOK_APP_SECRET");
     }
 
-    // Validate request size to prevent DoS attacks
+    // Validate request size to prevent DoS attacks (1MB max)
     const contentLength = req.headers.get("content-length");
-    const MAX_BODY_SIZE = 1024 * 1024; // 1MB max
-    if (contentLength && parseInt(contentLength) > MAX_BODY_SIZE) {
-      logger.warn("Request body exceeds maximum size", {
-        contentLength: parseInt(contentLength),
-        maxAllowed: MAX_BODY_SIZE,
-      });
-      return new Response(
-        JSON.stringify({
-          error: "Request body too large",
-          maxBytes: MAX_BODY_SIZE,
-        }),
-        {
-          status: 413, // Payload Too Large
-          headers: { "Content-Type": "application/json" },
-        },
+    if (contentLength) {
+      const sizeValidation = validateBodySize(
+        parseInt(contentLength),
+        SIZE_LIMITS.LARGE, // 100KB limit for Facebook webhooks
       );
+      if (!sizeValidation.valid) {
+        logger.warn("Request body exceeds maximum size", {
+          contentLength: parseInt(contentLength),
+          maxAllowed: SIZE_LIMITS.LARGE,
+        });
+        return createErrorResponse(
+          sizeValidation.error || "Request body too large",
+          413,
+        );
+      }
     }
 
     // Get request body
@@ -128,10 +129,10 @@ async function handleWebhookPost(
     const signature = req.headers.get("x-hub-signature-256");
     if (!signature) {
       logger.warn("Missing webhook signature header");
-      return new Response(JSON.stringify({ error: "Missing signature" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
+      return createErrorResponse(
+        "Missing signature",
+        401,
+      );
     }
 
     const signatureResult = await verifyHmacSignature(
@@ -143,10 +144,10 @@ async function handleWebhookPost(
 
     if (!signatureResult.valid) {
       logger.warn("Invalid webhook signature");
-      return new Response(JSON.stringify({ error: "Invalid signature" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
+      return createErrorResponse(
+        "Invalid signature",
+        401,
+      );
     }
 
     // Parse and validate payload
@@ -155,10 +156,10 @@ async function handleWebhookPost(
       payload = JSON.parse(rawBody);
     } catch {
       logger.warn("Failed to parse webhook payload");
-      return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return createErrorResponse(
+        "Invalid JSON payload",
+        400,
+      );
     }
 
     const validation = await validateWebhookPayload(payload);
@@ -166,12 +167,9 @@ async function handleWebhookPost(
       logger.warn("Invalid webhook payload", {
         error: validation.error,
       });
-      return new Response(
-        JSON.stringify({ error: validation.error }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        },
+      return createErrorResponse(
+        validation.error || "Invalid webhook payload",
+        400,
       );
     }
 
@@ -212,17 +210,10 @@ async function handleWebhookPost(
       eventsFailed,
     });
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        eventsProcessed,
-        eventsFailed,
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return createSuccessResponse({
+      eventsProcessed,
+      eventsFailed,
+    }, 200);
   } catch (error) {
     logger.error(
       "Webhook handler error",
@@ -235,15 +226,9 @@ async function handleWebhookPost(
       { source: "facebook_webhook" },
     );
 
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
+    return createErrorResponse(
+      error instanceof Error ? error.message : "Unknown error",
+      500,
     );
   }
 }
