@@ -10,6 +10,16 @@
 
 import { logger } from "../services/logger-service.ts";
 
+// This used to be called "middleware", which lies in the middle between http request
+// and business logic. But since we're using deno in edge functions without a full framework,
+// it's not technically "middleware" and more of what middleware usually is 95% of the time:
+// validation.
+
+// We have three main rate limiting strategies here:
+// 1. Sliding Window Rate Limiter - for general per-IP rate limiting
+// 2. Token Bucket Rate Limiter - for predictable per-token limits
+// 3. Brute Force Protection - for authentication endpoints to prevent abuse
+
 // ============================================================================
 // SLIDING WINDOW RATE LIMITER
 // ============================================================================
@@ -43,7 +53,10 @@ export class SlidingWindowRateLimiter {
 
     // Start cleanup if not already running
     if (!this.cleanupInterval) {
-      this.cleanupInterval = setInterval(() => this.cleanup(), 60000) as unknown as number;
+      this.cleanupInterval = setInterval(
+        () => this.cleanup(),
+        60000,
+      ) as unknown as number;
     }
   }
 
@@ -63,7 +76,7 @@ export class SlidingWindowRateLimiter {
     const bucketKey = `${name}:${key}`;
     const now = Date.now();
 
-    let bucket = this.buckets.get(bucketKey);
+    const bucket = this.buckets.get(bucketKey);
 
     if (!bucket) {
       // First request
@@ -76,12 +89,15 @@ export class SlidingWindowRateLimiter {
 
     // Remove old requests outside the window
     const windowStart = now - config.windowMs;
-    bucket.requests = bucket.requests.filter((timestamp) => timestamp > windowStart);
+    const existingBucket = bucket; // Explicitly reference for mutation
+    existingBucket.requests = existingBucket.requests.filter((timestamp) =>
+      timestamp > windowStart
+    );
 
     // Check if at limit
-    if (bucket.requests.length >= config.maxRequests) {
+    if (existingBucket.requests.length >= config.maxRequests) {
       logger.debug(`Rate limit exceeded for "${name}:${key}"`, {
-        requests: bucket.requests.length,
+        requests: existingBucket.requests.length,
         maxRequests: config.maxRequests,
         windowMs: config.windowMs,
       });
@@ -89,7 +105,7 @@ export class SlidingWindowRateLimiter {
     }
 
     // Add new request
-    bucket.requests.push(now);
+    existingBucket.requests.push(now);
     return true;
   }
 
@@ -126,7 +142,9 @@ export class SlidingWindowRateLimiter {
     const windowStart = now - config.windowMs;
     const valid = bucket.requests.filter((t) => t > windowStart).length;
     const oldestValid = bucket.requests.find((t) => t > windowStart);
-    const resetAt = oldestValid ? oldestValid + config.windowMs : now + config.windowMs;
+    const resetAt = oldestValid
+      ? oldestValid + config.windowMs
+      : now + config.windowMs;
 
     return {
       used: valid,
@@ -154,7 +172,9 @@ export class SlidingWindowRateLimiter {
     toDelete.forEach((key) => this.buckets.delete(key));
 
     if (toDelete.length > 0) {
-      logger.debug(`Rate limiter cleanup: removed ${toDelete.length} stale buckets`);
+      logger.debug(
+        `Rate limiter cleanup: removed ${toDelete.length} stale buckets`,
+      );
     }
   }
 
@@ -191,7 +211,10 @@ export class TokenBucketRateLimiter {
 
   constructor() {
     // Start cleanup
-    this.cleanupInterval = setInterval(() => this.cleanup(), 60000) as unknown as number;
+    this.cleanupInterval = setInterval(
+      () => this.cleanup(),
+      60000,
+    ) as unknown as number;
   }
 
   /**
@@ -202,7 +225,12 @@ export class TokenBucketRateLimiter {
    * @param refillMs - How long to refill from empty to full
    * @returns true if tokens available, false if rate limited
    */
-  check(key: string, tokensNeeded: number = 1, maxTokens: number = 10, refillMs: number = 86400000): boolean {
+  check(
+    key: string,
+    tokensNeeded: number = 1,
+    maxTokens: number = 10,
+    refillMs: number = 86400000,
+  ): boolean {
     const now = Date.now();
     let bucket = this.buckets.get(key);
 
@@ -268,7 +296,9 @@ export class TokenBucketRateLimiter {
 
     // Time until next token arrives
     const tokensUntilFull = maxTokens - available;
-    const nextRefillIn = tokensUntilFull > 0 ? (tokensUntilFull / refillRate) : 0;
+    const nextRefillIn = tokensUntilFull > 0
+      ? (tokensUntilFull / refillRate)
+      : 0;
 
     return {
       available: Math.floor(available),
@@ -283,7 +313,11 @@ export class TokenBucketRateLimiter {
    * @param maxTokens - Max tokens in bucket
    * @param refillMs - Refill time in milliseconds
    */
-  reset(key: string, maxTokens: number = 10, refillMs: number = 86400000): void {
+  reset(
+    key: string,
+    maxTokens: number = 10,
+    refillMs: number = 86400000,
+  ): void {
     this.buckets.set(key, {
       tokens: maxTokens,
       lastRefill: Date.now(),
@@ -309,7 +343,9 @@ export class TokenBucketRateLimiter {
     toDelete.forEach((key) => this.buckets.delete(key));
 
     if (toDelete.length > 0) {
-      logger.debug(`Token bucket cleanup: removed ${toDelete.length} stale buckets`);
+      logger.debug(
+        `Token bucket cleanup: removed ${toDelete.length} stale buckets`,
+      );
     }
   }
 
@@ -351,13 +387,20 @@ export class BruteForceProtection {
    * @param windowMs - Time window to count attempts (default: 10 minutes)
    * @param lockoutMs - How long to lock out (default: 15 minutes)
    */
-  constructor(maxAttempts: number = 5, windowMs: number = 600000, lockoutMs: number = 900000) {
+  constructor(
+    maxAttempts: number = 5,
+    windowMs: number = 600000,
+    lockoutMs: number = 900000,
+  ) {
     this.maxAttempts = maxAttempts;
     this.windowMs = windowMs;
     this.lockoutMs = lockoutMs;
 
     // Start cleanup
-    this.cleanupInterval = setInterval(() => this.cleanup(), 60000) as unknown as number;
+    this.cleanupInterval = setInterval(
+      () => this.cleanup(),
+      60000,
+    ) as unknown as number;
   }
 
   /**
@@ -490,7 +533,10 @@ export class BruteForceProtection {
 
     for (const [key, bucket] of this.buckets.entries()) {
       // Delete if not locked and window has passed + 1 hour buffer
-      if (!bucket.lockedUntil && now - bucket.firstAttempt > this.windowMs + 3600000) {
+      if (
+        !bucket.lockedUntil &&
+        now - bucket.firstAttempt > this.windowMs + 3600000
+      ) {
         toDelete.push(key);
       }
       // Delete if lock has expired + 1 hour buffer
@@ -502,7 +548,9 @@ export class BruteForceProtection {
     toDelete.forEach((key) => this.buckets.delete(key));
 
     if (toDelete.length > 0) {
-      logger.debug(`Brute force protection cleanup: removed ${toDelete.length} stale buckets`);
+      logger.debug(
+        `Brute force protection cleanup: removed ${toDelete.length} stale buckets`,
+      );
     }
   }
 
@@ -548,7 +596,9 @@ export function getClientIp(request: Request): string {
  * @param status - Rate limit status from getStatus()
  * @returns Headers object
  */
-export function getRateLimitHeaders(status: { used?: number; limit?: number; resetAt?: number }): Record<string, string> {
+export function getRateLimitHeaders(
+  status: { used?: number; limit?: number; resetAt?: number },
+): Record<string, string> {
   const headers: Record<string, string> = {};
 
   if (status.limit) {
@@ -558,7 +608,9 @@ export function getRateLimitHeaders(status: { used?: number; limit?: number; res
     headers["X-RateLimit-Used"] = String(status.used);
   }
   if (status.resetAt) {
-    headers["X-RateLimit-Reset"] = String(Math.ceil((status.resetAt - Date.now()) / 1000));
+    headers["X-RateLimit-Reset"] = String(
+      Math.ceil((status.resetAt - Date.now()) / 1000),
+    );
   }
 
   return headers;
