@@ -1,9 +1,0 @@
-{
-  "compilerOptions": {
-    "lib": ["deno.window"],
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  }
-}

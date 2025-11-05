@@ -1,13 +1,14 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "lib": ["deno.window"],
+    "lib": ["deno.window", "deno.unstable"],
     "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "skipLibCheck": true
   },
   "tasks": {
     "test": "deno test --allow-all"
+  },
+  "imports": {
+    "std/": "https://deno.land/std@0.208.0/",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
   }
 }
