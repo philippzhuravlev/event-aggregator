@@ -5,6 +5,7 @@
 
 import { ALLOWED_ORIGINS } from "../utils/constants-util.ts";
 import { logger } from "../services/logger-service.ts";
+import { OAuthStateValidation } from "../types.ts";
 
 // This used to be called "middleware", which lies in the middle between http request
 // and business logic. But since we're using deno in edge functions without a full framework,
@@ -45,16 +46,6 @@ export function isAllowedOrigin(origin: string | undefined): boolean {
       return false;
     }
   });
-}
-
-/**
- * Result of OAuth state validation
- */
-export interface OAuthStateValidation {
-  // this is just type checking no worries
-  isValid: boolean;
-  origin: string | null;
-  error: string | null;
 }
 
 /**

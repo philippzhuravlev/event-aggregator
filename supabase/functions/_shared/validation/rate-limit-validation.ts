@@ -9,6 +9,11 @@
  */
 
 import { logger } from "../services/logger-service.ts";
+import {
+  BruteForceEntry as _BruteForceEntry,
+  SlidingWindowConfig,
+  TokenBucket as _TokenBucket,
+} from "../types.ts";
 
 // This used to be called "middleware", which lies in the middle between http request
 // and business logic. But since we're using deno in edge functions without a full framework,
@@ -29,11 +34,6 @@ import { logger } from "../services/logger-service.ts";
 
 interface SlidingWindowBucket {
   requests: number[];
-  windowMs: number;
-}
-
-interface SlidingWindowConfig {
-  maxRequests: number;
   windowMs: number;
 }
 
@@ -198,9 +198,7 @@ export class SlidingWindowRateLimiter {
 // Strategy: Tokens are added at a fixed rate; each request costs tokens
 // Example: 10 API calls per day per token (tokens refill over 24 hours)
 
-interface TokenBucketData {
-  tokens: number;
-  lastRefill: number;
+interface TokenBucketData extends _TokenBucket {
   maxTokens: number;
   refillRate: number; // tokens per millisecond
 }
@@ -368,10 +366,8 @@ export class TokenBucketRateLimiter {
 // Strategy: Track failed attempts and temporarily lock out after threshold
 // Example: 5 failed login attempts lock out IP for 15 minutes
 
-interface BruteForceBucket {
-  attempts: number;
+interface BruteForceBucket extends _BruteForceEntry {
   firstAttempt: number;
-  lockedUntil?: number;
 }
 
 export class BruteForceProtection {

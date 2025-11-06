@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "./logger-service.ts";
+import { FileMetadata, UploadOptions } from "../types.ts";
 
 /**
  * ImageService manages file storage and retrieval via Supabase Storage
@@ -27,21 +28,6 @@ import { logger } from "./logger-service.ts";
 // Supabase Storage, which is optimized for storing files like images, gifs, videos, webps
 // also images need to be public to see them, but databases are private by default, so
 // you reference the image URLs in the database records instead
-
-// the interfaces below just define the types
-interface UploadOptions {
-  contentType?: string;
-  cacheControl?: string;
-  upsert?: boolean;
-}
-
-interface FileMetadata {
-  name: string;
-  size: number;
-  contentType: string;
-  createdAt: string;
-  url?: string;
-}
 
 /**
  * Upload a file to Supabase Storage

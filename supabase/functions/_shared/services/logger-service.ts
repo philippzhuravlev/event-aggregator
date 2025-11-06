@@ -1,3 +1,5 @@
+import { ErrorMetadata, LogMetadata } from "../types.ts";
+
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, Supabase and
 // secrets manager. The term could also mean like an internal service, e.g.
@@ -9,15 +11,6 @@
 // In Deno/Edge Functions, logging goes to something called "stdout/stderr logs"
 // which you can view in the Supabase dashboard under "Logs". The error's general
 // structures are info, warning, error, critical and debug
-
-interface LogMetadata {
-  [key: string]: unknown;
-}
-
-interface ErrorMetadata extends LogMetadata {
-  userId?: string;
-  pageId?: string;
-}
 
 export const logger = {
   /**

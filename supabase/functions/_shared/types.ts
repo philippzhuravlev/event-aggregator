@@ -191,6 +191,221 @@ export interface ErrorMetadata extends LogMetadata {
 }
 
 // ============================================================================
+// MAIL SERVICE TYPES
+// ============================================================================
+
+/**
+ * Email options for sending emails
+ */
+export interface EmailOptions {
+  to: string;
+  subject: string;
+  html?: string;
+  text?: string;
+}
+
+/**
+ * Alert email options with alert type and details
+ */
+export interface AlertEmailOptions extends EmailOptions {
+  alertType:
+    | "token_refresh_failed"
+    | "token_expiry_warning"
+    | "event_sync_failed";
+  details?: Record<string, unknown>;
+}
+
+// ============================================================================
+// IMAGE SERVICE TYPES
+// ============================================================================
+
+/**
+ * File upload options
+ */
+export interface UploadOptions {
+  contentType?: string;
+  cacheControl?: string;
+  upsert?: boolean;
+}
+
+/**
+ * File metadata for storage operations
+ */
+export interface FileMetadata {
+  name: string;
+  size: number;
+  contentType: string;
+  createdAt: string;
+  url?: string;
+}
+
+// ============================================================================
+// VALIDATION TYPES - API RESPONSE
+// ============================================================================
+
+/**
+ * Standard API response envelope
+ */
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  errors?: Record<string, string[]>;
+  timestamp: string;
+  requestId?: string;
+}
+
+/**
+ * Paginated response
+ */
+export interface PaginatedResponse<T> extends ApiResponse {
+  data?: T[];
+  pagination?: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+/**
+ * Error API response
+ */
+export interface ErrorApiResponse extends ApiResponse {
+  error: string;
+  errorCode?: string;
+  statusCode: number;
+}
+
+// ============================================================================
+// VALIDATION TYPES - AUTH
+// ============================================================================
+
+/**
+ * HMAC signature verification result
+ */
+export interface HmacVerificationResult {
+  valid: boolean;
+  computedSignature?: string;
+  error?: string;
+}
+
+// ============================================================================
+// VALIDATION TYPES - DATA
+// ============================================================================
+
+/**
+ * String validation options
+ */
+export interface StringValidationOptions {
+  minLength?: number;
+  maxLength?: number;
+  pattern?: RegExp;
+  allowEmpty?: boolean;
+  trim?: boolean;
+}
+
+/**
+ * Number validation options
+ */
+export interface NumberValidationOptions {
+  min?: number;
+  max?: number;
+  integer?: boolean;
+  positive?: boolean;
+  negative?: boolean;
+}
+
+// ============================================================================
+// VALIDATION TYPES - OAUTH
+// ============================================================================
+
+/**
+ * OAuth state validation result
+ */
+export interface OAuthStateValidation {
+  isValid: boolean;
+  origin: string | null;
+  error: string | null;
+}
+
+// ============================================================================
+// VALIDATION TYPES - REQUEST
+// ============================================================================
+
+/**
+ * HTTP methods
+ */
+export type HttpMethod =
+  | "GET"
+  | "POST"
+  | "PUT"
+  | "PATCH"
+  | "DELETE"
+  | "HEAD"
+  | "OPTIONS";
+
+/**
+ * Validation result
+ */
+export interface ValidationResult {
+  valid: boolean;
+  error?: string;
+  details?: Record<string, unknown>;
+}
+
+/**
+ * JSON schema for simple validation
+ */
+export interface JsonSchema {
+  type: "object" | "array" | "string" | "number" | "boolean" | "null";
+  properties?: Record<string, JsonSchema>;
+  required?: string[];
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  items?: JsonSchema;
+  minItems?: number;
+  maxItems?: number;
+}
+
+// ============================================================================
+// VALIDATION TYPES - RATE LIMITING
+// ============================================================================
+
+/**
+ * Sliding window rate limiter bucket
+ */
+export interface SlidingWindowBucket {
+  requests: number[];
+  windowMs: number;
+}
+
+/**
+ * Sliding window rate limiter configuration
+ */
+export interface SlidingWindowConfig {
+  maxRequests: number;
+  windowMs: number;
+}
+
+/**
+ * Token bucket for rate limiting
+ */
+export interface TokenBucket {
+  tokens: number;
+  lastRefill: number;
+}
+
+/**
+ * Brute force protection entry
+ */
+export interface BruteForceEntry {
+  attempts: number;
+  lockedUntil?: number;
+}
+
+// ============================================================================
 // OAUTH TYPES
 // ============================================================================
 

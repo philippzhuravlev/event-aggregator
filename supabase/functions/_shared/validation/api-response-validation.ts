@@ -9,9 +9,7 @@
  * - Not found: createNotFoundResponse('Resource')
  */
 
-// ============================================================================
-// RESPONSE INTERFACES
-// ============================================================================
+import { ApiResponse, ErrorApiResponse, PaginatedResponse } from "../types.ts";
 
 // This used to be called "middleware", which lies in the middle between http request
 // and business logic. But since we're using deno in edge functions without a full framework,
@@ -23,40 +21,6 @@
 // the response will always have the same "envelope" with fields like "success", "data",
 // "error", and "timestamp". This makes it easier for clients to parse and handle responses,
 // as they can always expect the same format regardless of the outcome of their request.
-
-/**
- * Standard API response envelope
- */
-export interface ApiResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  errors?: Record<string, string[]>;
-  timestamp: string;
-  requestId?: string;
-}
-
-/**
- * Paginated response
- */
-export interface PaginatedResponse<T> extends ApiResponse {
-  data?: T[];
-  pagination?: {
-    page: number;
-    pageSize: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
-/**
- * Error response
- */
-export interface ErrorApiResponse extends ApiResponse {
-  error: string;
-  errorCode?: string;
-  statusCode: number;
-}
 
 // ============================================================================
 // HTTP STATUS CODES

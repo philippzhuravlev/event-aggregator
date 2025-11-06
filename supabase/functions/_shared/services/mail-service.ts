@@ -1,4 +1,5 @@
 import { logger } from "./logger-service.ts";
+import { AlertEmailOptions, EmailOptions } from "../types.ts";
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, Supabase and
@@ -9,21 +10,6 @@ import { logger } from "./logger-service.ts";
 // This mail service uses Resend (https://resend.com/) which is optimized for
 // serverless/edge functions like Supabase Edge Functions. It has a simple HTTP
 // API and doesn't require SMTP configuration. Works great with Deno!
-
-export interface EmailOptions {
-  to: string;
-  subject: string;
-  html?: string;
-  text?: string;
-}
-
-export interface AlertEmailOptions extends EmailOptions {
-  alertType:
-    | "token_refresh_failed"
-    | "token_expiry_warning"
-    | "event_sync_failed";
-  details?: Record<string, unknown>;
-}
 
 /**
  * Initialize and validate mail service configuration

@@ -8,6 +8,7 @@
  */
 
 import { logger } from "../services/logger-service.ts";
+import { HmacVerificationResult } from "../types.ts";
 
 // This used to be called "middleware", which lies in the middle between http request
 // and business logic. But since we're using deno in edge functions without a full framework,
@@ -18,17 +19,8 @@ import { logger } from "../services/logger-service.ts";
 // that they're different; auth is often in regards to standing between endpoints
 // and making sure they're the right guy (thru HMAC, or "Hash Message Authentication
 // Code" and the SHA256 hashing algorithm). Oauth is still about authentication but
-// it's about __sending you back to the right domain__, not making sure that the 
+// it's about __sending you back to the right domain__, not making sure that the
 // message has been tampered with
-
-/**
- * HMAC-SHA256 signature verification result
- */
-export interface HmacVerificationResult {
-  valid: boolean;
-  computedSignature?: string;
-  error?: string;
-}
 
 /**
  * Timing-safe string comparison to prevent timing attacks

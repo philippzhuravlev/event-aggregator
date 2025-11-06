@@ -12,6 +12,8 @@
 // Import logger if needed for future logging functionality
 // import { logger } from "../services/logger-service.ts";
 
+import { HttpMethod, JsonSchema, ValidationResult } from "../types.ts";
+
 // This used to be called "middleware", which lies in the middle between http request
 // and business logic. But since we're using deno in edge functions without a full framework,
 // it's not technically "middleware" and more of what middleware usually is 95% of the time:
@@ -25,46 +27,6 @@
 
 // ============================================================================
 // REQUEST VALIDATION INTERFACES
-// ============================================================================
-
-/**
- * HTTP methods
- */
-export type HttpMethod =
-  | "GET"
-  | "POST"
-  | "PUT"
-  | "PATCH"
-  | "DELETE"
-  | "HEAD"
-  | "OPTIONS";
-
-/**
- * Validation result type
- */
-export interface ValidationResult {
-  valid: boolean;
-  error?: string;
-  details?: Record<string, unknown>;
-}
-
-/**
- * JSON Schema for simple validation
- */
-export interface JsonSchema {
-  type: "object" | "array" | "string" | "number" | "boolean" | "null";
-  properties?: Record<string, JsonSchema>;
-  required?: string[];
-  minLength?: number;
-  maxLength?: number;
-  pattern?: string;
-  items?: JsonSchema;
-  minItems?: number;
-  maxItems?: number;
-}
-
-// ============================================================================
-// CONTENT-TYPE VALIDATION
 // ============================================================================
 
 /**
