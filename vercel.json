@@ -3,7 +3,7 @@
   "installCommand": "npm ci",
   "functions": {
     "api/oauth-callback/index.ts": {
-      "runtime": "nodejs20.x"
+      "runtime": "nodejs@20.x"
     },
     "supabase/functions/cleanup-events/index.ts": {
       "runtime": "vercel-deno@2.0.1"
