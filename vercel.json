@@ -1,29 +1,7 @@
 {
   "buildCommand": "npm run build",
   "installCommand": "npm ci",
-  "functions": {
-    "api/oauth-callback/index.ts": {
-      "runtime": "nodejs@20.x"
-    },
-    "supabase/functions/cleanup-events/index.ts": {
-      "runtime": "vercel-deno@2.0.1"
-    },
-    "supabase/functions/facebook-webhooks/index.ts": {
-      "runtime": "vercel-deno@2.0.1"
-    },
-    "supabase/functions/get-events/index.ts": {
-      "runtime": "vercel-deno@2.0.1"
-    },
-    "supabase/functions/health-check/index.ts": {
-      "runtime": "vercel-deno@2.0.1"
-    },
-    "supabase/functions/sync-events/index.ts": {
-      "runtime": "vercel-deno@2.0.1"
-    },
-    "supabase/functions/token-refresh/index.ts": {
-      "runtime": "vercel-deno@2.0.1"
-    }
-  },
+  "outputDirectory": "web/dist",
   "rewrites": [
     {
       "source": "/api/oauth-callback",

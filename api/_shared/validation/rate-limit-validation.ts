@@ -8,13 +8,13 @@
  * - Brute force: bruteForce.recordFailure(ipAddress)
  */
 
-import { logger } from "../services/logger-service.ts";
+import { logger } from "../services/logger-service";
 import type {
     BruteForceEntry,
     SlidingWindowBucket,
     SlidingWindowConfig,
     TokenBucket,
-} from "../types.ts";
+} from "../types";
 
 // This used to be called "middleware", which lies in the middle between http request
 // and business logic. But since we're using deno in edge functions without a full framework,

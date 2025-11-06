@@ -15,8 +15,8 @@ import type {
     HttpMethod,
     JsonSchema,
     ValidationResult,
-} from "../types.ts";
-import { REQUEST_SIZE_LIMITS } from "../utils/constants-util.ts";
+} from "../types";
+import { REQUEST_SIZE_LIMITS } from "../utils/constants-util";
 
 // ============================================================================
 // CONTENT-TYPE VALIDATION

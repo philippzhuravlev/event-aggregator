@@ -14,7 +14,7 @@
 import type {
     NumberValidationOptions,
     StringValidationOptions,
-} from "../types.ts";
+} from "../types";
 
 /**
  * Validate string against constraints

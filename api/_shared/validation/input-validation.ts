@@ -10,7 +10,7 @@
  * - Validation: isValidEmail(email)
  */
 
-import { logger } from "../services/logger-service.ts";
+import { logger } from "../services/logger-service";
 
 // This used to be called "middleware", which lies in the middle between http request
 // and business logic. But since we're using deno in edge functions without a full framework,

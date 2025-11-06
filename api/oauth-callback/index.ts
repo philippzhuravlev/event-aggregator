@@ -25,10 +25,10 @@ import {
   exchangeForLongLivedToken,
   getAllRelevantEvents,
   getUserPages,
-} from "../_shared/services/facebook-service.ts";
-import { validateOAuthState } from "../_shared/validation/index.ts";
-import { validateOAuthCallbackQuery } from "./schema.ts";
-import type { VercelRequest, VercelResponse } from "../_shared/types.ts";
+} from "../_shared/services/facebook-service";
+import { validateOAuthState } from "../_shared/validation/index";
+import { validateOAuthCallbackQuery } from "./schema";
+import type { VercelRequest, VercelResponse } from "../_shared/types";
 
 /**
  * Main handler for OAuth callback requests
