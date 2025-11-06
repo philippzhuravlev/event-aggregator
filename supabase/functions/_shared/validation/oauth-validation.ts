@@ -4,6 +4,7 @@
  */
 
 import { ALLOWED_ORIGINS } from "../utils/constants-util.ts";
+import { isAllowedOrigin as checkAllowedOrigin } from "../utils/url-builder-util.ts";
 import { logger } from "../services/logger-service.ts";
 import { OAuthStateValidation } from "../types.ts";
 
@@ -21,31 +22,18 @@ import { OAuthStateValidation } from "../types.ts";
 /**
  * Validate that a redirect origin is in our whitelist
  * Prevents open redirect attacks in OAuth flow
- * @param origin - Origin to validate (e.g., "http://localhost:3000")
- * @returns True if origin is in ALLOWED_ORIGINS
+ * Accepts both production domain and deployment-specific Vercel URLs
+ * @param origin - Origin to validate (e.g., "https://event-aggregator-nine.vercel.app")
+ * @returns True if origin is allowed
  */
 export function isAllowedOrigin(origin: string | undefined): boolean {
   if (!origin) return false;
-  // The whole point is just to check if the origin of the URL is in our allowed list,
-  // so "localhost" for dev and the production URL for prod etc etc
 
-  // Check if origin matches any allowed origin
-  return Array.from(ALLOWED_ORIGINS).some((allowed) => {
-    // Ensure allowed is a string
-    if (typeof allowed !== "string") return false;
-
-    // Exact match
-    if (origin === allowed) return true;
-
-    // Handle optional env-based origin (might be undefined at validation time)
-    try {
-      const allowedUrl = new URL(allowed);
-      const originUrl = new URL(origin);
-      return allowedUrl.origin === originUrl.origin;
-    } catch {
-      return false;
-    }
-  });
+  // Use the dynamic check from constants that accepts:
+  // - Localhost (development)
+  // - Production domain (event-aggregator-nine.vercel.app)
+  // - Any deployment-specific Vercel URL (event-aggregator-<hash>-<org>.vercel.app)
+  return checkAllowedOrigin(origin);
 }
 
 /**

@@ -34,3 +34,6 @@ export {
   getTokenStatus,
   isTokenExpiring,
 } from "./token-expiry-util.ts";
+
+// URL Builder - URL construction and origin validation
+export { isAllowedOrigin } from "./url-builder-util.ts";

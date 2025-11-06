@@ -29,6 +29,7 @@ import {
 import { validateOAuthState } from "../_shared/validation/index";
 import { validateOAuthCallbackQuery } from "./schema";
 import type { VercelRequest, VercelResponse } from "../_shared/types";
+import { isAllowedOrigin, getAllowedOrigins } from "../_shared/utils/url-builder-util";
 
 /**
  * Main handler for OAuth callback requests
@@ -71,14 +72,8 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
 
     const { code, state } = validation.data!;
 
-    // Validate state parameter (CSRF protection)
-    const allowedOrigins = [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "https://event-aggregator-nine.vercel.app",
-      // Add your production domain here
-    ];
-
+    // Validate state parameter (CSRF protection) using dynamic allowed origins
+    const allowedOrigins = getAllowedOrigins();
     const stateValidation = validateOAuthState(state, allowedOrigins);
     if (!stateValidation.valid) {
       res.redirect(
@@ -96,7 +91,7 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     const facebookAppId = env.FACEBOOK_APP_ID;
     const facebookAppSecret = env.FACEBOOK_APP_SECRET;
     const oauthCallbackUrl = env.OAUTH_CALLBACK_URL ||
-      "https://event-aggregator-nine.vercel.app/api/oauth-callback";
+      "https://event-aggregator-7ui0jpd4p-philipp-craines-projects.vercel.app/api/oauth-callback";
     const supabaseUrl = env.SUPABASE_URL;
     const supabaseServiceKey = env.SUPABASE_SERVICE_ROLE_KEY;
 
