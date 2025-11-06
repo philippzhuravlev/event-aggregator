@@ -1,0 +1,17 @@
+[functions.get-events]
+import_map = "./deno.json"
+
+[functions.sync-events]
+import_map = "./deno.json"
+
+[functions.token-refresh]
+import_map = "./deno.json"
+
+[functions.health-check]
+import_map = "./deno.json"
+
+[functions.facebook-webhooks]
+import_map = "./deno.json"
+
+[functions.cleanup-events]
+import_map = "./deno.json"

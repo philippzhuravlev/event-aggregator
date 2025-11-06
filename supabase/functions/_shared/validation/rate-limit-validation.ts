@@ -615,10 +615,21 @@ export function getRateLimitHeaders(
 /**
  * Create a rate limit exceeded error response
  * @param resetAt - When the limit resets (timestamp in ms)
+ * @param corsOrigin - Optional CORS origin to use
  * @returns Response object
  */
-export function getRateLimitExceededResponse(resetAt?: number): Response {
+export function getRateLimitExceededResponse(
+  resetAt?: number,
+  corsOrigin?: string,
+): Response {
   const retryAfter = resetAt ? Math.ceil((resetAt - Date.now()) / 1000) : 60;
+  const corsHeaders = corsOrigin
+    ? {
+      "Access-Control-Allow-Origin": corsOrigin,
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    }
+    : {};
 
   return new Response(
     JSON.stringify({
@@ -630,6 +641,7 @@ export function getRateLimitExceededResponse(resetAt?: number): Response {
       headers: {
         "Content-Type": "application/json",
         "Retry-After": String(retryAfter),
+        ...corsHeaders,
       },
     },
   );

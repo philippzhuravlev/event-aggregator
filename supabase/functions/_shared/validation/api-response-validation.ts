@@ -73,8 +73,23 @@ export const PAGINATION = {
 // CORS HEADERS
 // ============================================================================
 
+/**
+ * Get dynamic CORS headers based on request origin
+ * Allows for environment-specific configuration
+ */
+function getCORSHeaders(requestOrigin?: string): Record<string, string> {
+  const allowedOrigin = requestOrigin || 
+    Deno.env.get("WEB_APP_URL") || 
+    "https://event-aggregator-nine.vercel.app";
+  
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+
 export const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "https://event-aggregator-nine.vercel.app",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 } as const;
@@ -84,16 +99,18 @@ export const CORS_HEADERS = {
 // ============================================================================
 
 /**
- * Create a successful response
+ * Create a successful response with CORS headers
  * @param data - Response data
  * @param statusCode - HTTP status code (default: 200)
  * @param requestId - Optional request ID for tracing
+ * @param corsOrigin - Optional CORS origin to use
  * @returns Response object
  */
 export function createSuccessResponse<T = unknown>(
   data: T,
   statusCode: number = HTTP_STATUS.OK,
   requestId?: string,
+  corsOrigin?: string,
 ): Response {
   const response: ApiResponse<T> = {
     success: true,
@@ -106,6 +123,7 @@ export function createSuccessResponse<T = unknown>(
     status: statusCode,
     headers: {
       "Content-Type": "application/json",
+      ...getCORSHeaders(corsOrigin),
     },
   });
 }
@@ -180,11 +198,12 @@ export function createPaginatedResponse<T = unknown>(
 // ============================================================================
 
 /**
- * Create an error response
+ * Create an error response with CORS headers
  * @param message - Error message
  * @param statusCode - HTTP status code (default: 400)
  * @param errorCode - Optional error code for client handling
  * @param requestId - Optional request ID for tracing
+ * @param corsOrigin - Optional CORS origin to use
  * @returns Response object
  */
 export function createErrorResponse(
@@ -192,6 +211,7 @@ export function createErrorResponse(
   statusCode: number = HTTP_STATUS.BAD_REQUEST,
   errorCode?: string,
   requestId?: string,
+  corsOrigin?: string,
 ): Response {
   const response: ErrorApiResponse = {
     success: false,
@@ -206,6 +226,7 @@ export function createErrorResponse(
     status: statusCode,
     headers: {
       "Content-Type": "application/json",
+      ...getCORSHeaders(corsOrigin),
     },
   });
 }
@@ -571,11 +592,17 @@ export function parseResponseBody(body: string): ApiResponse | null {
 
 /**
  * Handle CORS preflight requests (OPTIONS)
+ * @param requestOrigin - Optional origin from request headers
  * @returns Response with CORS headers
  */
-export function handleCORSPreflight(): Response {
+export function handleCORSPreflight(requestOrigin?: string): Response {
   return new Response(null, {
     status: HTTP_STATUS.NO_CONTENT,
-    headers: CORS_HEADERS,
+    headers: getCORSHeaders(requestOrigin),
   });
 }
+
+/**
+ * Export getCORSHeaders for use in handlers
+ */
+export { getCORSHeaders };

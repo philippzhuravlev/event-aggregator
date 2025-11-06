@@ -57,3 +57,4 @@ pids
 
 # LLMs
 .gemini
+*.sql
