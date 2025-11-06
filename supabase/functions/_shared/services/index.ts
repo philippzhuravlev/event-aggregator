@@ -37,13 +37,13 @@ export {
 
 // Mail Service - Email sending and alerts
 export {
-  type AlertEmailOptions,
   createMailTransporter,
-  type EmailOptions,
   sendEventSyncFailedAlert,
   sendTokenExpiryWarning,
   sendTokenRefreshFailedAlert,
 } from "./mail-service.ts";
+
+export type { AlertEmailOptions, EmailOptions } from "../types.ts";
 
 // Supabase Service - Database operations
 export {

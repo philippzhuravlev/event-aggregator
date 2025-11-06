@@ -2,6 +2,12 @@
  * Response helpers for consistent API responses
  */
 
+// So this is a util, a helper function that is neither "what to do" (handler) nor
+// "how to connect to an external service" (service). It just does pure logic that
+// either makes sense to compartmentalize or is used in multiple places.
+
+// This util is a nice little repository of response-related helpers.
+
 export interface ApiErrorResponse {
   error: string;
   code?: string;
@@ -23,8 +29,8 @@ export function createSuccessResponse<T>(
   return new Response(JSON.stringify({ success: true, data }), {
     status: statusCode,
     headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
     },
   });
 }
@@ -42,8 +48,8 @@ export function createErrorResponse(
   return new Response(JSON.stringify(body), {
     status: statusCode,
     headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
     },
   });
 }
@@ -52,12 +58,12 @@ export function createErrorResponse(
  * Handle CORS preflight requests
  */
 export function handleCORSPreflight(): Response {
-  return new Response('OK', {
+  return new Response("OK", {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
     },
   });
 }
