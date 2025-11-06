@@ -1,5 +1,57 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "web/dist",
-  "installCommand": "npm ci"
+  "installCommand": "npm ci",
+  "functions": {
+    "supabase/functions/cleanup-events/index.ts": {
+      "runtime": "vercel-deno@2.0.1"
+    },
+    "supabase/functions/facebook-webhooks/index.ts": {
+      "runtime": "vercel-deno@2.0.1"
+    },
+    "supabase/functions/get-events/index.ts": {
+      "runtime": "vercel-deno@2.0.1"
+    },
+    "supabase/functions/health-check/index.ts": {
+      "runtime": "vercel-deno@2.0.1"
+    },
+    "supabase/functions/oauth-callback/index.ts": {
+      "runtime": "vercel-deno@2.0.1"
+    },
+    "supabase/functions/sync-events/index.ts": {
+      "runtime": "vercel-deno@2.0.1"
+    },
+    "supabase/functions/token-refresh/index.ts": {
+      "runtime": "vercel-deno@2.0.1"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/cleanup-events",
+      "destination": "/supabase/functions/cleanup-events"
+    },
+    {
+      "source": "/api/facebook-webhooks",
+      "destination": "/supabase/functions/facebook-webhooks"
+    },
+    {
+      "source": "/api/get-events",
+      "destination": "/supabase/functions/get-events"
+    },
+    {
+      "source": "/api/health-check",
+      "destination": "/supabase/functions/health-check"
+    },
+    {
+      "source": "/api/oauth-callback",
+      "destination": "/supabase/functions/oauth-callback"
+    },
+    {
+      "source": "/api/sync-events",
+      "destination": "/supabase/functions/sync-events"
+    },
+    {
+      "source": "/api/token-refresh",
+      "destination": "/supabase/functions/token-refresh"
+    }
+  ]
 }
