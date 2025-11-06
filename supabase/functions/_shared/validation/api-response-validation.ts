@@ -11,6 +11,9 @@
 
 import { ApiResponse, ErrorApiResponse, PaginatedResponse } from "../types.ts";
 
+// Re-export types for convenience
+export type { ApiResponse, ErrorApiResponse, PaginatedResponse };
+
 // This used to be called "middleware", which lies in the middle between http request
 // and business logic. But since we're using deno in edge functions without a full framework,
 // it's not technically "middleware" and more of what middleware usually is 95% of the time:

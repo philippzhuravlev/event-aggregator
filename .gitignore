@@ -54,3 +54,6 @@ pids
 *.seed
 *.pid.lock
 .vercel
+
+# LLMs
+.gemini

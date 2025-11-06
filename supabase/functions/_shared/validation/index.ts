@@ -12,7 +12,6 @@
 export {
   extractBearerToken,
   getAuthErrorResponse,
-  type HmacVerificationResult,
   timingSafeCompare,
   verifyBearerToken,
   verifyHmacSignature,
@@ -32,7 +31,6 @@ export {
 export {
   extractOriginFromState,
   isAllowedOrigin,
-  type OAuthStateValidation,
   validateOAuthState,
 } from "./oauth-validation.ts";
 
@@ -60,11 +58,9 @@ export {
   getJsonType,
   getOrigin,
   hasHeader,
-  type HttpMethod,
   isFormContentType,
   isJsonContentType,
   isSameOrigin,
-  type JsonSchema,
   SIZE_LIMITS,
   validateBodySize,
   validateContentLength,
@@ -75,12 +71,10 @@ export {
   validateOrigin,
   validateRequest,
   validateRequestJson,
-  type ValidationResult,
 } from "./request-validation.ts";
 
 // API Response Standardization
 export {
-  type ApiResponse,
   CORS_HEADERS,
   createBadRequestResponse,
   createConflictResponse,
@@ -99,7 +93,6 @@ export {
   createTooManyRequestsResponse,
   createUnauthorizedResponse,
   createValidationErrorResponse,
-  type ErrorApiResponse,
   generateRequestId,
   getStatusText,
   handleCORSPreflight,
@@ -107,7 +100,6 @@ export {
   isClientErrorStatus,
   isServerErrorStatus,
   isSuccessStatus,
-  type PaginatedResponse,
   PAGINATION,
   parseResponseBody,
   responseToJson,
@@ -125,8 +117,6 @@ export {
   isValidUrl,
   isValidUuid,
   isValidUuidV4,
-  type NumberValidationOptions,
-  type StringValidationOptions,
   type UrlValidationOptions as DataUrlValidationOptions,
   validateArray,
   validateBoolean,

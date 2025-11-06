@@ -2,6 +2,9 @@
   "buildCommand": "npm run build",
   "installCommand": "npm ci",
   "functions": {
+    "api/oauth-callback/index.ts": {
+      "runtime": "nodejs20.x"
+    },
     "supabase/functions/cleanup-events/index.ts": {
       "runtime": "vercel-deno@2.0.1"
     },
@@ -14,9 +17,6 @@
     "supabase/functions/health-check/index.ts": {
       "runtime": "vercel-deno@2.0.1"
     },
-    "supabase/functions/oauth-callback/index.ts": {
-      "runtime": "vercel-deno@2.0.1"
-    },
     "supabase/functions/sync-events/index.ts": {
       "runtime": "vercel-deno@2.0.1"
     },
@@ -25,6 +25,10 @@
     }
   },
   "rewrites": [
+    {
+      "source": "/api/oauth-callback",
+      "destination": "/api/oauth-callback"
+    },
     {
       "source": "/api/cleanup-events",
       "destination": "/supabase/functions/cleanup-events"
@@ -40,10 +44,6 @@
     {
       "source": "/api/health-check",
       "destination": "/supabase/functions/health-check"
-    },
-    {
-      "source": "/api/oauth-callback",
-      "destination": "/supabase/functions/oauth-callback"
     },
     {
       "source": "/api/sync-events",
