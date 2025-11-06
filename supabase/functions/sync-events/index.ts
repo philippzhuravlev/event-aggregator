@@ -13,6 +13,7 @@ import {
   TokenBucketRateLimiter,
   verifyBearerToken,
 } from "../_shared/validation/index.ts";
+import { RATE_LIMITS } from "../_shared/utils/constants-util.ts";
 import { SyncResult } from "./types.ts";
 import { syncSinglePage } from "./helpers.ts";
 
@@ -29,6 +30,7 @@ import { syncSinglePage } from "./helpers.ts";
 // been split into separate functions honestly
 
 // Rate limiter for sync endpoint: 10 calls per day per token
+// See RATE_LIMITS.SYNC_ENDPOINT for configuration
 const syncRateLimiter = new TokenBucketRateLimiter();
 
 /**
@@ -143,7 +145,12 @@ Deno.serve(async (req: Request) => {
 
     // Rate limiting check: 10 calls per day per token
     const tokenId = authResult.token || "unknown";
-    const isRateLimited = !syncRateLimiter.check(tokenId, 1, 10, 86400000); // 10 tokens per 24 hours
+    const isRateLimited = !syncRateLimiter.check(
+      tokenId,
+      1,
+      RATE_LIMITS.SYNC_ENDPOINT.capacity,
+      RATE_LIMITS.SYNC_ENDPOINT.windowMs,
+    );
 
     if (isRateLimited) {
       logger.warn(`Sync endpoint rate limit exceeded for token: ${tokenId}`);

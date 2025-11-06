@@ -10,6 +10,7 @@ import {
   createSuccessResponse,
   TokenBucketRateLimiter,
 } from "../_shared/validation/index.ts";
+import { RATE_LIMITS } from "../_shared/utils/constants-util.ts";
 import { PageToken, RefreshResult } from "./types.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
@@ -20,6 +21,7 @@ import { PageToken, RefreshResult } from "./types.ts";
 // this function handles refreshing facebook page access tokens that are about to expire.
 
 // Rate limiter for token refresh: max 24 refreshes per day per page (roughly 1 per hour)
+// See RATE_LIMITS.TOKEN_REFRESH for configuration
 const tokenRefreshLimiter = new TokenBucketRateLimiter();
 
 /**
@@ -73,8 +75,8 @@ async function refreshExpiredTokens(
         const isLimited = !tokenRefreshLimiter.check(
           page.page_id,
           1,
-          24,
-          86400000,
+          RATE_LIMITS.TOKEN_REFRESH.capacity,
+          RATE_LIMITS.TOKEN_REFRESH.windowMs,
         );
 
         if (isLimited) {

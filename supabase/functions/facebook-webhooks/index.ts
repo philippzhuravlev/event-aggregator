@@ -16,6 +16,7 @@ import {
   validateBodySize,
   verifyHmacSignature,
 } from "../_shared/validation/index.ts";
+import { WEBHOOK } from "../_shared/utils/constants-util.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
 // or help etc), but because we've refactored to supabase, it's now a "Edge Function".
@@ -42,9 +43,6 @@ import {
  * 4. Normalize events to standard format
  * 5. Store events in database
  */
-
-const WEBHOOK_VERIFY_TOKEN = Deno.env.get("FACEBOOK_WEBHOOK_VERIFY_TOKEN") ||
-  "verify_me";
 
 // so you know what HTTP is - it's a protocol ("system") for transferring data over the web.
 // within HTTP, there are different "methods" that indicate what kind of action you want to perform.
@@ -79,8 +77,8 @@ function handleWebhookGet(url: URL): Response {
   // Verify the token matches our expected verify token
   // these are "tokens" - basically long random strings used to authenticate/verify requests
   // to ensure that the request is coming from a trusted source (in this case, Facebook)
-  const token = url.searchParams.get("hub.verify_token");
-  if (token !== WEBHOOK_VERIFY_TOKEN) {
+  const token = url.searchParams.get(WEBHOOK.VERIFY_TOKEN_PARAM);
+  if (token !== WEBHOOK.VERIFY_TOKEN) {
     logger.warn("Webhook verify token mismatch");
     return createErrorResponse(
       "Invalid verify token",

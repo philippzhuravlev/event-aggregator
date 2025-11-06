@@ -131,6 +131,37 @@ export const EVENT_SYNC = {
 } as const;
 
 // ============================================================================
+// RATE LIMITING CONFIGURATION
+// ============================================================================
+
+export const RATE_LIMITS = {
+  // Sync endpoint: 10 calls per day per token
+  SYNC_ENDPOINT: {
+    capacity: 10,
+    refillRate: 10 / (24 * 60 * 60 * 1000), // 10 tokens per day
+    windowMs: 24 * 60 * 60 * 1000, // 24 hours
+  },
+  // Token refresh: max 24 refreshes per day per page (roughly 1 per hour)
+  TOKEN_REFRESH: {
+    capacity: 24,
+    refillRate: 24 / (24 * 60 * 60 * 1000), // 24 tokens per day
+    windowMs: 24 * 60 * 60 * 1000, // 24 hours
+  },
+} as const;
+
+// ============================================================================
+// WEBHOOK CONFIGURATION
+// ============================================================================
+
+export const WEBHOOK = {
+  VERIFY_TOKEN: Deno.env.get("FACEBOOK_WEBHOOK_VERIFY_TOKEN") || "verify_me",
+  VERIFY_TOKEN_PARAM: "hub.verify_token",
+  CHALLENGE_PARAM: "hub.challenge",
+  MODE_PARAM: "hub.mode",
+  MODE_SUBSCRIBE: "subscribe",
+} as const;
+
+// ============================================================================
 // PAGINATION CONFIGURATION
 // ============================================================================
 
@@ -166,6 +197,28 @@ export const IMAGE_SERVICE = {
 } as const;
 
 // ============================================================================
+// HTTP HEADERS
+// ============================================================================
+
+export const HTTP_HEADERS = {
+  CONTENT_TYPE: "content-type",
+  CONTENT_LENGTH: "content-length",
+  AUTHORIZATION: "authorization",
+  ORIGIN: "origin",
+  REFERER: "referer",
+  USER_AGENT: "user-agent",
+  X_FORWARDED_FOR: "x-forwarded-for",
+  CF_CONNECTING_IP: "cf-connecting-ip",
+  X_HUB_SIGNATURE_256: "x-hub-signature-256",
+} as const;
+
+export const CONTENT_TYPES = {
+  APPLICATION_JSON: "application/json",
+  APPLICATION_X_WWW_FORM_URLENCODED: "application/x-www-form-urlencoded",
+  MULTIPART_FORM_DATA: "multipart/form-data",
+} as const;
+
+// ============================================================================
 // CORS CONFIGURATION
 // ============================================================================
 
@@ -178,9 +231,11 @@ export const IMAGE_SERVICE = {
 // CORS is a way for servers to tell browsers "hey, it's okay to share resources
 // with this other domain".
 
-// CORS headers for all responses - matches the refactor rules
+// Build dynamic CORS headers based on environment
+const corsOrigin = Deno.env.get("WEB_APP_URL") || "https://event-aggregator-nine.vercel.app";
+
 export const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "https://event-aggregator-nine.vercel.app",
+  "Access-Control-Allow-Origin": corsOrigin,
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 } as const;
