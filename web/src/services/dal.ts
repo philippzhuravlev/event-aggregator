@@ -75,39 +75,54 @@ export async function getEvents(options?: GetEventsOptions): Promise<Event[]> {
     return mockEvents;
   }
 
-  const params = new URLSearchParams(); // URLSearchParams is a built-in js class that makes it easy to build URL parameters
+  try {
+    const params = new URLSearchParams(); // URLSearchParams is a built-in js class that makes it easy to build URL parameters
 
-  // the "options" object is something we defined above, but basically it's a container for all the
-  // possible parameters we might need instead of defining them manually; it's a common pattern in js/ts.
-  // and here, we convert the options into URL parameters for the backend API call
-  if (options?.limit) params.append("limit", String(options.limit));
-  if (options?.pageToken) params.append("pageToken", options.pageToken);
-  if (options?.pageId) params.append("pageId", options.pageId);
-  if (options?.upcoming !== undefined) {
-    params.append("upcoming", String(options.upcoming));
+    // the "options" object is something we defined above, but basically it's a container for all the
+    // possible parameters we might need instead of defining them manually; it's a common pattern in js/ts.
+    // and here, we convert the options into URL parameters for the backend API call
+    if (options?.limit) params.append("limit", String(options.limit));
+    if (options?.pageToken) params.append("pageToken", options.pageToken);
+    if (options?.pageId) params.append("pageId", options.pageId);
+    if (options?.upcoming !== undefined) {
+      params.append("upcoming", String(options.upcoming));
+    }
+    if (options?.search) params.append("search", options.search);
+
+    // make the actual API call to the backend
+    // fetch is a built-in js function to make HTTP requests, it's like axios but built-in
+    // we use await because fetch returns a promise, and we want to wait for it to resolve
+    // also note the use of the `${}` syntax to build the URL string from variables
+    const url = `${backendURL}/get-events?${params.toString()}`;
+    const authKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    console.log('Fetching events from:', url);
+    console.log('Auth key available:', !!authKey);
+
+    if (!backendURL || !authKey) {
+      throw new Error(
+        `Missing configuration: backendURL=${backendURL}, authKey=${!!authKey}`,
+      );
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        "Authorization": `Bearer ${authKey}`,
+        "apikey": authKey,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch events: ${response.status} ${response.statusText}`,
+      );
+    }
+    const json = await response.json();
+    return json.data?.events as Event[];
+  } catch (error) {
+    console.error('Error in getEvents:', error);
+    throw error;
   }
-  if (options?.search) params.append("search", options.search);
-
-  // make the actual API call to the backend
-  // fetch is a built-in js function to make HTTP requests, it's like axios but built-in
-  // we use await because fetch returns a promise, and we want to wait for it to resolve
-  // also note the use of the `${}` syntax to build the URL string from variables
-  const url = `${backendURL}/get-events?${params.toString()}`;
-
-  const response = await fetch(url, {
-    headers: {
-      "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY || "",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch events: ${response.status} ${response.statusText}`,
-    );
-  }
-  const json = await response.json();
-  return json.data?.events as Event[];
 }
 
 /**
