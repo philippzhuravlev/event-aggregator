@@ -1,7 +1,7 @@
-import type { Event, Page } from "../types";
-import { events as mockEvents, pages as mockPages } from "../data/mock";
-import { backendURL, useBackendAPI } from "../utils/constants";
-import { supabase } from "../lib/supabase";
+import type { Event, Page } from "../types.ts";
+import { events as mockEvents, pages as mockPages } from "../data/mock.ts";
+import { backendURL, useBackendAPI } from "../utils/constants.ts";
+import { supabase } from "../lib/supabase.ts";
 
 // the /services/ folder contain actual connections to the external services we use, principally
 // supabase and the backend; the backend also has a /services/ folder, which connects to facebook,
@@ -106,8 +106,8 @@ export async function getEvents(options?: GetEventsOptions): Promise<Event[]> {
       `Failed to fetch events: ${response.status} ${response.statusText}`,
     );
   }
-  const data = await response.json();
-  return data.events as Event[];
+  const json = await response.json();
+  return json.data?.events as Event[];
 }
 
 /**
