@@ -220,9 +220,12 @@ async function getEvents(
  * Public endpoint (no auth required) with CORS support
  */
 async function handler(req: Request): Promise<Response> {
+  // Extract the request origin for CORS
+  const origin = req.headers.get("origin") || "";
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return handleCORSPreflight();
+    return handleCORSPreflight(origin);
   }
 
   try {
@@ -231,6 +234,8 @@ async function handler(req: Request): Promise<Response> {
       return createErrorResponse(
         "Method not allowed",
         HTTP_STATUS.METHOD_NOT_ALLOWED,
+        undefined,
+        origin,
       );
     }
 
@@ -240,7 +245,7 @@ async function handler(req: Request): Promise<Response> {
 
     if (isLimited) {
       logger.warn(`Rate limit exceeded for IP: ${clientIp}`);
-      return getRateLimitExceededResponse();
+      return getRateLimitExceededResponse(undefined, origin);
     }
 
     // 3. Parse and validate query parameters
@@ -251,6 +256,8 @@ async function handler(req: Request): Promise<Response> {
       return createErrorResponse(
         validation.error || "Invalid query parameters",
         HTTP_STATUS.BAD_REQUEST,
+        undefined,
+        origin,
       );
     }
 
@@ -263,6 +270,8 @@ async function handler(req: Request): Promise<Response> {
       return createErrorResponse(
         "Server configuration error",
         HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        undefined,
+        origin,
       );
     }
 
@@ -274,12 +283,14 @@ async function handler(req: Request): Promise<Response> {
     const result = await getEvents(supabase, validation.data!);
 
     // 5. Return the result as JSON with success
-    return createSuccessResponse(result, HTTP_STATUS.OK);
+    return createSuccessResponse(result, HTTP_STATUS.OK, undefined, origin);
   } catch (error) {
     logger.error("Failed to get events", error instanceof Error ? error : null);
     return createErrorResponse(
       "Failed to retrieve events",
       HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      undefined,
+      origin,
     );
   }
 }
