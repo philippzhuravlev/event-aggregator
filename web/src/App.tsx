@@ -5,6 +5,12 @@ import { OAuthButton } from './components/OAuthButton';
 import { useEventsData } from './hooks/useEventsData';
 import { useEventFilters } from './hooks/useEventFilters';
 import { useOAuthRedirect } from './hooks/useOAuthRedirect';
+import { debugEnv } from './debug';
+
+// Debug: Log environment variables on app load
+if (typeof window !== 'undefined') {
+  debugEnv();
+}
 
 function App() {
   // Load pages and events data
