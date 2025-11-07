@@ -125,42 +125,13 @@ async function getEvents(
     hasSearch: !!searchQuery,
   });
 
-  // 1. Start by making a Supabase query
-  let query = supabase.from("events").select("*");
+  // 1. Start by making a Supabase query - fetch all event_data JSON column
+  let query = supabase.from("events").select("id, page_id, event_data");
 
   // 2. Filter by page if specified
   if (pageId) {
     query = query.eq("page_id", parseInt(pageId, 10));
   }
-
-  // 3. Filter upcoming events if specified
-  if (upcoming) {
-    const now = new Date().toISOString();
-    query = query.gte("start_time", now);
-  }
-
-  // 4. Apply full-text search if a search query is provided
-  if (searchQuery) {
-    query = query.textSearch("fts", searchQuery);
-  }
-
-  // 5. Order by start time (required for pagination)
-  query = query.order("start_time", { ascending: true });
-
-  // 6. Apply pagination cursor if provided
-  if (pageToken) {
-    try {
-      const cursorTime = atob(pageToken);
-      const cursorDate = new Date(parseInt(cursorTime)).toISOString();
-      query = query.gte("start_time", cursorDate);
-    } catch {
-      logger.warn("Invalid page token provided", { pageToken });
-      throw new Error("Invalid page token");
-    }
-  }
-
-  // 7. Limit the number of results (+1 to check for more)
-  query = query.limit(limit! + 1);
 
   // 8. Execute the query
   const { data: allEvents, error } = await query;
@@ -168,17 +139,66 @@ async function getEvents(
     throw new Error(`Failed to get events from Supabase: ${error.message}`);
   }
 
-  const events = allEvents ? allEvents.slice(0, limit!) : [];
+  // 9. Process the events - extract from event_data JSON and apply filters
+  // deno-lint-ignore no-explicit-any
+  const processedEvents: any[] = [];
+  const now = new Date();
 
-  // 9. Check if there are more results
-  const hasMore = allEvents ? allEvents.length > limit! : false;
+  for (const row of allEvents || []) {
+    const eventData = row.event_data;
+    if (!eventData) continue;
 
-  // 10. Generate next page token if more results exist
+    // Extract start_time for filtering
+    const startTime = eventData.start_time ? new Date(eventData.start_time) : null;
+
+    // 3. Filter upcoming events if specified
+    if (upcoming && (!startTime || startTime < now)) {
+      continue;
+    }
+
+    // 4. Apply full-text search if provided
+    if (searchQuery) {
+      const searchableText = `${eventData.name || ''} ${eventData.description || ''} ${eventData.place?.name || ''}`.toLowerCase();
+      if (!searchableText.includes(searchQuery.toLowerCase())) {
+        continue;
+      }
+    }
+
+    processedEvents.push({
+      startTime: startTime ? startTime.getTime() : 0,
+      event: eventData,
+    });
+  }
+
+  // Sort by start time
+  processedEvents.sort((a, b) => a.startTime - b.startTime);
+
+  // Apply cursor-based pagination
+  let startIdx = 0;
+  if (pageToken) {
+    try {
+      const cursorTime = parseInt(atob(pageToken), 10);
+      startIdx = processedEvents.findIndex(e => e.startTime >= cursorTime);
+      if (startIdx === -1) startIdx = 0;
+    } catch {
+      logger.warn("Invalid page token provided", { pageToken });
+      startIdx = 0;
+    }
+  }
+
+  // Extract the page of results
+  const pageSize = limit!;
+  const events = processedEvents.slice(startIdx, startIdx + pageSize).map(e => e.event);
+  const hasMore = startIdx + pageSize < processedEvents.length;
+
+  // Generate next page token if more results exist
   let nextPageToken: string | undefined;
   if (hasMore && events.length > 0) {
-    const lastEvent = events[events.length - 1] as Record<string, unknown>;
-    const lastTimestamp = new Date(lastEvent.start_time as string).getTime();
-    nextPageToken = btoa(String(lastTimestamp));
+    // Use the start time of the next event as the cursor
+    const nextEvent = processedEvents[startIdx + pageSize];
+    if (nextEvent) {
+      nextPageToken = btoa(String(nextEvent.startTime));
+    }
   }
 
   // 11. Log and return the results
@@ -236,7 +256,7 @@ async function handler(req: Request): Promise<Response> {
 
     // 3. Create Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !supabaseKey) {
       logger.error("Missing Supabase environment variables", null);
@@ -246,7 +266,9 @@ async function handler(req: Request): Promise<Response> {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false },
+    });
 
     // 4. Call the getEvents function with the validated query parameters
     const result = await getEvents(supabase, validation.data!);
