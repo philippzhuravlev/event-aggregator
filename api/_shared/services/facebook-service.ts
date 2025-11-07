@@ -3,15 +3,15 @@ import {
   EVENT_SYNC,
   FACEBOOK,
   SERVER_ERROR_RANGE,
-} from '../utils/constants-util';
+} from "../utils/constants-util.ts";
 import {
   FacebookErrorResponse,
   FacebookEvent,
   FacebookPage,
-  PaginatedPageResponse,
   PaginatedEventResponse,
-} from '../types';
-import { logger } from './logger-service';
+  PaginatedPageResponse,
+} from "../types.ts";
+import { logger } from "./logger-service.ts";
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, Supabase and

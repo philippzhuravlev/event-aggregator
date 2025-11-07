@@ -2,6 +2,10 @@ import { createClient } from "@supabase/supabase-js";
 import { logger, sendTokenExpiryWarning } from "../_shared/services/index.ts";
 import { calculateDaysUntilExpiry } from "../_shared/utils/index.ts";
 import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "../_shared/validation/index.ts";
+import {
   HealthCheckResponse,
   PageTokenStatus,
   SystemHealthStatus,
@@ -235,10 +239,10 @@ async function performHealthCheck(
 Deno.serve(async (req: Request) => {
   // Only allow GET requests
   if (req.method !== "GET") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { "Content-Type": "application/json" },
-    });
+    return createErrorResponse(
+      "Method not allowed",
+      405,
+    );
   }
 
   try {
@@ -247,14 +251,9 @@ Deno.serve(async (req: Request) => {
 
     if (!supabaseUrl || !supabaseKey) {
       logger.error("Missing Supabase configuration", null);
-      return new Response(
-        JSON.stringify({
-          error: "Health check unavailable - missing configuration",
-        }),
-        {
-          status: 503,
-          headers: { "Content-Type": "application/json" },
-        },
+      return createErrorResponse(
+        "Health check unavailable - missing configuration",
+        503,
       );
     }
 
@@ -274,24 +273,16 @@ Deno.serve(async (req: Request) => {
       alertsSent: result.alerts.expiryWarningsSent,
     });
 
-    return new Response(JSON.stringify(result), {
-      status: statusCode,
-      headers: { "Content-Type": "application/json" },
-    });
+    return createSuccessResponse(result, statusCode);
   } catch (error) {
     logger.error(
       "Health check endpoint failed",
       error instanceof Error ? error : null,
     );
 
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
+    return createErrorResponse(
+      error instanceof Error ? error.message : "Unknown error",
+      500,
     );
   }
 });

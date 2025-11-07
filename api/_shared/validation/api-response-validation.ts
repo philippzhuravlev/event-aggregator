@@ -14,8 +14,8 @@ import type {
     ApiResponse,
     ErrorApiResponse,
     PaginatedResponse,
-} from "../types";
-import { CORS_HEADERS, HTTP_STATUS } from "../utils/constants-util";
+} from "../types.ts";
+import { CORS_HEADERS, HTTP_STATUS } from "../utils/constants-util.ts";
 
 // ============================================================================
 // SUCCESS RESPONSES
@@ -44,6 +44,7 @@ export function createSuccessResponse<T = unknown>(
         status: statusCode,
         headers: {
             "Content-Type": "application/json",
+            ...CORS_HEADERS,
         },
     });
 }
@@ -57,6 +58,7 @@ export function createNoContentResponse(): Response {
         status: HTTP_STATUS.NO_CONTENT,
         headers: {
             "Content-Type": "application/json",
+            ...CORS_HEADERS,
         },
     });
 }
@@ -109,6 +111,7 @@ export function createPaginatedResponse<T = unknown>(
         status: HTTP_STATUS.OK,
         headers: {
             "Content-Type": "application/json",
+            ...CORS_HEADERS,
         },
     });
 }
@@ -144,6 +147,7 @@ export function createErrorResponse(
         status: statusCode,
         headers: {
             "Content-Type": "application/json",
+            ...CORS_HEADERS,
         },
     });
 }
@@ -170,6 +174,7 @@ export function createValidationErrorResponse(
         status: HTTP_STATUS.UNPROCESSABLE_ENTITY,
         headers: {
             "Content-Type": "application/json",
+            ...CORS_HEADERS,
         },
     });
 }

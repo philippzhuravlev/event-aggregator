@@ -10,9 +10,13 @@
  */
 
 import { ApiResponse, ErrorApiResponse, PaginatedResponse } from "../types.ts";
+import { CORS_HEADERS } from "../utils/constants-util.ts";
 
 // Re-export types for convenience
 export type { ApiResponse, ErrorApiResponse, PaginatedResponse };
+
+// Re-export CORS_HEADERS for convenience
+export { CORS_HEADERS };
 
 // This used to be called "middleware", which lies in the middle between http request
 // and business logic. But since we're using deno in edge functions without a full framework,
@@ -78,21 +82,16 @@ export const PAGINATION = {
  * Allows for environment-specific configuration
  */
 function getCORSHeaders(requestOrigin?: string): Record<string, string> {
-  const allowedOrigin = requestOrigin || 
-    Deno.env.get("WEB_APP_URL") || 
+  const allowedOrigin = requestOrigin ||
+    Deno.env.get("WEB_APP_URL") ||
     "https://event-aggregator-nine.vercel.app";
-  
+
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
 }
-
-export const CORS_HEADERS = {
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-} as const;
 
 // ============================================================================
 // SUCCESS RESPONSES
@@ -130,13 +129,15 @@ export function createSuccessResponse<T = unknown>(
 
 /**
  * Create a response with no content
+ * @param corsOrigin - Optional CORS origin to use
  * @returns Response object
  */
-export function createNoContentResponse(): Response {
+export function createNoContentResponse(corsOrigin?: string): Response {
   return new Response(null, {
     status: HTTP_STATUS.NO_CONTENT,
     headers: {
       "Content-Type": "application/json",
+      ...getCORSHeaders(corsOrigin),
     },
   });
 }
@@ -161,6 +162,7 @@ export function createCreatedResponse<T = unknown>(
  * @param pageSize - Items per page
  * @param total - Total items across all pages
  * @param requestId - Optional request ID for tracing
+ * @param corsOrigin - Optional CORS origin to use
  * @returns Response object
  */
 export function createPaginatedResponse<T = unknown>(
@@ -169,6 +171,7 @@ export function createPaginatedResponse<T = unknown>(
   pageSize: number,
   total: number,
   requestId?: string,
+  corsOrigin?: string,
 ): Response {
   const totalPages = Math.ceil(total / pageSize);
 
@@ -189,6 +192,7 @@ export function createPaginatedResponse<T = unknown>(
     status: HTTP_STATUS.OK,
     headers: {
       "Content-Type": "application/json",
+      ...getCORSHeaders(corsOrigin),
     },
   });
 }
@@ -235,11 +239,13 @@ export function createErrorResponse(
  * Create a validation error response
  * @param errors - Object with field names as keys and arrays of error messages as values
  * @param requestId - Optional request ID for tracing
+ * @param corsOrigin - Optional CORS origin to use
  * @returns Response object
  */
 export function createValidationErrorResponse(
   errors: Record<string, string[]>,
   requestId?: string,
+  corsOrigin?: string,
 ): Response {
   const response: ApiResponse = {
     success: false,
@@ -253,6 +259,7 @@ export function createValidationErrorResponse(
     status: HTTP_STATUS.UNPROCESSABLE_ENTITY,
     headers: {
       "Content-Type": "application/json",
+      ...getCORSHeaders(corsOrigin),
     },
   });
 }

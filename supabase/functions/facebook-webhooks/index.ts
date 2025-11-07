@@ -87,7 +87,10 @@ function handleWebhookGet(url: URL): Response {
   }
 
   logger.info("Webhook subscription verified");
-  return new Response(validation.challenge);
+  return createSuccessResponse(
+    { challenge: validation.challenge },
+    200,
+  );
 }
 
 async function handleWebhookPost(
@@ -253,10 +256,10 @@ async function handleWebhook(req: Request): Promise<Response> {
   }
 
   // All other methods
-  return new Response(JSON.stringify({ error: "Method not allowed" }), {
-    status: 405,
-    headers: { "Content-Type": "application/json" },
-  });
+  return createErrorResponse(
+    "Method not allowed",
+    405,
+  );
 }
 
 Deno.serve(handleWebhook);

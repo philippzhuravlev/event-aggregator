@@ -25,21 +25,24 @@ import {
   exchangeForLongLivedToken,
   getAllRelevantEvents,
   getUserPages,
-} from "../_shared/services/facebook-service";
-import { validateOAuthState } from "../_shared/validation/index";
-import { validateOAuthCallbackQuery } from "./schema";
-import type { VercelRequest, VercelResponse } from "../_shared/types";
-import { isAllowedOrigin, getAllowedOrigins } from "../_shared/utils/url-builder-util";
+} from "../_shared/services/facebook-service.ts";
+import type { FacebookEvent } from "../_shared/types.ts";
+import { validateOAuthState } from "../_shared/validation/index.ts";
+import { validateOAuthCallbackQuery } from "./schema.ts";
+import type { VercelRequest, VercelResponse } from "../_shared/types.ts";
+import { getAllowedOrigins } from "../_shared/utils/url-builder-util.ts";
 
 /**
  * Main handler for OAuth callback requests
  */
 async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  // Set CORS headers for all responses
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     res.status(200).send("OK");
     return;
   }
@@ -187,7 +190,7 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
           const { error: eventsError } = await supabase
             .from("events")
             .upsert(
-              events.map((event) => ({
+              events.map((event: FacebookEvent) => ({
                 event_id: event.id,
                 page_id: parseInt(page.id, 10),
                 title: event.name,

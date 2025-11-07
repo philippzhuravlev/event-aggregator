@@ -246,10 +246,10 @@ async function handleTokenRefresh(
 ): Promise<Response> {
   // Only allow POST requests
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { "Content-Type": "application/json" },
-    });
+    return createErrorResponse(
+      "Method not allowed",
+      405,
+    );
   }
 
   try {

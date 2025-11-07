@@ -14,6 +14,7 @@ import {
   SlidingWindowConfig,
   TokenBucket as _TokenBucket,
 } from "../types.ts";
+import { getCORSHeaders } from "./api-response-validation.ts";
 
 // This used to be called "middleware", which lies in the middle between http request
 // and business logic. But since we're using deno in edge functions without a full framework,
@@ -623,13 +624,6 @@ export function getRateLimitExceededResponse(
   corsOrigin?: string,
 ): Response {
   const retryAfter = resetAt ? Math.ceil((resetAt - Date.now()) / 1000) : 60;
-  const corsHeaders = corsOrigin
-    ? {
-      "Access-Control-Allow-Origin": corsOrigin,
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    }
-    : {};
 
   return new Response(
     JSON.stringify({
@@ -641,7 +635,7 @@ export function getRateLimitExceededResponse(
       headers: {
         "Content-Type": "application/json",
         "Retry-After": String(retryAfter),
-        ...corsHeaders,
+        ...getCORSHeaders(corsOrigin),
       },
     },
   );
