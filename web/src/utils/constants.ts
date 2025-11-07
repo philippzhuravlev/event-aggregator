@@ -9,6 +9,6 @@
 // to use backend api or just supabase. Note that env variables are always strings, so if we want to use them as booleans
 // or numbers, we have to convert them first (see below).
 // In the browser (Vite) use import.meta.env. Avoid Node's process.env which is undefined in the browser.
-export const backendURL = import.meta.env.VITE_BACKEND_URL || 'https://default-backend-url.com';
+export const backendURL = import.meta.env.VITE_BACKEND_URL || '/api';
 export const useSupabase = (String(import.meta.env?.VITE_USE_SUPABASE || '').toLowerCase() === 'true');
 export const useBackendAPI = (String(import.meta.env?.VITE_USE_BACKEND_API || '').toLowerCase() === 'true');

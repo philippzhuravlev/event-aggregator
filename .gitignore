@@ -58,3 +58,4 @@ pids
 # LLMs
 .gemini
 *.sql
+/supabase/.temp
