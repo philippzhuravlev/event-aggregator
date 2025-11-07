@@ -106,20 +106,12 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
       throw new Error("Missing Supabase credentials");
     }
 
-    console.log("[OAuth] Exchanging code for token...", {
-      code: code.substring(0, 10) + "...",
-    });
-
     // Step 1: Exchange code for short-lived token
     const shortLivedToken = await exchangeCodeForToken(
       code,
       facebookAppId,
       facebookAppSecret,
       oauthCallbackUrl,
-    );
-
-    console.log(
-      "[OAuth] Got short-lived token, exchanging for long-lived token...",
     );
 
     // Step 2: Exchange for long-lived token (60 days)
@@ -129,11 +121,8 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
       facebookAppSecret,
     );
 
-    console.log("[OAuth] Got long-lived token, fetching user pages...");
-
     // Step 3: Get user's pages
     const pages = await getUserPages(longLivedToken);
-    console.log(`[OAuth] Found ${pages.length} pages`);
 
     if (pages.length === 0) {
       res.redirect(
@@ -174,14 +163,12 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
           ) as unknown as { error: Error | null };
 
         if (upsertError) {
-          console.warn(`[OAuth] Failed to store page ${page.id}:`, upsertError);
           continue;
         }
 
         pagesStored++;
 
         // Step 5: Sync events for this page
-        console.log(`[OAuth] Syncing events for page ${page.id}...`);
         const pageToken = page.access_token || longLivedToken;
         const events = await getAllRelevantEvents(page.id, pageToken);
 
@@ -209,15 +196,10 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
             eventsAdded += events.length;
           }
         }
-      } catch (pageError) {
-        console.error(`[OAuth] Error processing page ${page.id}:`, pageError);
+      } catch (_pageError) {
         // Continue with next page
       }
     }
-
-    console.log(
-      `[OAuth] Success! Stored ${pagesStored} pages and ${eventsAdded} events`,
-    );
 
     // Redirect back to frontend with success
     res.redirect(

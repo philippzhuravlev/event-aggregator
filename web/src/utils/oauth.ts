@@ -1,3 +1,4 @@
+// deno-lint-ignore-file
 // OAuth utilities for Facebook authentication
 
 /**
@@ -71,8 +72,6 @@ export async function handleOAuthRedirect(): Promise<void> {
       // Call the Supabase Edge Function to exchange code for tokens and sync events
       const edgeFunctionUrl = import.meta.env.VITE_BACKEND_URL || 'https://qdbtgfwxwwzwxpbcpfbn.supabase.co/functions/v1';
       const callbackUrl = `${edgeFunctionUrl}/oauth-callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
-
-      console.log('Exchanging OAuth code for token at:', callbackUrl);
       
       const response = await fetch(callbackUrl, {
         method: 'GET',

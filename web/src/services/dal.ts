@@ -96,9 +96,6 @@ export async function getEvents(options?: GetEventsOptions): Promise<Event[]> {
     const url = `${backendURL}/get-events?${params.toString()}`;
     const authKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-    console.log('Fetching events from:', url);
-    console.log('Auth key available:', !!authKey);
-
     if (!backendURL || !authKey) {
       throw new Error(
         `Missing configuration: backendURL=${backendURL}, authKey=${!!authKey}`,
@@ -120,7 +117,7 @@ export async function getEvents(options?: GetEventsOptions): Promise<Event[]> {
     const json = await response.json();
     return json.data?.events as Event[];
   } catch (error) {
-    console.error('Error in getEvents:', error);
+    console.error("Error in getEvents:", error);
     throw error;
   }
 }

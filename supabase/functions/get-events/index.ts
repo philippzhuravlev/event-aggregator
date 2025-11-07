@@ -149,7 +149,9 @@ async function getEvents(
     if (!eventData) continue;
 
     // Extract start_time for filtering
-    const startTime = eventData.start_time ? new Date(eventData.start_time) : null;
+    const startTime = eventData.start_time
+      ? new Date(eventData.start_time)
+      : null;
 
     // 3. Filter upcoming events if specified
     if (upcoming && (!startTime || startTime < now)) {
@@ -158,7 +160,9 @@ async function getEvents(
 
     // 4. Apply full-text search if provided
     if (searchQuery) {
-      const searchableText = `${eventData.name || ''} ${eventData.description || ''} ${eventData.place?.name || ''}`.toLowerCase();
+      const searchableText = `${eventData.name || ""} ${
+        eventData.description || ""
+      } ${eventData.place?.name || ""}`.toLowerCase();
       if (!searchableText.includes(searchQuery.toLowerCase())) {
         continue;
       }
@@ -178,7 +182,7 @@ async function getEvents(
   if (pageToken) {
     try {
       const cursorTime = parseInt(atob(pageToken), 10);
-      startIdx = processedEvents.findIndex(e => e.startTime >= cursorTime);
+      startIdx = processedEvents.findIndex((e) => e.startTime >= cursorTime);
       if (startIdx === -1) startIdx = 0;
     } catch {
       logger.warn("Invalid page token provided", { pageToken });
@@ -188,7 +192,9 @@ async function getEvents(
 
   // Extract the page of results
   const pageSize = limit!;
-  const events = processedEvents.slice(startIdx, startIdx + pageSize).map(e => e.event);
+  const events = processedEvents.slice(startIdx, startIdx + pageSize).map((e) =>
+    e.event
+  );
   const hasMore = startIdx + pageSize < processedEvents.length;
 
   // Generate next page token if more results exist
