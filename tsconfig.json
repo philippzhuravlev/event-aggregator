@@ -5,13 +5,6 @@
     "lib": ["ES2020"],
     "outDir": "./dist",
     "rootDir": "./",
-    "baseUrl": ".",
-    "paths": {
-      "@api/*": ["api/*"],
-      "@shared/*": ["api/_shared/*"],
-      "@supabase/*": ["supabase/functions/*"],
-      "@supabase-shared/*": ["supabase/functions/_shared/*"]
-    },
     "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -24,13 +17,8 @@
     "allowSyntheticDefaultImports": true,
     "types": ["node"]
   },
-  "include": [
-    "api/**/*.ts",
-    "supabase/functions/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "web",
-    "dist"
+  "files": [],
+  "references": [
+    { "path": "./api/tsconfig.json" }
   ]
 }
