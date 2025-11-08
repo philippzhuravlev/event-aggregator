@@ -69,9 +69,9 @@ export async function handleOAuthRedirect(): Promise<void> {
       // This validates the request wasn't tampered with
       const state = window.location.origin;
 
-      // Call the Supabase Edge Function to exchange code for tokens and sync events
-      const edgeFunctionUrl = import.meta.env.VITE_BACKEND_URL || 'https://qdbtgfwxwwzwxpbcpfbn.supabase.co/functions/v1';
-      const callbackUrl = `${edgeFunctionUrl}/oauth-callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+      // Call the Vercel API endpoint (hosted on /api/oauth-callback)
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
+      const callbackUrl = `${backendUrl}/oauth-callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
       
       const response = await fetch(callbackUrl, {
         method: 'GET',
