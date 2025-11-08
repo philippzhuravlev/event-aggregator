@@ -15,16 +15,14 @@
 
 /**
  * Extract origin from OAuth state parameter
- * State format: "encoded_payload|hex_signature"
+ * State format: just the origin URL (already URL-encoded when sent)
  */
 export function extractOriginFromState(state: string): string | null {
   try {
-    const parts = state.split("|");
-    if (parts.length !== 2) return null;
-
-    const encoded = parts[0];
-    const decoded = decodeURIComponent(encoded);
-    return decoded;
+    // State is simply the origin URL
+    // Validate it looks like a URL
+    const url = new URL(state);
+    return url.origin;
   } catch {
     return null;
   }
