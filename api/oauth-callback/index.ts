@@ -25,12 +25,12 @@ import {
   exchangeForLongLivedToken,
   getAllRelevantEvents,
   getUserPages,
-} from "../_shared/services/facebook-service.ts";
-import type { FacebookEvent } from "../_shared/types.ts";
-import { validateOAuthState } from "../_shared/validation/index.ts";
-import { validateOAuthCallbackQuery } from "./schema.ts";
-import type { VercelRequest, VercelResponse } from "../_shared/types.ts";
-import { getAllowedOrigins } from "../_shared/utils/url-builder-util.ts";
+} from "@shared/services/facebook-service";
+import type { FacebookEvent } from "@shared/types";
+import { validateOAuthState } from "@shared/validation";
+import { validateOAuthCallbackQuery } from "./schema";
+import type { VercelRequest, VercelResponse } from "@shared/types";
+import { getAllowedOrigins } from "@shared/utils/url-builder-util";
 
 /**
  * Main handler for OAuth callback requests

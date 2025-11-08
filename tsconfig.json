@@ -5,6 +5,13 @@
     "lib": ["ES2020"],
     "outDir": "./dist",
     "rootDir": "./",
+    "baseUrl": ".",
+    "paths": {
+      "@api/*": ["api/*"],
+      "@shared/*": ["api/_shared/*"],
+      "@supabase/*": ["supabase/functions/*"],
+      "@supabase-shared/*": ["supabase/functions/_shared/*"]
+    },
     "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -15,7 +22,6 @@
     "declarationMap": true,
     "sourceMap": true,
     "allowSyntheticDefaultImports": true,
-    "rewriteRelativeImportExtensions": true,
     "types": ["node"]
   },
   "include": [
