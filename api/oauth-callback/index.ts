@@ -54,7 +54,12 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   }
 
   try {
-    const url = new URL(`http://localhost${req.url}`);
+    // Get the host from request headers or use the VERCEL_URL environment variable
+    const host = req.headers.host || process.env.VERCEL_URL || "localhost";
+    const protocol = process.env.NODE_ENV === "development"
+      ? "http://"
+      : "https://";
+    const url = new URL(`${protocol}${host}${req.url}`);
 
     // Validate query parameters
     const validation = validateOAuthCallbackQuery(url);
@@ -89,14 +94,13 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
 
     const frontendOrigin = stateValidation.origin!;
 
-    // Get environment variables
-    const env = req.env || process.env;
-    const facebookAppId = env.FACEBOOK_APP_ID;
-    const facebookAppSecret = env.FACEBOOK_APP_SECRET;
-    const oauthCallbackUrl = env.OAUTH_CALLBACK_URL ||
-      "https://event-aggregator-7ui0jpd4p-philipp-craines-projects.vercel.app/api/oauth-callback";
-    const supabaseUrl = env.SUPABASE_URL;
-    const supabaseServiceKey = env.SUPABASE_SERVICE_ROLE_KEY;
+    // Get environment variables directly from process.env (Vercel injects them)
+    const facebookAppId = process.env.FACEBOOK_APP_ID;
+    const facebookAppSecret = process.env.FACEBOOK_APP_SECRET;
+    const oauthCallbackUrl = process.env.OAUTH_CALLBACK_URL ||
+      `${protocol}${host}/api/oauth-callback`;
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!facebookAppId || !facebookAppSecret) {
       throw new Error("Missing Facebook credentials");
@@ -206,15 +210,23 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
       `${frontendOrigin}?success=true&pages=${pagesStored}&events=${eventsAdded}`,
     );
   } catch (error) {
-    console.error("[OAuth] Error:", error);
+    // Log error for debugging (in Vercel, this goes to function logs)
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
 
-    // Try to redirect to frontend with error if we have a state
-    const url = new URL(`http://localhost${req.url}`);
-    const stateParam = url.searchParams.get("state");
-    if (stateParam) {
-      res.redirect(`${stateParam}?error=${encodeURIComponent(errorMsg)}`);
-      return;
+    // Try to redirect to frontend with error if we have the URL
+    try {
+      const host = req.headers.host || process.env.VERCEL_URL || "localhost";
+      const protocol = process.env.NODE_ENV === "development"
+        ? "http://"
+        : "https://";
+      const url = new URL(`${protocol}${host}${req.url}`);
+      const stateParam = url.searchParams.get("state");
+      if (stateParam) {
+        res.redirect(`${stateParam}?error=${encodeURIComponent(errorMsg)}`);
+        return;
+      }
+    } catch (_urlError) {
+      // If URL parsing fails, continue to JSON error response
     }
 
     // Fallback to JSON error
