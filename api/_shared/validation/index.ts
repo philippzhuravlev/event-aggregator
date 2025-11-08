@@ -24,17 +24,16 @@ export type {
     StringValidationOptions,
     TokenBucket,
     ValidationResult,
-} from "../types";
+} from "../types.ts";
 
 // Re-export shared constants
 export {
-    COMMON_CONTENT_TYPES,
     CORS_HEADERS,
     HTTP_STATUS,
-    RATE_LIMITER_DEFAULTS,
-    REQUEST_SIZE_LIMITS,
-    RESPONSE_PAGINATION,
-} from "../utils/constants-util";
+} from "../utils/constants-util.ts";
+
+// Re-export content types from request validation
+export { COMMON_CONTENT_TYPES } from "./request-validation.ts";
 
 // Authentication & Signature Verification
 export {
@@ -44,7 +43,7 @@ export {
     timingSafeCompare,
     verifyBearerToken,
     verifyHmacSignature,
-} from "./auth-validation";
+} from "./auth-validation.ts";
 
 // Input Validation (XSS, SQL Injection Prevention)
 export {
@@ -57,14 +56,14 @@ export {
     sanitizeSql,
     validateInputComplexity,
     validateInputLength,
-} from "./input-validation";
+} from "./input-validation.ts";
 
 // OAuth Validation
 export {
     extractOriginFromState,
     isAllowedOrigin,
     validateOAuthState,
-} from "./oauth-validation";
+} from "./oauth-validation.ts";
 
 // Rate Limiting & Brute Force Protection
 export {
@@ -74,7 +73,7 @@ export {
     getRateLimitHeaders,
     SlidingWindowRateLimiter,
     TokenBucketRateLimiter,
-} from "./rate-limit-validation";
+} from "./rate-limit-validation.ts";
 
 // Request Validation (Content-Type, Body Size, Structure)
 export {
@@ -97,7 +96,7 @@ export {
     validateOrigin,
     validateRequest,
     validateRequestJson,
-} from "./request-validation";
+} from "./request-validation.ts";
 
 // API Response Standardization
 export {
@@ -126,7 +125,7 @@ export {
     isSuccessStatus,
     parseResponseBody,
     responseToJson,
-} from "./api-response-validation";
+} from "./api-response-validation.ts";
 
 // Data Type Validation
 export {
@@ -150,4 +149,4 @@ export {
     validatePhoneNumber,
     validateString,
     validateUrl,
-} from "./data-validation";
+} from "./data-validation.ts";

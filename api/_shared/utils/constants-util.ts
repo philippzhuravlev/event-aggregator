@@ -193,3 +193,14 @@ const ENV = process.env.ENVIRONMENT || process.env.NODE_ENV || "development";
 export const IS_PRODUCTION = ENV === "production";
 export const IS_DEVELOPMENT = ENV === "development";
 export const IS_TESTING = ENV === "test";
+
+// ============================================================================
+// REQUEST SIZE LIMITS
+// ============================================================================
+
+export const REQUEST_SIZE_LIMITS = {
+  SMALL: 1024 * 10, // 10 KB
+  MEDIUM: 1024 * 100, // 100 KB
+  LARGE: 1024 * 1024, // 1 MB
+  EXTRA_LARGE: 10 * 1024 * 1024, // 10 MB
+} as const;

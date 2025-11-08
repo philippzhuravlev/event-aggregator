@@ -15,12 +15,25 @@ import type {
     HttpMethod,
     JsonSchema,
     ValidationResult,
-} from "../types";
-import { REQUEST_SIZE_LIMITS } from "../utils/constants-util";
+} from "../types.ts";
+import { REQUEST_SIZE_LIMITS } from "../utils/constants-util.ts";
 
 // ============================================================================
 // CONTENT-TYPE VALIDATION
 // ============================================================================
+
+/**
+ * Common content types
+ */
+export const COMMON_CONTENT_TYPES = {
+  JSON: "application/json",
+  FORM: "application/x-www-form-urlencoded",
+  FORM_DATA: "multipart/form-data",
+  TEXT: "text/plain",
+  HTML: "text/html",
+  XML: "application/xml",
+  OCTET_STREAM: "application/octet-stream",
+};
 
 /**
  * Validate request Content-Type header
