@@ -27,10 +27,7 @@ export type {
 } from "../types.ts";
 
 // Re-export shared constants
-export {
-    CORS_HEADERS,
-    HTTP_STATUS,
-} from "../utils/constants-util.ts";
+export { CORS_HEADERS, HTTP_STATUS } from "../utils/constants-util.ts";
 
 // Re-export content types from request validation
 export { COMMON_CONTENT_TYPES } from "./request-validation.ts";
