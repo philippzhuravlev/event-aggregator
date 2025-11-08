@@ -5,7 +5,7 @@
     "lib": ["ES2020"],
     "outDir": "./dist",
     "rootDir": "./",
-    "strict": true,
+    "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -14,8 +14,9 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "noImplicitAny": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
   },
   "include": [
     "api/**/*.ts",

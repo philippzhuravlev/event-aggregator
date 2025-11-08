@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 import {
   ERROR_CODES,
   EVENT_SYNC,
