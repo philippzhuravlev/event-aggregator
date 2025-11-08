@@ -15,7 +15,12 @@
     "declarationMap": true,
     "sourceMap": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@api/*": ["api/*"],
+      "@shared/*": ["api/_shared/*"]
+    }
   },
   "files": [],
   "references": [

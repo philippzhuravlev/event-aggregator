@@ -4,14 +4,14 @@ import {
   EVENT_SYNC,
   FACEBOOK,
   SERVER_ERROR_RANGE,
-} from "@shared/utils/constants-util";
+} from "../utils/constants-util";
 import {
   FacebookErrorResponse,
   FacebookEvent,
   FacebookPage,
   PaginatedEventResponse,
   PaginatedPageResponse,
-} from "@shared/types";
+} from "../types";
 import { logger } from "./logger-service";
 
 // this is a "service", which sounds vague but basically means a specific piece

@@ -15,8 +15,8 @@ import type {
     HttpMethod,
     JsonSchema,
     ValidationResult,
-} from "@shared/types";
-import { REQUEST_SIZE_LIMITS } from "@shared/utils/constants-util";
+} from "../types";
+import { REQUEST_SIZE_LIMITS } from "../utils/constants-util";
 
 // ============================================================================
 // CONTENT-TYPE VALIDATION

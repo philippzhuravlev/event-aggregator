@@ -14,8 +14,8 @@ import type {
     ApiResponse,
     ErrorApiResponse,
     PaginatedResponse,
-} from "@shared/types";
-import { CORS_HEADERS, HTTP_STATUS } from "@shared/utils/constants-util";
+} from "../types";
+import { CORS_HEADERS, HTTP_STATUS } from "../utils/constants-util";
 
 // ============================================================================
 // SUCCESS RESPONSES
