@@ -38,7 +38,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "script-src 'self' 'wasm-unsafe-eval' https://connect.facebook.net https://*.facebook.com https://*.fbcdn.net https://*.facebook.net https://facebook.net https://*.whatsapp.com https://whatsapp.com https://*.whatsapp.net https://whatsapp.net; script-src-elem 'self' https://vercel.live; connect-src 'self' https://*.supabase.co https://*.facebook.com https://graph.facebook.com https://vercel.live; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src https://www.facebook.com; default-src 'self'"
+          "value": "script-src 'self' 'wasm-unsafe-eval' https://connect.facebook.net https://*.facebook.com https://*.fbcdn.net https://*.facebook.net https://facebook.net https://*.whatsapp.com https://whatsapp.com https://*.whatsapp.net https://whatsapp.net; script-src-elem 'self' https://vercel.live; connect-src 'self' https://*.supabase.co https://*.facebook.com https://graph.facebook.com https://vercel.live; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src https://www.facebook.com https://vercel.live; default-src 'self'"
         }
       ]
     }
