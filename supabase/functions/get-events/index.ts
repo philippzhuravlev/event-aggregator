@@ -201,27 +201,43 @@ async function getEvents(
   const events = processedEvents.slice(startIdx, startIdx + pageSize).map(
     (e) => {
       const eventData = e.event;
+      
+      // DEBUG: Log what we're actually transforming
+      logger.debug("Transforming event", {
+        eventDataKeys: Object.keys(eventData || {}),
+        name: eventData?.name,
+        start_time: eventData?.start_time,
+        place: eventData?.place?.name,
+        hasCover: !!eventData?.cover,
+      });
+      
       // Transform database format (Facebook API fields) to frontend format (camelCase + renamed fields)
       // Database stores: id, name, start_time, end_time, description, place, cover
       // Frontend expects: id, title, startTime, endTime, description, place, coverImageUrl, eventURL, pageId, createdAt, updatedAt
       const transformedEvent: Record<string, unknown> = {
-        id: eventData.id,
-        title: eventData.name, // Facebook uses "name", frontend expects "title"
-        startTime: eventData.start_time, // Facebook uses "start_time", frontend expects "startTime"
-        description: eventData.description,
-        place: eventData.place,
-        coverImageUrl: eventData.cover?.source || undefined,
+        id: eventData?.id,
+        title: eventData?.name, // Facebook uses "name", frontend expects "title"
+        startTime: eventData?.start_time, // Facebook uses "start_time", frontend expects "startTime"
+        description: eventData?.description,
+        place: eventData?.place,
+        coverImageUrl: eventData?.cover?.source,
         // Set sensible defaults for missing fields
         pageId: "", // Will be set from row.page_id if available
-        eventURL: `https://facebook.com/events/${eventData.id}`,
+        eventURL: `https://facebook.com/events/${eventData?.id}`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
       // Add optional fields if present
-      if (eventData.end_time) {
+      if (eventData?.end_time) {
         transformedEvent.endTime = eventData.end_time;
       }
+      
+      logger.debug("Transformed event result", {
+        id: transformedEvent.id,
+        title: transformedEvent.title,
+        startTime: transformedEvent.startTime,
+      });
 
       return transformedEvent;
     },
