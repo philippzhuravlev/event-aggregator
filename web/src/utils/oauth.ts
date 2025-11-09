@@ -70,8 +70,8 @@ export async function handleOAuthRedirect(): Promise<void> {
       const state = window.location.origin;
 
       // Call the Vercel API endpoint (hosted on /api/oauth-callback)
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
-      const callbackUrl = `${backendUrl}/oauth-callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+      // Always use window.location.origin to ensure we hit the Vercel app's API route, not the Supabase backend
+      const callbackUrl = `${window.location.origin}/api/oauth-callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
       
       const response = await fetch(callbackUrl, {
         method: 'GET',
