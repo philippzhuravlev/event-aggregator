@@ -50,24 +50,38 @@ export async function getPages(): Promise<Page[]> {
     return mockPages;
   }
 
-  const { data, error } = await supabase.from("pages").select("*");
+  try {
+    const { data, error } = await supabase.from("pages").select("*");
 
-  if (error) {
-    console.error("Error fetching pages from Supabase:", error);
+    if (error) {
+      console.error("Error fetching pages from Supabase:", error);
+      return [];
+    }
+
+    if (!data) {
+      console.warn("No pages data returned from Supabase");
+      return [];
+    }
+
+    // Map Supabase schema to Page schema
+    return data.map((
+      d: { id: string; page_name: string; token_status: string },
+    ) => ({
+      id: d.id,
+      name: d.page_name || "Unnamed Page",
+      url: "", // Supabase schema doesn't have URL
+      active: d.token_status === "active",
+    }));
+  } catch (err) {
+    console.error("Error in getPages:", err);
     return [];
   }
-
-  return data.map((d) => ({
-    id: d.id,
-    name: d.name,
-    url: d.url,
-    active: !!d.active,
-  }));
 }
 
 /**
- * Get events from backend API
+ * Get events from backend API or directly from Supabase
  * Returns mock data if "useBackendAPI" is false
+ * Falls back to Supabase if backend API fails
  */
 export async function getEvents(options?: GetEventsOptions): Promise<Event[]> {
   if (!useBackendAPI) { // use mock data if backend api is disabled in testing
@@ -97,28 +111,92 @@ export async function getEvents(options?: GetEventsOptions): Promise<Event[]> {
     const authKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
     if (!backendURL || !authKey) {
-      throw new Error(
-        `Missing configuration: backendURL=${backendURL}, authKey=${!!authKey}`,
+      console.warn(
+        `Missing configuration for backend API: backendURL=${backendURL}, hasAuthKey=${!!authKey}. Falling back to direct Supabase access.`,
       );
+      return getEventsFromSupabase(options);
     }
 
+    console.log(`Fetching events from backend API: ${url.substring(0, 50)}...`);
     const response = await fetch(url, {
       headers: {
         "Authorization": `Bearer ${authKey}`,
         "apikey": authKey,
       },
+      signal: AbortSignal.timeout(10000), // 10 second timeout
     });
 
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch events: ${response.status} ${response.statusText}`,
+      console.warn(
+        `Backend API returned error ${response.status}. Falling back to direct Supabase access.`,
       );
+      return getEventsFromSupabase(options);
     }
     const json = await response.json();
     return json.data?.events as Event[];
   } catch (error) {
-    console.error("Error in getEvents:", error);
-    throw error;
+    console.warn("Backend API failed, falling back to direct Supabase access:", error);
+    return getEventsFromSupabase(options);
+  }
+}
+
+/**
+ * Get events directly from Supabase
+ * Fallback when backend API is not available
+ */
+async function getEventsFromSupabase(options?: GetEventsOptions): Promise<Event[]> {
+  try {
+    console.log("Fetching events directly from Supabase...");
+    
+    let query = supabase
+      .from("events")
+      .select("*");
+
+    // Apply filters
+    if (options?.pageId) {
+      query = query.eq("page_id", parseInt(options.pageId, 10));
+    }
+
+    if (options?.search) {
+      query = query.ilike("event_data->name", `%${options.search}%`);
+    }
+
+    // Apply pagination
+    const limit = options?.limit || 50;
+    const offset = options?.pageToken ? parseInt(options.pageToken, 10) : 0;
+    query = query.range(offset, offset + limit - 1);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Error fetching events from Supabase:", error);
+      return [];
+    }
+
+    if (!data) {
+      console.warn("No event data returned from Supabase");
+      return [];
+    }
+
+    // Map database format to Event format
+    return data.map((d: { id: string; page_id: number; event_data: Record<string, unknown>; created_at: string; updated_at: string }) => ({
+      id: d.id,
+      pageId: String(d.page_id),
+      title: (d.event_data?.name as string) || "Unnamed Event",
+      description: (d.event_data?.description as string),
+      startTime: (d.event_data?.start_time as string) || "",
+      endTime: (d.event_data?.end_time as string),
+      place: d.event_data?.place ? {
+        name: (d.event_data.place as Record<string, unknown>)?.name as string,
+      } : undefined,
+      coverImageUrl: d.event_data?.cover ? (d.event_data.cover as Record<string, unknown>)?.source as string : undefined,
+      eventURL: `https://facebook.com/events/${d.id}`,
+      createdAt: d.created_at,
+      updatedAt: d.updated_at,
+    }));
+  } catch (err) {
+    console.error("Error fetching events from Supabase:", err);
+    return [];
   }
 }
 

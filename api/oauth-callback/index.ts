@@ -205,23 +205,34 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
         pagesStored++;
 
         // Step 5: Sync events for this page
-        const events = await getAllRelevantEvents(page.id, pageToken);
+        try {
+          console.log(`Fetching events for page ${page.id}...`);
+          const events = await getAllRelevantEvents(page.id, pageToken);
+          console.log(`Found ${events.length} events for page ${page.id}`);
 
-        if (events.length > 0) {
-          // Normalize and store events in database using the correct schema
-          const normalizedEvents = events.map((event: FacebookEvent) => ({
-            event_id: event.id,
-            page_id: parseInt(page.id, 10),
-            event_data: normalizeEventData(event),
-          }));
+          if (events.length > 0) {
+            // Normalize and store events in database using the correct schema
+            const normalizedEvents = events.map((event: FacebookEvent) => ({
+              event_id: event.id,
+              page_id: parseInt(page.id, 10),
+              event_data: normalizeEventData(event),
+            }));
 
-          const { error: eventsError } = await supabase
-            .from("events")
-            .upsert(normalizedEvents);
+            const { error: eventsError } = await supabase
+              .from("events")
+              .upsert(normalizedEvents);
 
-          if (!eventsError) {
-            eventsAdded += events.length;
+            if (eventsError) {
+              console.error(`Failed to store events for page ${page.id}:`, eventsError);
+            } else {
+              eventsAdded += events.length;
+              console.log(`Successfully stored ${events.length} events for page ${page.id}`);
+            }
+          } else {
+            console.warn(`No events found for page ${page.id} - this is OK if the page has no events`);
           }
+        } catch (eventError) {
+          console.error(`Error syncing events for page ${page.id}:`, eventError);
         }
       } catch (_pageError) {
         // Continue with next page

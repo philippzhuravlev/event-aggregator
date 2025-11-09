@@ -257,6 +257,8 @@ export async function getPageEvents(
   let allEvents: FacebookEvent[] = [];
   let nextUrl: string | null = `${FACEBOOK.BASE_URL}/${pageId}/events`;
 
+  logger.info(`Fetching ${timeFilter} events for page ${pageId}`);
+
   // Facebook actually splits up results, so we need to follow the "next" reference
   while (nextUrl) {
     const params = new URLSearchParams({
@@ -271,17 +273,24 @@ export async function getPageEvents(
       ? nextUrl
       : `${nextUrl}?${params}`;
 
-    const response = await withRetry<PaginatedEventResponse>(async () => {
-      return await fetch(currentUrl);
-    });
+    try {
+      const response = await withRetry<PaginatedEventResponse>(async () => {
+        return await fetch(currentUrl);
+      });
 
-    const events = response.data || [];
-    allEvents = allEvents.concat(events);
+      const events = response.data || [];
+      logger.info(`Got ${events.length} ${timeFilter} events for page ${pageId} in this batch`);
+      allEvents = allEvents.concat(events);
 
-    // Check if there's a next page
-    nextUrl = response.paging?.next || null;
+      // Check if there's a next page
+      nextUrl = response.paging?.next || null;
+    } catch (error) {
+      logger.error(`Error fetching ${timeFilter} events for page ${pageId}`, error);
+      nextUrl = null; // Stop pagination on error
+    }
   }
 
+  logger.info(`Total ${timeFilter} events for page ${pageId}: ${allEvents.length}`);
   return allEvents;
 }
 
@@ -297,6 +306,8 @@ export async function getAllRelevantEvents(
   accessToken: string,
   daysBack: number = EVENT_SYNC.PAST_EVENTS_DAYS,
 ): Promise<FacebookEvent[]> {
+  logger.info(`Getting all relevant events for page ${pageId} (lookback: ${daysBack} days)`);
+  
   // Get events: past and upcoming
   const upcomingEvents = await getPageEvents(pageId, accessToken, "upcoming");
   const pastEvents = await getPageEvents(pageId, accessToken, "past");
@@ -312,13 +323,15 @@ export async function getAllRelevantEvents(
     return eventTime >= cutoffTime;
   });
 
+  logger.info(`Filtered ${pastEvents.length} past events down to ${recentPastEvents.length} recent ones`);
+
   // Combine and remove duplicates (in case an event appears in both lists)
   const allEvents = [...upcomingEvents, ...recentPastEvents];
   const uniqueEvents = Array.from(
     new Map(allEvents.map((event) => [event.id, event])).values(),
   );
 
-  logger.debug("Retrieved events from Facebook API", {
+  logger.info("Retrieved events from Facebook API", {
     pageId,
     upcomingCount: upcomingEvents.length,
     recentPastCount: recentPastEvents.length,
