@@ -139,7 +139,7 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
       return;
     }
 
-    // Step 4: Store pages and tokens in Supabase
+    // Step 4: Store pages and tokens in Supabase using Vault
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     let pagesStored = 0;
@@ -147,26 +147,27 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
 
     for (const page of pages) {
       try {
-        // Store page and token
+        // Store page and token using the store_page_token function
+        // which handles both vault encryption and page table updates
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 60);
 
-        const { error: upsertError } = await supabase
-          .from("facebook_pages")
-          .upsert(
-            {
-              page_id: parseInt(page.id, 10),
-              page_name: page.name,
-              access_token: page.access_token || longLivedToken,
-              expires_at: expiresAt.toISOString(),
-              token_refreshed_at: new Date().toISOString(),
-              is_active: true,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "page_id" },
-          ) as unknown as { error: Error | null };
+        const pageToken = page.access_token || longLivedToken;
 
-        if (upsertError) {
+        // Call the store_page_token SQL function
+        // This stores the token in Vault and updates the pages table
+        const { data: pageId, error: storeError } = await supabase.rpc(
+          "store_page_token",
+          {
+            p_page_id: parseInt(page.id, 10),
+            p_page_name: page.name,
+            p_access_token: pageToken,
+            p_expiry: expiresAt.toISOString(),
+          },
+        );
+
+        if (storeError) {
+          console.error(`Failed to store page ${page.id}:`, storeError);
           continue;
         }
 
