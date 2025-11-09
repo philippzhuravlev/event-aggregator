@@ -193,15 +193,29 @@ async function getEvents(
   // Extract the page of results
   const pageSize = limit!;
   const events = processedEvents.slice(startIdx, startIdx + pageSize).map((e) => {
-    const event = e.event;
-    // Transform database format to frontend format
-    // Map cover.source to coverImageUrl for frontend compatibility
+    const eventData = e.event;
+    // Transform database format (Facebook API fields) to frontend format (camelCase + renamed fields)
+    // Database stores: id, name, start_time, end_time, description, place, cover
+    // Frontend expects: id, title, startTime, endTime, description, place, coverImageUrl, eventURL, pageId, createdAt, updatedAt
     const transformedEvent: Record<string, unknown> = {
-      ...event,
-      coverImageUrl: event.cover?.source,
+      id: eventData.id,
+      title: eventData.name, // Facebook uses "name", frontend expects "title"
+      startTime: eventData.start_time, // Facebook uses "start_time", frontend expects "startTime"
+      description: eventData.description,
+      place: eventData.place,
+      coverImageUrl: eventData.cover?.source || undefined,
+      // Set sensible defaults for missing fields
+      pageId: "", // Will be set from row.page_id if available
+      eventURL: `https://facebook.com/events/${eventData.id}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-    // Remove the nested cover object since frontend uses coverImageUrl
-    delete transformedEvent.cover;
+    
+    // Add optional fields if present
+    if (eventData.end_time) {
+      transformedEvent.endTime = eventData.end_time;
+    }
+    
     return transformedEvent;
   });
   const hasMore = startIdx + pageSize < processedEvents.length;
