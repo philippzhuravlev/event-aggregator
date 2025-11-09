@@ -192,9 +192,18 @@ async function getEvents(
 
   // Extract the page of results
   const pageSize = limit!;
-  const events = processedEvents.slice(startIdx, startIdx + pageSize).map((e) =>
-    e.event
-  );
+  const events = processedEvents.slice(startIdx, startIdx + pageSize).map((e) => {
+    const event = e.event;
+    // Transform database format to frontend format
+    // Map cover.source to coverImageUrl for frontend compatibility
+    const transformedEvent: Record<string, unknown> = {
+      ...event,
+      coverImageUrl: event.cover?.source,
+    };
+    // Remove the nested cover object since frontend uses coverImageUrl
+    delete transformedEvent.cover;
+    return transformedEvent;
+  });
   const hasMore = startIdx + pageSize < processedEvents.length;
 
   // Generate next page token if more results exist
