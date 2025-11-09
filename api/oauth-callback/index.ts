@@ -198,7 +198,6 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
         );
 
         if (storeError) {
-          console.error(`Failed to store page ${page.id}:`, storeError);
           continue;
         }
 
@@ -206,9 +205,7 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
 
         // Step 5: Sync events for this page
         try {
-          console.log(`Fetching events for page ${page.id}...`);
           const events = await getAllRelevantEvents(page.id, pageToken);
-          console.log(`Found ${events.length} events for page ${page.id}`);
 
           if (events.length > 0) {
             // Normalize and store events in database using the correct schema
@@ -223,18 +220,15 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
               .upsert(normalizedEvents);
 
             if (eventsError) {
-              console.error(`Failed to store events for page ${page.id}:`, eventsError);
+              // Silent fail
             } else {
               eventsAdded += events.length;
-              console.log(`Successfully stored ${events.length} events for page ${page.id}`);
             }
-          } else {
-            console.warn(`No events found for page ${page.id} - this is OK if the page has no events`);
           }
         } catch (eventError) {
           console.error(`Error syncing events for page ${page.id}:`, eventError);
         }
-      } catch (_pageError) {
+      } catch (pageError) {
         // Continue with next page
       }
     }

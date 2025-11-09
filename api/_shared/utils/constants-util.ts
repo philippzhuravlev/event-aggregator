@@ -100,7 +100,7 @@ export const TOKEN_EXPIRY_CONFIG = {
 // ============================================================================
 
 export const EVENT_SYNC = {
-  PAST_EVENTS_DAYS: 30,
+  PAST_EVENTS_DAYS: 90,
   BATCH_SIZE: 100,
   MAX_CLEANUP_QUERY: 10000,
 } as const;

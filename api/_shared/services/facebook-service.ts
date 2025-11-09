@@ -12,7 +12,6 @@ import {
   PaginatedEventResponse,
   PaginatedPageResponse,
 } from "../types";
-import { logger } from "./logger-service";
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, Supabase and
@@ -81,22 +80,12 @@ async function withRetry<T>(
         // Don't retry if token is expired or invalid - throw immediately
         if (isTokenExpiredError(response.status, data)) {
           const errorCode = data?.error?.code || "unknown";
-          logger.error("Facebook token expired or invalid", null, {
-            errorCode,
-            status: response.status,
-          });
           throw new Error(`Facebook token invalid (${errorCode})`);
         }
 
         // Retry on rate limiting or server errors
         if (isRetryableError(response.status) && attempt < maxRetries) {
           const delayMs = FACEBOOK.RETRY_DELAY_MS * Math.pow(2, attempt - 1); // Exponential backoff
-          logger.warn("Facebook API error - retrying with backoff", {
-            status: response.status,
-            delayMs,
-            attempt,
-            maxRetries,
-          });
           await sleep(delayMs);
           continue;
         }
@@ -117,11 +106,6 @@ async function withRetry<T>(
         !(error instanceof Error && error.message.includes("token"))
       ) {
         const delayMs = FACEBOOK.RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-        logger.warn("Facebook API request failed - retrying", {
-          error: error instanceof Error ? error.message : String(error),
-          attempt,
-          maxRetries,
-        });
         await sleep(delayMs);
         continue;
       }
@@ -164,15 +148,19 @@ export async function exchangeCodeForToken(
     code: code,
   });
 
-  const data = await withRetry<{ access_token: string }>(async () => {
-    return await fetch(`${FACEBOOK.BASE_URL}/oauth/access_token?${params}`);
-  });
+  try {
+    const data = await withRetry<{ access_token: string }>(async () => {
+      return await fetch(`${FACEBOOK.BASE_URL}/oauth/access_token?${params}`);
+    });
 
-  if (!data.access_token) {
-    throw new Error("No access token received from Facebook");
+    if (!data.access_token) {
+      throw new Error("No access token received from Facebook");
+    }
+
+    return data.access_token;
+  } catch (error) {
+    throw error;
   }
-
-  return data.access_token;
 }
 
 /**
@@ -214,7 +202,7 @@ export async function getUserPages(
   accessToken: string,
 ): Promise<FacebookPage[]> {
   let allPages: FacebookPage[] = [];
-  let nextUrl: string | null = `${FACEBOOK.BASE_URL}/me/accounts`;
+  let nextUrl: string | null = `${FACEBOOK.BASE_URL}/${FACEBOOK.API_VERSION}/me/accounts`;
 
   // Facebook actually splits up results, so we need to follow the "next" reference
   while (nextUrl) {
@@ -240,6 +228,8 @@ export async function getUserPages(
   }
 
   return allPages;
+
+  return allPages;
 }
 
 /**
@@ -255,9 +245,9 @@ export async function getPageEvents(
   timeFilter: "upcoming" | "past" = "upcoming",
 ): Promise<FacebookEvent[]> {
   let allEvents: FacebookEvent[] = [];
-  let nextUrl: string | null = `${FACEBOOK.BASE_URL}/${pageId}/events`;
+  let nextUrl: string | null = `${FACEBOOK.BASE_URL}/${FACEBOOK.API_VERSION}/${pageId}/events`;
 
-  logger.info(`Fetching ${timeFilter} events for page ${pageId}`);
+  console.log(`getPageEvents: Starting fetch for ${timeFilter} events from page ${pageId}`);
 
   // Facebook actually splits up results, so we need to follow the "next" reference
   while (nextUrl) {
@@ -279,16 +269,22 @@ export async function getPageEvents(
       });
 
       const events = response.data || [];
-      logger.info(`Got ${events.length} ${timeFilter} events for page ${pageId} in this batch`);
+      console.log(`getPageEvents: Got ${events.length} ${timeFilter} events in this batch`);
+      if (events.length > 0) {
+        console.log(`getPageEvents: First event sample:`, JSON.stringify(events[0], null, 2));
+      }
       allEvents = allEvents.concat(events);
 
       // Check if there's a next page
       nextUrl = response.paging?.next || null;
     } catch (error) {
-      logger.error(`Error fetching ${timeFilter} events for page ${pageId}`, error);
+      console.error(`getPageEvents: Error fetching ${timeFilter} events for page ${pageId}:`, error);
       nextUrl = null; // Stop pagination on error
     }
   }
+
+  console.log(`getPageEvents: Returning ${allEvents.length} total ${timeFilter} events for page ${pageId}`);
+  return allEvents;
 
   logger.info(`Total ${timeFilter} events for page ${pageId}: ${allEvents.length}`);
   return allEvents;
@@ -306,38 +302,44 @@ export async function getAllRelevantEvents(
   accessToken: string,
   daysBack: number = EVENT_SYNC.PAST_EVENTS_DAYS,
 ): Promise<FacebookEvent[]> {
-  logger.info(`Getting all relevant events for page ${pageId} (lookback: ${daysBack} days)`);
-  
-  // Get events: past and upcoming
-  const upcomingEvents = await getPageEvents(pageId, accessToken, "upcoming");
-  const pastEvents = await getPageEvents(pageId, accessToken, "past");
+  try {
+    // Get events: past and upcoming
+    const upcomingEvents = await getPageEvents(pageId, accessToken, "upcoming");
+    const pastEvents = await getPageEvents(pageId, accessToken, "past");
 
-  // Filter past events to only include those within the specified time window (e.g., last 30 days)
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - daysBack);
-  const cutoffTime = cutoffDate.getTime();
+    console.log(`getAllRelevantEvents: Got ${upcomingEvents.length} upcoming, ${pastEvents.length} past events`);
 
-  const recentPastEvents = pastEvents.filter((event) => {
-    if (!event.start_time) return false;
-    const eventTime = new Date(event.start_time).getTime();
-    return eventTime >= cutoffTime;
-  });
+    // Filter past events to only include those within the specified time window (e.g., last 30 days)
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+    const cutoffTime = cutoffDate.getTime();
 
-  logger.info(`Filtered ${pastEvents.length} past events down to ${recentPastEvents.length} recent ones`);
+    console.log(`getAllRelevantEvents: Cutoff date is ${cutoffDate.toISOString()}`);
 
-  // Combine and remove duplicates (in case an event appears in both lists)
-  const allEvents = [...upcomingEvents, ...recentPastEvents];
-  const uniqueEvents = Array.from(
-    new Map(allEvents.map((event) => [event.id, event])).values(),
-  );
+    const recentPastEvents = pastEvents.filter((event) => {
+      if (!event.start_time) {
+        console.log(`getAllRelevantEvents: Event ${event.id} has no start_time, filtering out`);
+        return false;
+      }
+      const eventTime = new Date(event.start_time).getTime();
+      const isRecent = eventTime >= cutoffTime;
+      console.log(`getAllRelevantEvents: Event ${event.id} (${event.start_time}): ${isRecent ? 'KEPT' : 'FILTERED OUT'}`);
+      return isRecent;
+    });
 
-  logger.info("Retrieved events from Facebook API", {
-    pageId,
-    upcomingCount: upcomingEvents.length,
-    recentPastCount: recentPastEvents.length,
-    daysBack,
-    totalUnique: uniqueEvents.length,
-  });
+    console.log(`getAllRelevantEvents: After filtering, ${recentPastEvents.length} past events remain`);
 
-  return uniqueEvents;
+    // Combine and remove duplicates (in case an event appears in both lists)
+    const allEvents = [...upcomingEvents, ...recentPastEvents];
+    const uniqueEvents = Array.from(
+      new Map(allEvents.map((event) => [event.id, event])).values(),
+    );
+
+    console.log(`getAllRelevantEvents: Found ${upcomingEvents.length} upcoming, ${recentPastEvents.length} recent past, ${uniqueEvents.length} total unique`);
+
+    return uniqueEvents;
+  } catch (error) {
+    console.error(`Error getting all relevant events for page ${pageId}:`, error);
+    return [];
+  }
 }

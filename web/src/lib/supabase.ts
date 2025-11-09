@@ -14,19 +14,12 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY ||
 
 // Log initialization status (for debugging)
 if (!supabaseUrl || !supabaseKey) {
-  console.error('❌ Supabase configuration missing:', {
+  console.error('Supabase configuration missing:', {
     hasUrl: !!supabaseUrl,
     hasKey: !!supabaseKey,
-    viteUrl: !!import.meta.env.VITE_SUPABASE_URL,
-    viteKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
-    nextUrl: !!import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
-    nextKey: !!import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   });
 } else {
-  console.log('✅ Supabase configured:', {
-    url: supabaseUrl.substring(0, 30) + '...',
-    keyLength: supabaseKey.length,
-  });
+  console.log('Supabase configured successfully');
 }
 
 // Initialize Supabase client (will fail gracefully if env vars are missing)
