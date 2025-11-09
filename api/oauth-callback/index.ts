@@ -33,6 +33,37 @@ import type { VercelRequest, VercelResponse } from "../_shared/types";
 import { getAllowedOrigins } from "../_shared/utils/url-builder-util";
 
 /**
+ * Normalize a Facebook event into the event_data JSONB structure
+ */
+function normalizeEventData(
+  facebookEvent: FacebookEvent,
+): Record<string, unknown> {
+  const eventData: Record<string, unknown> = {
+    id: facebookEvent.id,
+    name: facebookEvent.name,
+    start_time: facebookEvent.start_time,
+  };
+
+  if (facebookEvent.description !== undefined) {
+    eventData.description = facebookEvent.description;
+  }
+  if (facebookEvent.end_time !== undefined) {
+    eventData.end_time = facebookEvent.end_time;
+  }
+  if (facebookEvent.place !== undefined) {
+    eventData.place = facebookEvent.place;
+  }
+  if (facebookEvent.cover?.source !== undefined) {
+    eventData.cover = {
+      source: facebookEvent.cover.source,
+      id: facebookEvent.cover.id,
+    };
+  }
+
+  return eventData;
+}
+
+/**
  * Main handler for OAuth callback requests
  */
 async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -174,28 +205,19 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
         pagesStored++;
 
         // Step 5: Sync events for this page
-        const pageToken = page.access_token || longLivedToken;
         const events = await getAllRelevantEvents(page.id, pageToken);
 
         if (events.length > 0) {
-          // Store events in database
+          // Normalize and store events in database using the correct schema
+          const normalizedEvents = events.map((event: FacebookEvent) => ({
+            event_id: event.id,
+            page_id: parseInt(page.id, 10),
+            event_data: normalizeEventData(event),
+          }));
+
           const { error: eventsError } = await supabase
             .from("events")
-            .upsert(
-              events.map((event: FacebookEvent) => ({
-                event_id: event.id,
-                page_id: parseInt(page.id, 10),
-                title: event.name,
-                description: event.description || "",
-                start_time: event.start_time,
-                end_time: event.end_time || null,
-                location: event.place?.name || null,
-                image_url: event.cover?.source || null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              })),
-              { onConflict: "event_id" },
-            ) as unknown as { error: Error | null };
+            .upsert(normalizedEvents);
 
           if (!eventsError) {
             eventsAdded += events.length;
