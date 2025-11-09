@@ -148,12 +148,6 @@ async function getEvents(
     const eventData = row.event_data;
     if (!eventData) continue;
 
-    // DEBUG: Log the structure of eventData
-    logger.debug("Event data structure", {
-      eventDataKeys: Object.keys(eventData),
-      eventDataSample: JSON.stringify(eventData).substring(0, 200),
-    });
-
     // Extract start_time for filtering
     const startTime = eventData.start_time
       ? new Date(eventData.start_time)
@@ -201,16 +195,7 @@ async function getEvents(
   const events = processedEvents.slice(startIdx, startIdx + pageSize).map(
     (e) => {
       const eventData = e.event;
-      
-      // DEBUG: Log what we're actually transforming
-      logger.debug("Transforming event", {
-        eventDataKeys: Object.keys(eventData || {}),
-        name: eventData?.name,
-        start_time: eventData?.start_time,
-        place: eventData?.place?.name,
-        hasCover: !!eventData?.cover,
-      });
-      
+
       // Transform database format (Facebook API fields) to frontend format (camelCase + renamed fields)
       // Database stores: id, name, start_time, end_time, description, place, cover
       // Frontend expects: id, title, startTime, endTime, description, place, coverImageUrl, eventURL, pageId, createdAt, updatedAt
@@ -232,12 +217,6 @@ async function getEvents(
       if (eventData?.end_time) {
         transformedEvent.endTime = eventData.end_time;
       }
-      
-      logger.debug("Transformed event result", {
-        id: transformedEvent.id,
-        title: transformedEvent.title,
-        startTime: transformedEvent.startTime,
-      });
 
       return transformedEvent;
     },
