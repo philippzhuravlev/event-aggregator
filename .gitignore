@@ -59,3 +59,4 @@ pids
 .gemini
 *.sql
 /supabase/.temp
+.supabase/
