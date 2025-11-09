@@ -285,9 +285,6 @@ export async function getPageEvents(
 
   console.log(`getPageEvents: Returning ${allEvents.length} total ${timeFilter} events for page ${pageId}`);
   return allEvents;
-
-  logger.info(`Total ${timeFilter} events for page ${pageId}: ${allEvents.length}`);
-  return allEvents;
 }
 
 /**
