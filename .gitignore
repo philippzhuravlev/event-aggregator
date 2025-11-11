@@ -60,3 +60,4 @@ pids
 *.sql
 /supabase/.temp
 .supabase/
+*.md

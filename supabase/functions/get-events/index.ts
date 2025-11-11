@@ -171,6 +171,7 @@ async function getEvents(
     processedEvents.push({
       startTime: startTime ? startTime.getTime() : 0,
       event: eventData,
+      page_id: row.page_id, // Store page_id so we can include it in the response
     });
   }
 
@@ -197,17 +198,17 @@ async function getEvents(
       const eventData = e.event;
 
       // Transform database format (Facebook API fields) to frontend format (camelCase + renamed fields)
-      // Database stores: id, name, start_time, end_time, description, place, cover
+      // Database stores: id, name, start_time, end_time, description, place, cover (within event_data column)
+      // Also gets: page_id from the row itself
       // Frontend expects: id, title, startTime, endTime, description, place, coverImageUrl, eventURL, pageId, createdAt, updatedAt
       const transformedEvent: Record<string, unknown> = {
         id: eventData?.id,
+        pageId: String(e.page_id), // Include the Facebook page ID - essential for frontend filtering!
         title: eventData?.name, // Facebook uses "name", frontend expects "title"
         startTime: eventData?.start_time, // Facebook uses "start_time", frontend expects "startTime"
         description: eventData?.description,
         place: eventData?.place,
         coverImageUrl: eventData?.cover?.source,
-        // Set sensible defaults for missing fields
-        pageId: "", // Will be set from row.page_id if available
         eventURL: `https://facebook.com/events/${eventData?.id}`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

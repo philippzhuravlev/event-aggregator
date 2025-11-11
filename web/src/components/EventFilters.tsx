@@ -1,4 +1,4 @@
-import type { Page } from '../types';
+import type { Page } from '@/types/index.ts';
 
 // in frontend, we use React/ts components to render stuff, anything from a small button to a whole page
 // therefore a lot of the code is going to be in /components/ and /pages/ folders as .tsx files. This 

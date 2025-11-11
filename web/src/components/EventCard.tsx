@@ -1,5 +1,5 @@
-import type { Event } from '../types';
-import { formatEventStart, getEventUrl } from '../utils/eventUtils';
+import type { Event } from '@/types/index.ts';
+import { formatEventStart, getEventUrl } from '@/utils/eventUtils.ts';
 
 // in frontend, we use React/ts components to render stuff, anything from a small button to a whole page
 // therefore a lot of the code is going to be in /components/ and /pages/ folders as .tsx files. This 

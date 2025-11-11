@@ -119,7 +119,7 @@ export const TOKEN_EXPIRY_CONFIG = {
 
 export const EVENT_SYNC = {
   // Number of past days to sync events for
-  PAST_EVENTS_DAYS: 30,
+  PAST_EVENTS_DAYS: 90,
   // Sync schedule (runs every 4 hours)
   SCHEDULE: "0 */4 * * *",
   // Timezone for cron job
@@ -232,7 +232,8 @@ export const CONTENT_TYPES = {
 // with this other domain".
 
 // Build dynamic CORS headers based on environment
-const corsOrigin = Deno.env.get("WEB_APP_URL") || "https://event-aggregator-nine.vercel.app";
+const corsOrigin = Deno.env.get("WEB_APP_URL") ||
+  "https://event-aggregator-nine.vercel.app";
 
 export const CORS_HEADERS = {
   "Access-Control-Allow-Origin": corsOrigin,

@@ -1,0 +1,17 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm ci",
+  "framework": "vite",
+  "outputDirectory": "dist",
+  "env": [
+    "VITE_BACKEND_URL",
+    "VITE_USE_BACKEND_API",
+    "VITE_USE_SUPABASE",
+    "VITE_SUPABASE_URL",
+    "VITE_SUPABASE_ANON_KEY",
+    "VITE_FACEBOOK_APP_ID",
+    "VITE_OAUTH_CALLBACK_URL"
+  ]
+}
+

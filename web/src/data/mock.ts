@@ -1,4 +1,4 @@
-import type { Page, Event, Place } from '../types';
+import type { Page, Event, Place } from '@/types/index.ts';
 
 // Mock Facebook Pages
 export const pages: Page[] = [
