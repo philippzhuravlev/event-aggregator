@@ -6,9 +6,18 @@
  * Environment variables must be prefixed with VITE_ to be accessible in the browser
  */
 
-import { createBrowserRuntimeConfig } from "@event-aggregator/shared/runtime/browser";
+import { createBrowserRuntimeConfig } from "@event-aggregator/shared/runtime/browser.js";
+import {
+    API_TIMEOUT_MS,
+    DEFAULT_PAGE_SIZE,
+} from "@event-aggregator/shared/config/index.js";
 
-const WEB_RUNTIME_CONFIG = createBrowserRuntimeConfig(import.meta.env);
+const browserEnv =
+  typeof import.meta !== "undefined" && import.meta?.env
+    ? import.meta.env
+    : {};
+
+const WEB_RUNTIME_CONFIG = createBrowserRuntimeConfig(browserEnv);
 
 /**
  * Backend API base URL
@@ -26,7 +35,7 @@ export const USE_SUPABASE = WEB_RUNTIME_CONFIG.useSupabase;
  */
 export const USE_BACKEND_API = WEB_RUNTIME_CONFIG.useBackendApi;
 
-export { API_TIMEOUT_MS, DEFAULT_PAGE_SIZE } from "@event-aggregator/shared/config";
+export { API_TIMEOUT_MS, DEFAULT_PAGE_SIZE };
 
 /**
  * Application environment

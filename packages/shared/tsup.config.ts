@@ -58,6 +58,6 @@ export default defineConfig([
     dts: false,
     clean: true,
     sourcemap: false,
-    outDir: "../supabase/packages/shared/dist",
+    outDir: "../../supabase/functions/packages/shared/dist",
   },
 ]);

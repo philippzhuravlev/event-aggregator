@@ -6,6 +6,13 @@
   "remote": {
     "https://deno.land/std@0.208.0/async/delay.ts": "a6142eb44cdd856b645086af2b811b1fcce08ec06bb7d50969e6a872ee9b8659",
     "https://deno.land/std@0.208.0/http/server.ts": "f3cde6672e631d3e00785743cfa96bfed275618c0352c5ae84abbe5a2e0e4afc",
-    "https://esm.sh/@supabase/supabase-js@2.79.0": "600f0398b7f8d61680c37933234c5edd5a1440f955a585c7ebacc72a3f0a3098"
+    "https://esm.sh/@supabase/auth-js@2.79.0/denonext/auth-js.mjs": "11da42b1cf159923104a5a458d1d4d1b59d1465a63a1c206a141de7e199de7b3",
+    "https://esm.sh/@supabase/functions-js@2.79.0/denonext/functions-js.mjs": "0bef1756ba5ca788eb0cb32f68d323cf4995f0eec250d3ae32d1930bfce78a18",
+    "https://esm.sh/@supabase/postgrest-js@2.79.0/denonext/postgrest-js.mjs": "6e96623f298c7e6a71fb64eef65892a30d0e44e7ba11859940d44a7dce9b2d35",
+    "https://esm.sh/@supabase/realtime-js@2.79.0/denonext/realtime-js.mjs": "24958c20f73db0ff0d038aa888c0adee85d9d5a395b0a54dce0c90988d54e79c",
+    "https://esm.sh/@supabase/storage-js@2.79.0/denonext/storage-js.mjs": "d2d700d9e5eec2433554841d8fcdd19dedfbd875749c3962d106cc2f3153c8d1",
+    "https://esm.sh/@supabase/supabase-js@2.79.0": "600f0398b7f8d61680c37933234c5edd5a1440f955a585c7ebacc72a3f0a3098",
+    "https://esm.sh/@supabase/supabase-js@2.79.0/denonext/supabase-js.mjs": "d8647bdd849cff88ce4f4f6f4427af90670b3d28bcc2868aeb54576cbe3e5919",
+    "https://esm.sh/tslib@2.8.1/denonext/tslib.mjs": "ebce3cd5facb654623020337f867b426ba95f71596ba87acc9e6c6f4e55905ca"
   }
 }

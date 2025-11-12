@@ -1,1 +1,1 @@
-export * from "@event-aggregator/shared/validation/request-validation";
+export * from "../../packages/shared/dist/validation/request-validation.js";

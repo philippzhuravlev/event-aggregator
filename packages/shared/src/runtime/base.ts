@@ -16,7 +16,8 @@ const DEFAULT_ENVIRONMENT = "development";
 const BOOLEAN_TRUE_VALUES = new Set(["true", "1", "yes"]);
 
 const ACCESS_CONTROL_ALLOW_METHODS = "GET, POST, PUT, DELETE, OPTIONS";
-const ACCESS_CONTROL_ALLOW_HEADERS = "Content-Type, Authorization";
+const ACCESS_CONTROL_ALLOW_HEADERS =
+  "Content-Type, Authorization, apikey, X-Client-Info, Prefer";
 
 export interface TokenRefreshOptions {
   includeSchedule?: boolean;
@@ -125,8 +126,8 @@ export const resolveCorsOrigin = (
   getEnv: EnvGetter,
   fallback?: string,
 ) => {
-  const defaultOrigin =
-    fallback ?? DEFAULT_ALLOWED_ORIGINS[DEFAULT_ALLOWED_ORIGINS.length - 1];
+  const defaultOrigin = fallback ??
+    DEFAULT_ALLOWED_ORIGINS[DEFAULT_ALLOWED_ORIGINS.length - 1];
   return resolveEnvValue(getEnv, "WEB_APP_URL", defaultOrigin) ?? defaultOrigin;
 };
 
@@ -135,20 +136,23 @@ export const createCorsHeaders = (origin: string) =>
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": ACCESS_CONTROL_ALLOW_METHODS,
     "Access-Control-Allow-Headers": ACCESS_CONTROL_ALLOW_HEADERS,
+    "Access-Control-Allow-Credentials": "true",
+    Vary: "Origin",
   }) as const;
 
 export const createBaseCorsHeaders = () =>
   ({
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": ACCESS_CONTROL_ALLOW_METHODS,
     "Access-Control-Allow-Headers": ACCESS_CONTROL_ALLOW_HEADERS,
+    "Access-Control-Allow-Credentials": "true",
   }) as const;
 
 export const resolveEnvironmentFlags = (
   getEnv: EnvGetter,
   options: EnvironmentFlagOptions = {},
 ) => {
-  const env =
-    resolveEnvValue(getEnv, "ENVIRONMENT") ??
+  const env = resolveEnvValue(getEnv, "ENVIRONMENT") ??
     resolveEnvValue(getEnv, "NODE_ENV") ??
     options.fallbackEnv ??
     DEFAULT_ENVIRONMENT;
@@ -184,4 +188,3 @@ export const createWebhookConfig = (
     MODE_SUBSCRIBE: "subscribe",
   } as const;
 };
-

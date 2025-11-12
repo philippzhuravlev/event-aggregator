@@ -37,6 +37,15 @@ async function computeHmac(payload: string, secret: string): Promise<string> {
     .join("");
 }
 
+export async function computeHmacSignature(
+  payload: string,
+  secret: string,
+  signatureFormat: "sha256=hex" | "hex" = "sha256=hex",
+): Promise<string> {
+  const signature = await computeHmac(payload, secret);
+  return signatureFormat === "sha256=hex" ? `sha256=${signature}` : signature;
+}
+
 export async function verifyHmacSignature(
   payload: string,
   signature: string,

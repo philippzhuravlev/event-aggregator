@@ -23,6 +23,7 @@ export function createSuccessResponse<T = unknown>(
   data: T,
   statusCode: number = HTTP_STATUS.OK,
   requestId?: string,
+  origin?: string,
 ): Response {
   const response: ApiResponse<T> = {
     success: true,
@@ -35,17 +36,17 @@ export function createSuccessResponse<T = unknown>(
     status: statusCode,
     headers: {
       "Content-Type": "application/json",
-      ...BASE_CORS_HEADERS,
+      ...getCORSHeaders(origin),
     },
   });
 }
 
-export function createNoContentResponse(): Response {
+export function createNoContentResponse(origin?: string): Response {
   return new Response(null, {
     status: HTTP_STATUS.NO_CONTENT,
     headers: {
       "Content-Type": "application/json",
-      ...BASE_CORS_HEADERS,
+      ...getCORSHeaders(origin),
     },
   });
 }
@@ -53,8 +54,9 @@ export function createNoContentResponse(): Response {
 export function createCreatedResponse<T = unknown>(
   data: T,
   requestId?: string,
+  origin?: string,
 ): Response {
-  return createSuccessResponse(data, HTTP_STATUS.CREATED, requestId);
+  return createSuccessResponse(data, HTTP_STATUS.CREATED, requestId, origin);
 }
 
 export function createPaginatedResponse<T = unknown>(
@@ -83,7 +85,7 @@ export function createPaginatedResponse<T = unknown>(
     status: HTTP_STATUS.OK,
     headers: {
       "Content-Type": "application/json",
-      ...BASE_CORS_HEADERS,
+      ...getCORSHeaders(),
     },
   });
 }
@@ -93,6 +95,7 @@ export function createErrorResponse(
   statusCode: number = HTTP_STATUS.BAD_REQUEST,
   errorCode?: string,
   requestId?: string,
+  origin?: string,
 ): Response {
   const response: ErrorApiResponse = {
     success: false,
@@ -107,7 +110,7 @@ export function createErrorResponse(
     status: statusCode,
     headers: {
       "Content-Type": "application/json",
-      ...BASE_CORS_HEADERS,
+      ...getCORSHeaders(origin),
     },
   });
 }
@@ -115,6 +118,7 @@ export function createErrorResponse(
 export function createValidationErrorResponse(
   errors: Record<string, string[]>,
   requestId?: string,
+  origin?: string,
 ): Response {
   const response: ApiResponse = {
     success: false,
@@ -128,7 +132,7 @@ export function createValidationErrorResponse(
     status: HTTP_STATUS.UNPROCESSABLE_ENTITY,
     headers: {
       "Content-Type": "application/json",
-      ...BASE_CORS_HEADERS,
+      ...getCORSHeaders(origin),
     },
   });
 }
@@ -137,84 +141,98 @@ export function createFieldValidationErrorResponse(
   fieldName: string,
   fieldError: string,
   requestId?: string,
+  origin?: string,
 ): Response {
   return createValidationErrorResponse(
     {
       [fieldName]: [fieldError],
     },
     requestId,
+    origin,
   );
 }
 
 export function createBadRequestResponse(
   message: string = "Bad request",
   requestId?: string,
+  origin?: string,
 ): Response {
   return createErrorResponse(
     message,
     HTTP_STATUS.BAD_REQUEST,
     "BAD_REQUEST",
     requestId,
+    origin,
   );
 }
 
 export function createUnauthorizedResponse(
   message: string = "Unauthorized",
   requestId?: string,
+  origin?: string,
 ): Response {
   return createErrorResponse(
     message,
     HTTP_STATUS.UNAUTHORIZED,
     "UNAUTHORIZED",
     requestId,
+    origin,
   );
 }
 
 export function createForbiddenResponse(
   message: string = "Forbidden",
   requestId?: string,
+  origin?: string,
 ): Response {
   return createErrorResponse(
     message,
     HTTP_STATUS.FORBIDDEN,
     "FORBIDDEN",
     requestId,
+    origin,
   );
 }
 
 export function createNotFoundResponse(
   resourceName: string = "Resource",
   requestId?: string,
+  origin?: string,
 ): Response {
   return createErrorResponse(
     `${resourceName} not found`,
     HTTP_STATUS.NOT_FOUND,
     "NOT_FOUND",
     requestId,
+    origin,
   );
 }
 
 export function createConflictResponse(
   message: string = "Conflict",
   requestId?: string,
+  origin?: string,
 ): Response {
   return createErrorResponse(
     message,
     HTTP_STATUS.CONFLICT,
     "CONFLICT",
     requestId,
+    origin,
   );
 }
 
 export function createTooManyRequestsResponse(
   retryAfterSeconds: number = 60,
   requestId?: string,
+  origin?: string,
 ): Response {
   const response = createErrorResponse(
     "Too many requests",
     HTTP_STATUS.TOO_MANY_REQUESTS,
     "TOO_MANY_REQUESTS",
     requestId,
+    origin,
   );
 
   response.headers.set("Retry-After", String(retryAfterSeconds));
@@ -225,24 +243,28 @@ export function createTooManyRequestsResponse(
 export function createInternalErrorResponse(
   message: string = "Internal server error",
   requestId?: string,
+  origin?: string,
 ): Response {
   return createErrorResponse(
     message,
     HTTP_STATUS.INTERNAL_SERVER_ERROR,
     "INTERNAL_ERROR",
     requestId,
+    origin,
   );
 }
 
 export function createServiceUnavailableResponse(
   message: string = "Service unavailable",
   requestId?: string,
+  origin?: string,
 ): Response {
   return createErrorResponse(
     message,
     HTTP_STATUS.SERVICE_UNAVAILABLE,
     "SERVICE_UNAVAILABLE",
     requestId,
+    origin,
   );
 }
 
@@ -251,6 +273,7 @@ export function createSuccessResponseWithHeaders<T = unknown>(
   customHeaders: Record<string, string>,
   statusCode: number = HTTP_STATUS.OK,
   requestId?: string,
+  origin?: string,
 ): Response {
   const response: ApiResponse<T> = {
     success: true,
@@ -261,6 +284,7 @@ export function createSuccessResponseWithHeaders<T = unknown>(
 
   const headers = new Headers({
     "Content-Type": "application/json",
+    ...getCORSHeaders(origin),
     ...customHeaders,
   });
 
@@ -276,6 +300,7 @@ export function createErrorResponseWithHeaders(
   statusCode: number = HTTP_STATUS.BAD_REQUEST,
   errorCode?: string,
   requestId?: string,
+  origin?: string,
 ): Response {
   const response: ErrorApiResponse = {
     success: false,
@@ -288,6 +313,7 @@ export function createErrorResponseWithHeaders(
 
   const headers = new Headers({
     "Content-Type": "application/json",
+    ...getCORSHeaders(origin),
     ...customHeaders,
   });
 
@@ -350,10 +376,12 @@ export function parseResponseBody(body: string): ApiResponse | null {
   }
 }
 
-export function handleCORSPreflight(): Response {
+export function handleCORSPreflight(origin?: string): Response {
+  const corsHeaders = createCorsHeaders(origin ?? "*");
+
   return new Response(null, {
     status: HTTP_STATUS.NO_CONTENT,
-    headers: BASE_CORS_HEADERS,
+    headers: corsHeaders,
   });
 }
 /**

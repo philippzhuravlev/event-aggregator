@@ -372,3 +372,24 @@ export function isValidJson(value: string): boolean {
   }
 }
 
+export function validateJson(
+  value: unknown,
+): { valid: boolean; error?: string } {
+  if (typeof value === "string") {
+    return isValidJson(value)
+      ? { valid: true }
+      : { valid: false, error: "Invalid JSON string" };
+  }
+
+  if (value !== null && typeof value === "object") {
+    try {
+      JSON.stringify(value);
+      return { valid: true };
+    } catch {
+      return { valid: false, error: "Value contains non-serializable data" };
+    }
+  }
+
+  return { valid: false, error: "Value must be a JSON string or object" };
+}
+

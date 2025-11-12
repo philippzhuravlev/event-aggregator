@@ -3,8 +3,6 @@ import type {
   JsonSchema,
   ValidationResult,
 } from "../types.js";
-import { createCorsHeaders } from "../runtime/base.js";
-
 export const COMMON_CONTENT_TYPES = {
   JSON: "application/json",
   FORM: "application/x-www-form-urlencoded",

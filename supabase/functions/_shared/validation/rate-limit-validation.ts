@@ -1,1 +1,1 @@
-export * from "@event-aggregator/shared/validation/rate-limit-validation";
+export * from "../../packages/shared/dist/validation/rate-limit-validation.js";

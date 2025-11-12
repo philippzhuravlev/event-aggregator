@@ -1,1 +1,1 @@
-export * from "@event-aggregator/shared/validation/oauth-validation";
+export * from "../../packages/shared/dist/validation/oauth-validation.js";
