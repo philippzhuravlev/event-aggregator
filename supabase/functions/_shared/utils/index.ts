@@ -37,3 +37,6 @@ export {
 
 // URL Builder - URL construction and origin validation
 export { isAllowedOrigin } from "./url-builder-util.ts";
+
+// Search Sanitization
+export { sanitizeSearchQuery } from "./search-util.ts";

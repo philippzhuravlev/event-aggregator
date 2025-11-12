@@ -12,6 +12,7 @@ import {
   PAGINATION,
   SlidingWindowRateLimiter,
 } from "../_shared/validation/index.ts";
+import { sanitizeSearchQuery } from "../_shared/utils/search-util.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
 // or help etc), but because we've refactored to supabase, it's now a "Edge Function".
@@ -30,15 +31,6 @@ apiRateLimiter.initialize("get-events", 100, 60000);
 /**
  * Validate and parse query parameters for get-events
  */
-function sanitizeSearchQuery(input: string): string {
-  // Remove anything that's not alphanumeric, spaces, or basic punctuation
-  // This prevents XSS/injection attacks
-  return input
-    .replace(/[^a-zA-Z0-9\s\-'",.&]/g, "")
-    .trim()
-    .substring(0, 200); // Max length
-}
-
 function validateQueryParams(
   url: URL,
 ): { success: boolean; data?: GetEventsQuery; error?: string } {
@@ -68,14 +60,21 @@ function validateQueryParams(
     // Parse search (optional)
     let search = params.get("search") || undefined;
     if (search) {
-      search = sanitizeSearchQuery(search);
-      if (search.length === 0) search = undefined;
-      if (search && search.length > PAGINATION.MAX_SEARCH_LENGTH) {
+      const sanitized = sanitizeSearchQuery(
+        search,
+        PAGINATION.MAX_SEARCH_LENGTH,
+      );
+
+      if (sanitized.length === 0) {
+        search = undefined;
+      } else if (sanitized.length > PAGINATION.MAX_SEARCH_LENGTH) {
         return {
           success: false,
           error:
             `Search query too long (max ${PAGINATION.MAX_SEARCH_LENGTH} characters)`,
         };
+      } else {
+        search = sanitized;
       }
     }
 
