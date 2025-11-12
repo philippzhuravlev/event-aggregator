@@ -6,7 +6,7 @@
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["functions/_shared/*"],
-      "@event-aggregator/shared/*": ["./packages/shared/src/*"]
+      "@event-aggregator/shared/*": ["./packages/shared/dist/*"]
     }
   },
   "tasks": {
@@ -15,8 +15,8 @@
   "imports": {
     "std/": "https://deno.land/std@0.208.0/",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
-    "@event-aggregator/shared": "./packages/shared/src/index.ts",
-    "@event-aggregator/shared/runtime/": "./packages/shared/src/runtime/",
-    "@event-aggregator/shared/config/": "./packages/shared/src/config/"
+    "@event-aggregator/shared": "./packages/shared/dist/index.js",
+    "@event-aggregator/shared/runtime/": "./packages/shared/dist/runtime/",
+    "@event-aggregator/shared/config/": "./packages/shared/dist/config/"
   }
 }

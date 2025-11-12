@@ -3,54 +3,73 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/node/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/cjs/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/node/index.cjs"
     },
     "./config": {
-      "import": "./dist/config/index.js",
-      "require": "./dist/cjs/config/index.js",
-      "types": "./dist/config/index.d.ts"
+      "types": "./dist/esm/config/index.d.ts",
+      "import": "./dist/esm/config/index.js",
+      "require": "./dist/node/config/index.cjs"
     },
     "./config/*": {
-      "import": "./dist/config/*.js",
-      "require": "./dist/cjs/config/*.js",
-      "types": "./dist/config/*.d.ts"
+      "types": "./dist/esm/config/*.d.ts",
+      "import": "./dist/esm/config/*.js",
+      "require": "./dist/node/config/*.cjs"
     },
     "./runtime": {
-      "import": "./dist/runtime/index.js",
-      "require": "./dist/cjs/runtime/index.js",
-      "types": "./dist/runtime/index.d.ts"
+      "types": "./dist/esm/runtime/index.d.ts",
+      "import": "./dist/esm/runtime/index.js",
+      "require": "./dist/node/runtime/index.cjs"
     },
-    "./runtime/*": {
-      "import": "./dist/runtime/*.js",
-      "require": "./dist/cjs/runtime/*.js",
-      "types": "./dist/runtime/*.d.ts"
+    "./runtime/node": {
+      "types": "./dist/esm/runtime/node.d.ts",
+      "import": "./dist/esm/runtime/node.js",
+      "require": "./dist/node/runtime/node.cjs"
+    },
+    "./runtime/deno": {
+      "types": "./dist/esm/runtime/deno.d.ts",
+      "import": "./dist/esm/runtime/deno.js",
+      "default": "./dist/esm/runtime/deno.js"
+    },
+    "./runtime/browser": {
+      "types": "./dist/esm/runtime/browser.d.ts",
+      "import": "./dist/esm/runtime/browser.js",
+      "default": "./dist/esm/runtime/browser.js"
     },
     "./routing": {
-      "import": "./dist/routing.js",
-      "require": "./dist/cjs/routing.js",
-      "types": "./dist/routing.d.ts"
+      "types": "./dist/esm/routing.d.ts",
+      "import": "./dist/esm/routing.js",
+      "require": "./dist/node/routing.cjs"
     },
     "./types": {
-      "import": "./dist/types.js",
-      "require": "./dist/cjs/types.js",
-      "types": "./dist/types.d.ts"
+      "types": "./dist/esm/types.d.ts",
+      "import": "./dist/esm/types.js",
+      "require": "./dist/node/types.cjs"
+    },
+    "./validation": {
+      "types": "./dist/esm/validation/index.d.ts",
+      "import": "./dist/esm/validation/index.js",
+      "require": "./dist/node/validation/index.cjs"
+    },
+    "./validation/*": {
+      "types": "./dist/esm/validation/*.d.ts",
+      "import": "./dist/esm/validation/*.js",
+      "require": "./dist/node/validation/*.cjs"
     }
   },
   "scripts": {
-    "build": "npm run clean && npm run build:esm && npm run build:cjs",
-    "build:esm": "tsc -p tsconfig.json",
-    "build:cjs": "tsc -p tsconfig.cjs.json",
-    "clean": "rimraf dist dist/cjs"
+    "build": "npm run clean && tsup --config tsup.config.ts",
+    "clean": "rimraf dist && rimraf ../supabase/packages/shared/dist"
   },
   "devDependencies": {
     "rimraf": "^6.0.1",
+    "tsup": "^8.0.1",
     "typescript": "^5.6.3"
   }
 }
