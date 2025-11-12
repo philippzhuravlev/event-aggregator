@@ -31,7 +31,7 @@ const sharedOptions = {
   treeshake: false,
   target: "es2020",
   keepNames: true,
-  outExtension: ({ format }: { format: "cjs" | "esm" }) => ({
+  outExtension: ({ format }) => ({
     js: format === "cjs" ? ".cjs" : ".js",
   }),
 };

@@ -8,23 +8,8 @@
 // The common thread here is that index files are always entry points
 
 // Re-export shared types
-export type {
-    ApiResponse,
-    BruteForceEntry,
-    ErrorApiResponse,
-    FullRequestValidationOptions,
-    HmacVerificationResult,
-    HttpMethod,
-    JsonSchema,
-    NumberValidationOptions,
-    OAuthStateValidation,
-    PaginatedResponse,
-    SlidingWindowBucket,
-    SlidingWindowConfig,
-    StringValidationOptions,
-    TokenBucket,
-    ValidationResult,
-} from "../types";
+export * from "@event-aggregator/shared/validation";
+export * from "./input-validation";
 
 // Re-export shared constants
 export { CORS_HEADERS, HTTP_STATUS } from "../utils/constants-util";
