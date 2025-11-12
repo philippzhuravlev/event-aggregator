@@ -19,7 +19,8 @@
     "baseUrl": ".",
     "paths": {
       "@api/*": ["api/*"],
-      "@shared/*": ["api/_shared/*"]
+      "@shared/*": ["api/_shared/*"],
+      "@utils/*": ["packages/utils/src/*"]
     }
   },
   "files": [],

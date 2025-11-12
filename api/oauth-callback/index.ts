@@ -90,7 +90,8 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     const protocol = process.env.NODE_ENV === "development"
       ? "http://"
       : "https://";
-    const url = new URL(`${protocol}${host}${req.url}`);
+    const requestOrigin = `${protocol}${host}`;
+    const url = new URL(`${requestOrigin}${req.url}`);
 
     // Validate query parameters
     const validation = validateOAuthCallbackQuery(url);
@@ -112,7 +113,7 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     const { code, state } = validation.data!;
 
     // Validate state parameter (CSRF protection) using dynamic allowed origins
-    const allowedOrigins = getAllowedOrigins();
+    const allowedOrigins = getAllowedOrigins(requestOrigin);
     const stateValidation = validateOAuthState(state, allowedOrigins);
     if (!stateValidation.valid) {
       res.redirect(

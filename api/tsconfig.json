@@ -3,10 +3,11 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["./_shared/*"]
+      "@shared/*": ["./_shared/*"],
+      "@utils/*": ["../packages/utils/src/*"]
     },
     "outDir": "../dist/api",
-    "rootDir": "."
+    "rootDir": ".."
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules"]

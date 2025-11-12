@@ -13,6 +13,10 @@
 // redirect URL is in our whitelist. This prevents open redirect attacks and injection
 // attacks
 
+import {
+  isAllowedOrigin as matchesAllowedOriginPattern,
+} from "../utils/url-builder-util";
+
 /**
  * Extract origin from OAuth state parameter
  * State format: just the origin URL (already URL-encoded when sent)
@@ -30,12 +34,16 @@ export function extractOriginFromState(state: string): string | null {
 
 /**
  * Check if origin is allowed
- * For OAuth, we allow only specific origins (usually your frontend domain)
+ * For OAuth, we allow specific origins and dynamic Vercel preview URLs
  */
 export function isAllowedOrigin(
   origin: string,
   allowedOrigins: string[],
 ): boolean {
+  if (matchesAllowedOriginPattern(origin)) {
+    return true;
+  }
+
   return allowedOrigins.includes(origin);
 }
 
@@ -69,9 +77,10 @@ export function validateOAuthState(
   }
 
   if (!isAllowedOrigin(origin, allowedOrigins)) {
+    console.warn("Rejected OAuth origin", { origin, allowedOrigins });
     return {
       valid: false,
-      error: "Origin not allowed",
+      error: `Origin not allowed: ${origin}. Allowed: ${allowedOrigins.join(", ")}`,
     };
   }
 

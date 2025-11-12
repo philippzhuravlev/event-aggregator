@@ -68,7 +68,7 @@ export function isAllowedOrigin(origin: string): boolean {
  * Dynamic allowed origins array that support both dev and production
  * Gets the current deployment URL from VERCEL_URL env var if available
  */
-export function getAllowedOrigins(): string[] {
+export function getAllowedOrigins(currentOrigin?: string): string[] {
   const origins = [
     "http://localhost:3000",
     "http://localhost:5173",
@@ -80,6 +80,10 @@ export function getAllowedOrigins(): string[] {
   // Add current Vercel deployment URL if available
   if (process.env.VERCEL_URL) {
     origins.push(`https://${process.env.VERCEL_URL}`);
+  }
+
+  if (currentOrigin) {
+    origins.push(currentOrigin);
   }
 
   // Remove duplicates

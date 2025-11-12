@@ -5,7 +5,8 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["functions/_shared/*"]
+      "@shared/*": ["functions/_shared/*"],
+      "@utils/*": ["../packages/utils/src/*"]
     }
   },
   "tasks": {
@@ -13,6 +14,8 @@
   },
   "imports": {
     "std/": "https://deno.land/std@0.208.0/",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+    "@utils/constants": "../packages/utils/src/constants/index.ts",
+    "@utils/": "../packages/utils/src/"
   }
 }
