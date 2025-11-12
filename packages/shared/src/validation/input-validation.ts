@@ -292,21 +292,7 @@ export function sanitizeInput(
   return sanitized;
 }
 
-/**
- * Sanitize a free-form search query.
- * Removes disallowed characters, trims whitespace, and enforces a max length.
- */
-export function sanitizeSearchQuery(
-  input: string,
-  maxLength: number = 200,
-): string {
-  if (!input) return "";
-
-  return input
-    .replace(/[^a-zA-Z0-9\s\-'",.&]/g, "")
-    .trim()
-    .substring(0, maxLength);
-}
+export { sanitizeSearchQuery } from "../utils/sanitizer-util.ts";
 
 /**
  * Remove null bytes and control characters from input

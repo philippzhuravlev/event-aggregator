@@ -29,6 +29,7 @@ const entry = {
   "utils/origin": "src/utils/origin.ts",
   "utils/event-normalizer": "src/utils/event-normalizer.ts",
   "utils/token-expiry": "src/utils/token-expiry.ts",
+  "utils/sanitizer-util": "src/utils/sanitizer-util.ts",
 };
 
 const sharedOptions = {

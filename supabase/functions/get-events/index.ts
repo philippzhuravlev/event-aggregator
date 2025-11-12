@@ -12,7 +12,7 @@ import {
   PAGINATION,
   SlidingWindowRateLimiter,
 } from "../_shared/validation/index.ts";
-import { sanitizeSearchQuery } from "../_shared/utils/search-util.ts";
+import { sanitizeSearchQuery } from "../_shared/utils/sanitizer-util.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
 // or help etc), but because we've refactored to supabase, it's now a "Edge Function".

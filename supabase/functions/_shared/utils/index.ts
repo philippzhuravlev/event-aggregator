@@ -39,4 +39,4 @@ export {
 export { isAllowedOrigin } from "./url-builder-util.ts";
 
 // Search Sanitization
-export { sanitizeSearchQuery } from "./search-util.ts";
+export { sanitizeSearchQuery } from "./sanitizer-util.ts";
