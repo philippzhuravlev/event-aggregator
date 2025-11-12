@@ -1,26 +1,38 @@
 import { logger } from "./logger-service.ts";
-import {
+import type { FacebookServiceLogger } from "../../../../packages/shared/src/services/facebook-service.ts";
+// @deno-types="../../../../packages/shared/src/services/facebook-service.ts"
+import * as facebookService from "../../packages/shared/dist/services/index.js";
+
+const {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
   getAllRelevantEvents,
   getPageEvents,
   getUserPages,
   setFacebookServiceLogger,
-  type FacebookCover,
-  type FacebookErrorResponse,
-  type FacebookEvent,
-  type FacebookPage,
-  type FacebookPagePictureData,
-  type FacebookPlace,
-  type FacebookPlaceLocation,
-} from "@event-aggregator/shared/services/facebook-service";
+} = facebookService;
 
-setFacebookServiceLogger({
-  info: (message, metadata) => logger.info(message, metadata),
-  warn: (message, metadata) => logger.warn(message, metadata),
-  error: (message, error, metadata) => logger.error(message, error ?? null, metadata),
-  debug: (message, metadata) => logger.debug(message, metadata),
-});
+const supabaseLogger: FacebookServiceLogger = {
+  info: (
+    message,
+    metadata,
+  ) => logger.info(message, metadata),
+  warn: (
+    message,
+    metadata,
+  ) => logger.warn(message, metadata),
+  error: (
+    message,
+    error,
+    metadata,
+  ) => logger.error(message, error ?? null, metadata),
+  debug: (
+    message,
+    metadata,
+  ) => logger.debug(message, metadata),
+};
+
+setFacebookServiceLogger(supabaseLogger);
 
 export {
   exchangeCodeForToken,
@@ -28,6 +40,7 @@ export {
   getAllRelevantEvents,
   getPageEvents,
   getUserPages,
+  setFacebookServiceLogger,
 };
 
 export type {
@@ -38,4 +51,5 @@ export type {
   FacebookPagePictureData,
   FacebookPlace,
   FacebookPlaceLocation,
-};
+  FacebookServiceLogger,
+} from "../../../../packages/shared/src/services/facebook-service.ts";

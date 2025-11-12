@@ -6,7 +6,7 @@
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["functions/_shared/*"],
-      "@event-aggregator/shared/*": ["./packages/shared/dist/*"]
+      "@event-aggregator/shared/*": ["./functions/packages/shared/dist/*"]
     }
   },
   "tasks": {
@@ -15,13 +15,13 @@
   "imports": {
     "std/": "https://deno.land/std@0.208.0/",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
-    "@event-aggregator/shared": "./packages/shared/dist/index.js",
-    "@event-aggregator/shared/runtime/browser": "./packages/shared/dist/runtime/browser.js",
-    "@event-aggregator/shared/validation": "./packages/shared/dist/validation/index.js",
-    "@event-aggregator/shared/runtime/": "./packages/shared/dist/runtime/",
-    "@event-aggregator/shared/config/": "./packages/shared/dist/config/",
-    "@event-aggregator/shared/validation/": "./packages/shared/dist/validation/",
-    "@event-aggregator/shared/services": "./packages/shared/dist/services/index.js",
-    "@event-aggregator/shared/services/": "./packages/shared/dist/services/"
+    "@event-aggregator/shared": "./functions/packages/shared/dist/index.js",
+    "@event-aggregator/shared/runtime/browser": "./functions/packages/shared/dist/runtime/browser.js",
+    "@event-aggregator/shared/validation": "./functions/packages/shared/dist/validation/index.js",
+    "@event-aggregator/shared/runtime/": "./functions/packages/shared/dist/runtime/",
+    "@event-aggregator/shared/config/": "./functions/packages/shared/dist/config/",
+    "@event-aggregator/shared/validation/": "./functions/packages/shared/dist/validation/",
+    "@event-aggregator/shared/services": "./functions/packages/shared/dist/services/index.js",
+    "@event-aggregator/shared/services/": "./functions/packages/shared/dist/services/"
   }
 }
