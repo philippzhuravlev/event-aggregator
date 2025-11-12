@@ -20,7 +20,7 @@
     "paths": {
       "@api/*": ["api/*"],
       "@shared/*": ["api/_shared/*"],
-      "@utils/*": ["packages/utils/src/*"]
+      "@event-aggregator/shared/*": ["packages/shared/src/*"]
     }
   },
   "files": [],

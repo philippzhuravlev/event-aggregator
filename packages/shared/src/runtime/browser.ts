@@ -1,5 +1,5 @@
-import { API_TIMEOUT_MS, DEFAULT_PAGE_SIZE } from "../constants/index.ts";
-import { stringToBoolean } from "./shared.ts";
+import { API_TIMEOUT_MS, DEFAULT_PAGE_SIZE } from "../config/index.js";
+import { stringToBoolean } from "./base.js";
 
 export interface BrowserEnvLike {
   MODE?: string;
@@ -9,7 +9,7 @@ export interface BrowserEnvLike {
   VITE_USE_BACKEND_API?: string | boolean;
 }
 
-export interface BrowserConfig {
+export interface BrowserRuntimeConfig {
   backendUrl: string;
   useSupabase: boolean;
   useBackendApi: boolean;
@@ -23,12 +23,11 @@ export interface BrowserConfig {
 const DEFAULT_BACKEND_URL = "/api";
 const DEFAULT_ENVIRONMENT = "development";
 
-export const createBrowserConfig = (
+export const createBrowserRuntimeConfig = (
   env: BrowserEnvLike,
   options: { fallbackBackendUrl?: string } = {},
-): BrowserConfig => {
-  const nodeEnv =
-    env.MODE ?? env.NODE_ENV ?? DEFAULT_ENVIRONMENT;
+): BrowserRuntimeConfig => {
+  const nodeEnv = env.MODE ?? env.NODE_ENV ?? DEFAULT_ENVIRONMENT;
 
   const backendUrl =
     (typeof env.VITE_BACKEND_URL === "string" && env.VITE_BACKEND_URL.trim()) ||

@@ -4,7 +4,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@utils/*": ["../packages/utils/src/*"]
+      "@event-aggregator/shared/*": ["../packages/shared/src/*"]
     }
   },
   "include": [

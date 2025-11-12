@@ -1,0 +1,57 @@
+{
+  "name": "@event-aggregator/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./config": {
+      "import": "./dist/config/index.js",
+      "require": "./dist/cjs/config/index.js",
+      "types": "./dist/config/index.d.ts"
+    },
+    "./config/*": {
+      "import": "./dist/config/*.js",
+      "require": "./dist/cjs/config/*.js",
+      "types": "./dist/config/*.d.ts"
+    },
+    "./runtime": {
+      "import": "./dist/runtime/index.js",
+      "require": "./dist/cjs/runtime/index.js",
+      "types": "./dist/runtime/index.d.ts"
+    },
+    "./runtime/*": {
+      "import": "./dist/runtime/*.js",
+      "require": "./dist/cjs/runtime/*.js",
+      "types": "./dist/runtime/*.d.ts"
+    },
+    "./routing": {
+      "import": "./dist/routing.js",
+      "require": "./dist/cjs/routing.js",
+      "types": "./dist/routing.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types.js",
+      "require": "./dist/cjs/types.js",
+      "types": "./dist/types.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "npm run clean && npm run build:esm && npm run build:cjs",
+    "build:esm": "tsc -p tsconfig.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "clean": "rimraf dist dist/cjs"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.3"
+  }
+}
+

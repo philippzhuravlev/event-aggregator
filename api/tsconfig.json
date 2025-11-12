@@ -4,7 +4,7 @@
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["./_shared/*"],
-      "@utils/*": ["../packages/utils/src/*"]
+      "@event-aggregator/shared/*": ["../packages/shared/src/*"]
     },
     "outDir": "../dist/api",
     "rootDir": ".."

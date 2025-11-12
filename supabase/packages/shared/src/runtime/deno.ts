@@ -23,7 +23,9 @@ export {
   TOKEN_REFRESH_DEFAULTS,
   TOKEN_REFRESH_SCHEDULE,
   URL_DEFAULTS,
-} from "../constants/index.ts";
+  API_TIMEOUT_MS,
+  DEFAULT_PAGE_SIZE,
+} from "../config/index.js";
 
 import {
   createCorsHeaders,
@@ -37,7 +39,7 @@ import {
   resolveOAuthCallbackUrl,
   resolveWebAppUrl,
   type EnvGetter,
-} from "./shared.ts";
+} from "./base.js";
 
 const envGetter: EnvGetter = (key) => Deno.env.get(key);
 
@@ -49,9 +51,7 @@ export const TOKEN_EXPIRY_CONFIG = createTokenExpiryConfig(TOKEN_REFRESH);
 
 export const EVENT_SYNC = createEventSyncConfig({ includeSchedule: true });
 
-const WEBHOOK = createWebhookConfig(envGetter);
-
-export { WEBHOOK };
+export const WEBHOOK = createWebhookConfig(envGetter);
 
 const CORS_ORIGIN = resolveCorsOrigin(envGetter);
 

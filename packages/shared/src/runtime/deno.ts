@@ -1,8 +1,15 @@
-import process from "node:process";
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
 
 export {
   CONTENT_TYPES,
+  DEFAULT_ALLOWED_ORIGINS,
   ERROR_CODES,
+  EVENT_SYNC_DEFAULTS,
+  EVENT_SYNC_SCHEDULE,
   FACEBOOK,
   FACEBOOK_API,
   FACEBOOK_ORIGIN,
@@ -11,40 +18,44 @@ export {
   IMAGE_SERVICE,
   PAGINATION,
   RATE_LIMITS,
-  REQUEST_SIZE_LIMITS,
   SERVER_ERROR_RANGE,
   TIME,
   TOKEN_REFRESH_DEFAULTS,
-} from "../constants/index";
+  TOKEN_REFRESH_SCHEDULE,
+  URL_DEFAULTS,
+  API_TIMEOUT_MS,
+  DEFAULT_PAGE_SIZE,
+} from "../config/index.js";
 
 import {
-  createBaseCorsHeaders,
   createCorsHeaders,
   createEventSyncConfig,
   createTokenExpiryConfig,
   createTokenRefreshConfig,
+  createWebhookConfig,
   resolveAllowedOrigins,
   resolveCorsOrigin,
   resolveEnvironmentFlags,
   resolveOAuthCallbackUrl,
   resolveWebAppUrl,
   type EnvGetter,
-} from "./shared-node";
+} from "./base.js";
 
-const envGetter: EnvGetter = (key) => process.env[key];
+const envGetter: EnvGetter = (key) => Deno.env.get(key);
 
-export const TOKEN_REFRESH = createTokenRefreshConfig(envGetter);
+export const TOKEN_REFRESH = createTokenRefreshConfig(envGetter, {
+  includeSchedule: true,
+});
 
 export const TOKEN_EXPIRY_CONFIG = createTokenExpiryConfig(TOKEN_REFRESH);
 
-export const EVENT_SYNC = createEventSyncConfig();
+export const EVENT_SYNC = createEventSyncConfig({ includeSchedule: true });
 
-export const CORS_HEADERS = createBaseCorsHeaders();
+export const WEBHOOK = createWebhookConfig(envGetter);
 
-export const getCORSHeaders = (requestOrigin?: string) => {
-  const origin = requestOrigin ?? resolveCorsOrigin(envGetter);
-  return createCorsHeaders(origin);
-};
+const CORS_ORIGIN = resolveCorsOrigin(envGetter);
+
+export const CORS_HEADERS = createCorsHeaders(CORS_ORIGIN);
 
 const WEB_APP_URL = resolveWebAppUrl(envGetter);
 const OAUTH_CALLBACK_URL = resolveOAuthCallbackUrl(envGetter);

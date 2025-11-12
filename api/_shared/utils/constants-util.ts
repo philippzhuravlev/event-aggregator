@@ -1,7 +1,7 @@
 /**
- * API runtime constants are centralized in packages/utils.
+ * API runtime constants are centralized in the shared package.
  * This module re-exports the Node-specific runtime surface for API handlers.
  */
 
-export * from "../../../packages/utils/src/runtime/node";
+export * from "@event-aggregator/shared/runtime/node";
 
