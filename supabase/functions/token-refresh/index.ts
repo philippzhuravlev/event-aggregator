@@ -23,6 +23,10 @@ import { PageToken, RefreshResult } from "./types.ts";
 // Rate limiter for token refresh: max 24 refreshes per day per page (roughly 1 per hour)
 // See RATE_LIMITS.TOKEN_REFRESH for configuration
 const tokenRefreshLimiter = new TokenBucketRateLimiter();
+tokenRefreshLimiter.configure(
+  RATE_LIMITS.TOKEN_REFRESH.capacity,
+  RATE_LIMITS.TOKEN_REFRESH.refillRate,
+);
 
 /**
  * Token Refresh Handler
@@ -72,12 +76,7 @@ async function refreshExpiredTokens(
     for (const page of pages as PageToken[]) {
       try {
         // Rate limit: max 24 refreshes per day per page (1 per hour)
-        const isLimited = !tokenRefreshLimiter.check(
-          page.page_id,
-          1,
-          RATE_LIMITS.TOKEN_REFRESH.capacity,
-          RATE_LIMITS.TOKEN_REFRESH.windowMs,
-        );
+    const isLimited = !tokenRefreshLimiter.check(page.page_id);
 
         if (isLimited) {
           logger.debug(`Token refresh rate limited for page ${page.page_id}`);

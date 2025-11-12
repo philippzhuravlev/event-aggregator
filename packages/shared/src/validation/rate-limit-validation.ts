@@ -1,15 +1,12 @@
 /**
  * Placeholder for shared rate limit validation utilities.
  */
-import {
-  createBaseCorsHeaders,
-  createCorsHeaders,
-} from "../runtime/base.js";
+import { createBaseCorsHeaders, createCorsHeaders } from "../runtime/base.ts";
 import type {
   BruteForceEntry,
   SlidingWindowConfig,
   TokenBucketState,
-} from "../types.js";
+} from "../types.ts";
 
 type RateLimitLogger = {
   debug?: (message: string, meta?: Record<string, unknown>) => void;
@@ -40,13 +37,17 @@ interface SlidingWindowBucket {
 export class SlidingWindowRateLimiter {
   private buckets = new Map<string, SlidingWindowBucket>();
   private configs = new Map<string, SlidingWindowConfig>();
-  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+  private cleanupInterval: ReturnType<typeof globalThis.setInterval> | null =
+    null;
 
   initialize(name: string, maxRequests: number, windowMs: number): void {
     this.configs.set(name, { maxRequests, windowMs });
 
     if (!this.cleanupInterval) {
-      this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
+      this.cleanupInterval = globalThis.setInterval(
+        () => this.cleanup(),
+        60000,
+      );
     }
   }
 
@@ -70,7 +71,9 @@ export class SlidingWindowRateLimiter {
     }
 
     const windowStart = now - config.windowMs;
-    bucket.requests = bucket.requests.filter((timestamp) => timestamp > windowStart);
+    bucket.requests = bucket.requests.filter((timestamp) =>
+      timestamp > windowStart
+    );
 
     if (bucket.requests.length >= config.maxRequests) {
       rateLimitLogger.debug?.(`Rate limit exceeded for "${name}:${key}"`, {
@@ -112,7 +115,9 @@ export class SlidingWindowRateLimiter {
     const windowStart = now - config.windowMs;
     const valid = bucket.requests.filter((t) => t > windowStart).length;
     const oldestValid = bucket.requests.find((t) => t > windowStart);
-    const resetAt = oldestValid ? oldestValid + config.windowMs : now + config.windowMs;
+    const resetAt = oldestValid
+      ? oldestValid + config.windowMs
+      : now + config.windowMs;
 
     return {
       used: valid,
@@ -129,7 +134,7 @@ export class SlidingWindowRateLimiter {
 
   destroy(): void {
     if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
+      globalThis.clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
     }
     this.buckets.clear();
@@ -274,9 +279,9 @@ export class BruteForceProtection {
 export function getClientIp(request: Request): string | null {
   return (
     request.headers.get("x-forwarded-for") ??
-    request.headers.get("cf-connecting-ip") ??
-    request.headers.get("x-real-ip") ??
-    null
+      request.headers.get("cf-connecting-ip") ??
+      request.headers.get("x-real-ip") ??
+      null
   );
 }
 
@@ -293,9 +298,7 @@ export function getRateLimitHeaders(
     "Retry-After": status.resetAt
       ? String(Math.ceil((status.resetAt - Date.now()) / 1000))
       : "60",
-    ...(corsOrigin
-      ? createCorsHeaders(corsOrigin)
-      : { ...BASE_CORS_HEADERS }),
+    ...(corsOrigin ? createCorsHeaders(corsOrigin) : { ...BASE_CORS_HEADERS }),
   };
 
   if (status.limit !== undefined) {
@@ -339,4 +342,3 @@ export function getRateLimitExceededResponse(
     },
   );
 }
-

@@ -17,7 +17,7 @@ export {
   TOKEN_REFRESH_DEFAULTS,
   API_TIMEOUT_MS,
   DEFAULT_PAGE_SIZE,
-} from "../config/index.js";
+} from "../config/index.ts";
 
 import {
   createBaseCorsHeaders,
@@ -31,7 +31,7 @@ import {
   resolveOAuthCallbackUrl,
   resolveWebAppUrl,
   type EnvGetter,
-} from "./base.js";
+} from "./base.ts";
 
 const envGetter: EnvGetter = (key) => process.env[key];
 

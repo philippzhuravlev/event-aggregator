@@ -1,4 +1,36 @@
-import type { HmacVerificationResult } from "../types.js";
+import type { HmacVerificationResult } from "../types.ts";
+
+type CryptoLike = {
+  subtle: Pick<
+    typeof import("node:crypto").webcrypto.subtle,
+    "importKey" | "sign"
+  >;
+};
+
+let cachedCrypto: CryptoLike | null = null;
+
+const resolveCrypto = async (): Promise<CryptoLike> => {
+  if (cachedCrypto) {
+    return cachedCrypto;
+  }
+
+  if (typeof globalThis.crypto !== "undefined" && globalThis.crypto?.subtle) {
+    cachedCrypto = globalThis.crypto as unknown as CryptoLike;
+    return cachedCrypto;
+  }
+
+  try {
+    const nodeCrypto = await import("node:crypto");
+    if (nodeCrypto?.webcrypto?.subtle) {
+      cachedCrypto = nodeCrypto.webcrypto as unknown as CryptoLike;
+      return cachedCrypto;
+    }
+  } catch {
+    // ignore, will throw below
+  }
+
+  throw new Error("Web Crypto API is not available in this environment");
+};
 
 export function timingSafeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) {
@@ -14,15 +46,13 @@ export function timingSafeCompare(a: string, b: string): boolean {
 }
 
 async function computeHmac(payload: string, secret: string): Promise<string> {
-  if (typeof crypto === "undefined" || !crypto.subtle) {
-    throw new Error("Web Crypto API is not available in this environment");
-  }
+  const cryptoApi = await resolveCrypto();
 
   const encoder = new TextEncoder();
   const keyData = encoder.encode(secret);
   const payloadData = encoder.encode(payload);
 
-  const key = await crypto.subtle.importKey(
+  const key = await cryptoApi.subtle.importKey(
     "raw",
     keyData,
     { name: "HMAC", hash: "SHA-256" },
@@ -30,7 +60,7 @@ async function computeHmac(payload: string, secret: string): Promise<string> {
     ["sign"],
   );
 
-  const signatureBytes = await crypto.subtle.sign("HMAC", key, payloadData);
+  const signatureBytes = await cryptoApi.subtle.sign("HMAC", key, payloadData);
 
   return Array.from(new Uint8Array(signatureBytes))
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -87,7 +117,9 @@ export async function verifyHmacSignature(
   } catch (error) {
     return {
       valid: false,
-      error: error instanceof Error ? error.message : "Signature verification failed",
+      error: error instanceof Error
+        ? error.message
+        : "Signature verification failed",
     };
   }
 }
@@ -122,4 +154,3 @@ export function getAuthErrorResponse(statusCode: number = 401): Response {
  * Placeholder for shared auth validation utilities.
  */
 export {};
-

@@ -1,13 +1,13 @@
-import { HTTP_STATUS } from "../config/validation-config.js";
+import { HTTP_STATUS } from "../config/validation-config.ts";
 import {
   createBaseCorsHeaders,
   createCorsHeaders,
-} from "../runtime/base.js";
+} from "../runtime/base.ts";
 import type {
   ApiResponse,
   ErrorApiResponse,
   PaginatedResponse,
-} from "../types.js";
+} from "../types.ts";
 
 const BASE_CORS_HEADERS = createBaseCorsHeaders();
 

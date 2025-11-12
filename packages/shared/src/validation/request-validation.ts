@@ -2,7 +2,7 @@ import type {
   FullRequestValidationOptions,
   JsonSchema,
   ValidationResult,
-} from "../types.js";
+} from "../types.ts";
 export const COMMON_CONTENT_TYPES = {
   JSON: "application/json",
   FORM: "application/x-www-form-urlencoded",
@@ -41,7 +41,9 @@ export function validateContentType(
   if (!normalizedTypes.includes(baseContentType)) {
     return {
       valid: false,
-      error: `Invalid Content-Type: ${baseContentType}. Expected: ${normalizedTypes.join(", ")}`,
+      error: `Invalid Content-Type: ${baseContentType}. Expected: ${
+        normalizedTypes.join(", ")
+      }`,
       details: {
         received: baseContentType,
         expected: normalizedTypes,
@@ -90,7 +92,8 @@ export function validateBodySize(
   if (bodyLength > maxSize) {
     return {
       valid: false,
-      error: `Request body exceeds maximum size: ${bodyLength} bytes > ${maxSize} bytes`,
+      error:
+        `Request body exceeds maximum size: ${bodyLength} bytes > ${maxSize} bytes`,
       details: {
         actual: bodyLength,
         max: maxSize,
@@ -243,7 +246,9 @@ export function validateRequestJson(
   } catch (error) {
     return {
       valid: false,
-      error: `Invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Invalid JSON: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
     };
   }
 }
@@ -365,7 +370,9 @@ export function validateRequest(
 
   if (options.method) {
     const methodResult = validateHttpMethod(request, options.method);
-    if (!methodResult.valid && methodResult.error) errors.push(methodResult.error);
+    if (!methodResult.valid && methodResult.error) {
+      errors.push(methodResult.error);
+    }
   }
 
   if (options.contentType) {
@@ -380,12 +387,16 @@ export function validateRequest(
 
   if (options.requiredHeaders) {
     const headerResult = validateHeaders(request, options.requiredHeaders);
-    if (!headerResult.valid && headerResult.error) errors.push(headerResult.error);
+    if (!headerResult.valid && headerResult.error) {
+      errors.push(headerResult.error);
+    }
   }
 
   if (options.validateOrigin) {
     const originResult = validateOrigin(request, options.validateOrigin);
-    if (!originResult.valid && originResult.error) errors.push(originResult.error);
+    if (!originResult.valid && originResult.error) {
+      errors.push(originResult.error);
+    }
   }
 
   if (options.jsonSchema) {
@@ -424,5 +435,3 @@ export function validateRequestJsonBody(
       error: "Failed to read request body",
     }));
 }
-
-

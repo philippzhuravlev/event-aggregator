@@ -25,7 +25,7 @@ export {
   URL_DEFAULTS,
   API_TIMEOUT_MS,
   DEFAULT_PAGE_SIZE,
-} from "../config/index.js";
+} from "../config/index.ts";
 
 import {
   createCorsHeaders,
@@ -39,7 +39,7 @@ import {
   resolveOAuthCallbackUrl,
   resolveWebAppUrl,
   type EnvGetter,
-} from "./base.js";
+} from "./base.ts";
 
 const envGetter: EnvGetter = (key) => Deno.env.get(key);
 

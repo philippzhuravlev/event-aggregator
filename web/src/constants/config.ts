@@ -6,11 +6,11 @@
  * Environment variables must be prefixed with VITE_ to be accessible in the browser
  */
 
-import { createBrowserRuntimeConfig } from "@event-aggregator/shared/runtime/browser.js";
+import { createBrowserRuntimeConfig } from "@event-aggregator/shared/runtime/browser";
 import {
     API_TIMEOUT_MS,
     DEFAULT_PAGE_SIZE,
-} from "@event-aggregator/shared/config/index.js";
+} from "@event-aggregator/shared/config/index";
 
 const browserEnv =
   typeof import.meta !== "undefined" && import.meta?.env

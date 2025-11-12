@@ -7,6 +7,7 @@ import {
 import {
   createErrorResponse,
   createSuccessResponse,
+  extractBearerToken,
   getRateLimitExceededResponse,
   handleCORSPreflight,
   HTTP_STATUS,
@@ -132,19 +133,22 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const authResult = verifyBearerToken(authHeader, expectedToken);
-    if (!authResult.valid) {
+    const token = extractBearerToken(authHeader);
+    const isAuthorized =
+      typeof token === "string" && verifyBearerToken(token, expectedToken);
+
+    if (!isAuthorized) {
       logger.warn("Unauthorized sync-events request", {
-        error: authResult.error,
+        error: "Invalid or missing bearer token",
       });
       return createErrorResponse(
-        authResult.error || "Unauthorized",
+        "Unauthorized",
         HTTP_STATUS.UNAUTHORIZED,
       );
     }
 
     // Rate limiting check: 10 calls per day per token
-    const tokenId = authResult.token || "unknown";
+    const tokenId = token ?? "unknown";
     const isRateLimited = !syncRateLimiter.check(
       tokenId,
       1,

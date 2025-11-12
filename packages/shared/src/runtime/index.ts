@@ -1,6 +1,6 @@
-export * from "./base.js";
-export * from "./browser.js";
-export * as nodeRuntime from "./node.js";
-export * as denoRuntime from "./deno.js";
-export * as browserRuntime from "./browser.js";
+export * from "./base.ts";
+export * from "./browser.ts";
+export * as nodeRuntime from "./node.ts";
+export * as denoRuntime from "./deno.ts";
+export * as browserRuntime from "./browser.ts";
 

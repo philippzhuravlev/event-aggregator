@@ -1,13 +1,13 @@
 import {
   DEFAULT_ALLOWED_ORIGINS,
   URL_DEFAULTS,
-} from "../config/validation-config.js";
+} from "../config/validation-config.ts";
 import {
   EVENT_SYNC_DEFAULTS,
   EVENT_SYNC_SCHEDULE,
   TOKEN_REFRESH_DEFAULTS,
   TOKEN_REFRESH_SCHEDULE,
-} from "../config/functions-config.js";
+} from "../config/functions-config.ts";
 
 export type EnvGetter = (key: string) => string | undefined;
 

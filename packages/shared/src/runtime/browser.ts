@@ -1,5 +1,5 @@
-import { API_TIMEOUT_MS, DEFAULT_PAGE_SIZE } from "../config/index.js";
-import { stringToBoolean } from "./base.js";
+import { API_TIMEOUT_MS, DEFAULT_PAGE_SIZE } from "../config/index.ts";
+import { stringToBoolean } from "./base.ts";
 
 export interface BrowserEnvLike {
   MODE?: string;
@@ -7,6 +7,7 @@ export interface BrowserEnvLike {
   VITE_BACKEND_URL?: string;
   VITE_USE_SUPABASE?: string | boolean;
   VITE_USE_BACKEND_API?: string | boolean;
+  VITE_TOKEN_ALERT_EMAIL?: string;
 }
 
 export interface BrowserRuntimeConfig {
@@ -18,10 +19,13 @@ export interface BrowserRuntimeConfig {
   isProduction: boolean;
   apiTimeoutMs: number;
   defaultPageSize: number;
+  tokenAlertEmail: string;
+  alertEmailEnvKey: string;
 }
 
 const DEFAULT_BACKEND_URL = "/api";
 const DEFAULT_ENVIRONMENT = "development";
+const ALERT_EMAIL_ENV_KEY = "VITE_TOKEN_ALERT_EMAIL";
 
 export const createBrowserRuntimeConfig = (
   env: BrowserEnvLike,
@@ -43,6 +47,9 @@ export const createBrowserRuntimeConfig = (
     isProduction: nodeEnv === "production",
     apiTimeoutMs: API_TIMEOUT_MS,
     defaultPageSize: DEFAULT_PAGE_SIZE,
+    tokenAlertEmail: typeof env.VITE_TOKEN_ALERT_EMAIL === "string"
+      ? env.VITE_TOKEN_ALERT_EMAIL
+      : "",
+    alertEmailEnvKey: ALERT_EMAIL_ENV_KEY,
   };
 };
-

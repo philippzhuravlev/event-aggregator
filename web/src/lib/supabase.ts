@@ -15,11 +15,11 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY ||
 // Log initialization status (for debugging)
 if (!supabaseUrl || !supabaseKey) {
   console.error('Supabase configuration missing:', {
-    hasUrl: !!supabaseUrl,
-    hasKey: !!supabaseKey,
+    hasUrl: Boolean(supabaseUrl),
+    hasKey: Boolean(supabaseKey),
   });
-} else {
-  console.log('Supabase configured successfully');
+} else if (import.meta.env.DEV) {
+  console.info('Supabase configuration detected.');
 }
 
 // Initialize Supabase client (will fail gracefully if env vars are missing)

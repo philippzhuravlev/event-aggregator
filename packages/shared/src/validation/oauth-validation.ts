@@ -20,7 +20,22 @@ export function isAllowedOrigin(
   origin: string,
   allowedOrigins: readonly string[],
 ): boolean {
-  return allowedOrigins.includes(origin);
+  return allowedOrigins.some((allowedOrigin) => {
+    if (allowedOrigin.endsWith("/**")) {
+      const prefix = allowedOrigin.slice(0, -3);
+      return origin.startsWith(prefix);
+    }
+
+    if (allowedOrigin.includes("*")) {
+      const escaped = allowedOrigin
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$")
+        .replace(/\\\*/g, ".*");
+      const matcher = new RegExp(`^${escaped}$`);
+      return matcher.test(origin);
+    }
+
+    return allowedOrigin === origin;
+  });
 }
 
 export function validateOAuthState(

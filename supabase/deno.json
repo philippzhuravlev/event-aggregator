@@ -16,6 +16,7 @@
     "std/": "https://deno.land/std@0.208.0/",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
     "@event-aggregator/shared": "./packages/shared/dist/index.js",
+    "@event-aggregator/shared/runtime/browser": "./packages/shared/dist/runtime/browser.js",
     "@event-aggregator/shared/validation": "./packages/shared/dist/validation/index.js",
     "@event-aggregator/shared/runtime/": "./packages/shared/dist/runtime/",
     "@event-aggregator/shared/config/": "./packages/shared/dist/config/",

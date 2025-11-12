@@ -1,4 +1,4 @@
-export * from "./functions-config.js";
-export * from "./service-config.js";
-export * from "./validation-config.js";
+export * from "./functions-config.ts";
+export * from "./service-config.ts";
+export * from "./validation-config.ts";
 

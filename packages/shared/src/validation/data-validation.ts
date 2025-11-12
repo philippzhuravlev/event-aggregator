@@ -4,7 +4,7 @@
 import type {
   NumberValidationOptions,
   StringValidationOptions,
-} from "../types.js";
+} from "../types.ts";
 
 export interface UrlValidationOptions {
   allowProtocol?: string[];

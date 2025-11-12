@@ -1,6 +1,6 @@
-export * from "./config/index.js";
-export * from "./runtime/index.js";
-export * from "./validation/index.js";
-export * from "./routing.js";
-export * from "./types.js";
+export * from "./config/index.ts";
+export * from "./runtime/index.ts";
+export * from "./validation/index.ts";
+export * from "./routing.ts";
+export * from "./types.ts";
 
