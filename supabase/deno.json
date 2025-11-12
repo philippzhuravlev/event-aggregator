@@ -20,6 +20,8 @@
     "@event-aggregator/shared/validation": "./packages/shared/dist/validation/index.js",
     "@event-aggregator/shared/runtime/": "./packages/shared/dist/runtime/",
     "@event-aggregator/shared/config/": "./packages/shared/dist/config/",
-    "@event-aggregator/shared/validation/": "./packages/shared/dist/validation/"
+    "@event-aggregator/shared/validation/": "./packages/shared/dist/validation/",
+    "@event-aggregator/shared/services": "./packages/shared/dist/services/index.js",
+    "@event-aggregator/shared/services/": "./packages/shared/dist/services/"
   }
 }

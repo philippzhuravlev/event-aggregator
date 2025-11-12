@@ -73,6 +73,7 @@ export function getAllowedOrigins(currentOrigin?: string): string[] {
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:8080",
+    "https://event-aggregator-*.vercel.app",
     "https://event-aggregator-nine.vercel.app",
     WEB_APP_URL,
   ];

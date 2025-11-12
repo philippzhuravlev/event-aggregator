@@ -42,6 +42,16 @@
       "import": "./dist/esm/runtime/browser.js",
       "default": "./dist/esm/runtime/browser.js"
     },
+    "./services": {
+      "types": "./dist/esm/services/index.d.ts",
+      "import": "./dist/esm/services/index.js",
+      "require": "./dist/node/services/index.cjs"
+    },
+    "./services/*": {
+      "types": "./dist/esm/services/*.d.ts",
+      "import": "./dist/esm/services/*.js",
+      "require": "./dist/node/services/*.cjs"
+    },
     "./routing": {
       "types": "./dist/esm/routing.d.ts",
       "import": "./dist/esm/routing.js",

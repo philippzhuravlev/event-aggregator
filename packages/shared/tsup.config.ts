@@ -8,6 +8,8 @@ const entry = {
   "config/functions-config": "src/config/functions-config.ts",
   "config/service-config": "src/config/service-config.ts",
   "config/validation-config": "src/config/validation-config.ts",
+  "services/index": "src/services/index.ts",
+  "services/facebook-service": "src/services/facebook-service.ts",
   "runtime/index": "src/runtime/index.ts",
   "runtime/base": "src/runtime/base.ts",
   "runtime/node": "src/runtime/node.ts",
