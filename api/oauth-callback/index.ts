@@ -31,37 +31,7 @@ import { validateOAuthState } from "../_shared/validation";
 import { validateOAuthCallbackQuery } from "./schema";
 import type { VercelRequest, VercelResponse } from "../_shared/types";
 import { getAllowedOrigins } from "../_shared/utils/url-builder-util";
-
-/**
- * Normalize a Facebook event into the event_data JSONB structure
- */
-function normalizeEventData(
-  facebookEvent: FacebookEvent,
-): Record<string, unknown> {
-  const eventData: Record<string, unknown> = {
-    id: facebookEvent.id,
-    name: facebookEvent.name,
-    start_time: facebookEvent.start_time,
-  };
-
-  if (facebookEvent.description !== undefined) {
-    eventData.description = facebookEvent.description;
-  }
-  if (facebookEvent.end_time !== undefined) {
-    eventData.end_time = facebookEvent.end_time;
-  }
-  if (facebookEvent.place !== undefined) {
-    eventData.place = facebookEvent.place;
-  }
-  if (facebookEvent.cover?.source !== undefined) {
-    eventData.cover = {
-      source: facebookEvent.cover.source,
-      id: facebookEvent.cover.id,
-    };
-  }
-
-  return eventData;
-}
+import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer";
 
 /**
  * Main handler for OAuth callback requests
@@ -210,11 +180,14 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
 
           if (events.length > 0) {
             // Normalize and store events in database using the correct schema
-            const normalizedEvents = events.map((event: FacebookEvent) => ({
-              event_id: event.id,
-              page_id: parseInt(page.id, 10),
-              event_data: normalizeEventData(event),
-            }));
+            const normalizedEvents = events.map((event: FacebookEvent) => {
+              const normalized = normalizeEvent(event, page.id);
+              return {
+                event_id: normalized.event_id,
+                page_id: normalized.page_id,
+                event_data: normalized.event_data,
+              };
+            });
 
             const { error: eventsError } = await supabase
               .from("events")

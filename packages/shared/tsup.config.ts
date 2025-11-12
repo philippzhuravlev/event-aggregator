@@ -19,9 +19,16 @@ const entry = {
   "validation/api-response-validation": "src/validation/api-response-validation.ts",
   "validation/auth-validation": "src/validation/auth-validation.ts",
   "validation/data-validation": "src/validation/data-validation.ts",
+  "validation/input-validation": "src/validation/input-validation.ts",
   "validation/oauth-validation": "src/validation/oauth-validation.ts",
   "validation/rate-limit-validation": "src/validation/rate-limit-validation.ts",
   "validation/request-validation": "src/validation/request-validation.ts",
+  "logging/index": "src/logging/index.ts",
+  "logging/logger": "src/logging/logger.ts",
+  "utils/index": "src/utils/index.ts",
+  "utils/origin": "src/utils/origin.ts",
+  "utils/event-normalizer": "src/utils/event-normalizer.ts",
+  "utils/token-expiry": "src/utils/token-expiry.ts",
 };
 
 const sharedOptions = {

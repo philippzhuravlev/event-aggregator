@@ -6,74 +6,17 @@ import {
   SERVER_ERROR_RANGE,
 } from "../config/validation-config.ts";
 import { FACEBOOK as FACEBOOK_CONFIG } from "../config/service-config.ts";
-
-export interface FacebookErrorResponse {
-  error: {
-    message: string;
-    type: string;
-    code: number;
-    fbtrace_id: string;
-  };
-}
-
-export interface FacebookPlaceLocation {
-  city?: string;
-  country?: string;
-  latitude?: number;
-  longitude?: number;
-  state?: string;
-  street?: string;
-  zip?: string;
-}
-
-export interface FacebookPlace {
-  name: string;
-  location?: FacebookPlaceLocation;
-}
-
-export interface FacebookCover {
-  id: string;
-  source: string;
-  offset_x?: number;
-  offset_y?: number;
-}
-
-export interface FacebookEvent {
-  id: string;
-  name: string;
-  description?: string;
-  start_time: string;
-  end_time?: string;
-  place?: FacebookPlace;
-  cover?: FacebookCover;
-  event_times?: Array<{ id: string; start: string; end?: string }>;
-}
-
-export interface FacebookPagePictureData {
-  height: number;
-  is_silhouette: boolean;
-  url: string;
-  width: number;
-}
-
-export interface FacebookPage {
-  id: string;
-  name: string;
-  access_token?: string;
-  picture?: {
-    data: FacebookPagePictureData;
-  };
-}
-
-interface PaginatedPageResponse {
-  data?: FacebookPage[];
-  paging?: { next?: string | null };
-}
-
-interface PaginatedEventResponse {
-  data?: FacebookEvent[];
-  paging?: { next?: string | null };
-}
+import type {
+  FacebookCover,
+  FacebookErrorResponse,
+  FacebookEvent,
+  FacebookPage,
+  FacebookPagePictureData,
+  FacebookPlace,
+  FacebookPlaceLocation,
+  PaginatedEventResponse,
+  PaginatedPageResponse,
+} from "../types.ts";
 
 export interface FacebookServiceLogger {
   info?(message: string, metadata?: Record<string, unknown>): void;
@@ -410,4 +353,16 @@ export async function getAllRelevantEvents(
 
   return uniqueEvents;
 }
+
+export type {
+  FacebookCover,
+  FacebookErrorResponse,
+  FacebookEvent,
+  FacebookPage,
+  FacebookPagePictureData,
+  FacebookPlace,
+  FacebookPlaceLocation,
+  PaginatedEventResponse,
+  PaginatedPageResponse,
+} from "../types.ts";
 
