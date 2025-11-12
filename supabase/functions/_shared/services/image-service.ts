@@ -1,6 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "./logger-service.ts";
-import { FileMetadata, UploadOptions } from "../types.ts";
+import type { FileMetadata, UploadOptions } from "../types.ts";
 
 /**
  * ImageService manages file storage and retrieval via Supabase Storage

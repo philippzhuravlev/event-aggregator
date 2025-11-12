@@ -65,7 +65,7 @@ export default defineConfig([
   {
     ...sharedOptions,
     format: ["esm"],
-    dts: false,
+    dts: true,
     clean: true,
     sourcemap: false,
     outDir: "../../supabase/functions/packages/shared/dist",

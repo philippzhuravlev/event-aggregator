@@ -4,7 +4,8 @@ import * as sharedInputValidation from "../../packages/shared/dist/validation/in
 const { setInputValidationLogger } = sharedInputValidation;
 
 setInputValidationLogger({
-  warn: (message, metadata) => logger.warn(message, metadata),
+  warn: (message: string, metadata?: Record<string, unknown>) =>
+    logger.warn(message, metadata),
 });
 
 export * from "../../packages/shared/dist/validation/input-validation.js";

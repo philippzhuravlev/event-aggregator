@@ -1,4 +1,4 @@
-// @deno-types="../../packages/shared/src/utils/token-expiry.ts"
+// @deno-types="../../packages/shared/dist/utils/token-expiry.d.ts"
 export {
   calculateDaysUntilExpiry,
   calculateExpirationDate,

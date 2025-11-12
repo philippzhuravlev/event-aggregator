@@ -22,6 +22,7 @@
     "@event-aggregator/shared/config/": "./functions/packages/shared/dist/config/",
     "@event-aggregator/shared/validation/": "./functions/packages/shared/dist/validation/",
     "@event-aggregator/shared/services": "./functions/packages/shared/dist/services/index.js",
-    "@event-aggregator/shared/services/": "./functions/packages/shared/dist/services/"
+    "@event-aggregator/shared/services/": "./functions/packages/shared/dist/services/",
+    "@event-aggregator/shared/types": "./functions/packages/shared/dist/types.js"
   }
 }

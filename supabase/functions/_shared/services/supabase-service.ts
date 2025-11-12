@@ -1,6 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "./logger-service.ts";
-import { DatabasePage, NormalizedEvent } from "../types.ts";
+import type { DatabasePage, NormalizedEvent } from "../types.ts";
 import {
   calculateDaysUntilExpiry,
   isTokenExpiring,

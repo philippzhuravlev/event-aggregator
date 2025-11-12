@@ -9,5 +9,4 @@
 // The common thread here is that index files are always entry points
 
 export * from "../../packages/shared/dist/validation/index.js";
-export * from "./input-validation.ts";
 export { HTTP_STATUS, PAGINATION } from "../utils/constants-util.ts";

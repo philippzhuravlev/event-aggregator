@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { logger } from "../_shared/services/index.ts";
-import { GetEventsQuery } from "../_shared/types.ts";
+import type { GetEventsQuery } from "../_shared/types.ts";
 import { GetEventsResponse } from "./types.ts";
 import {
   createErrorResponse,
@@ -10,8 +10,8 @@ import {
   handleCORSPreflight,
   HTTP_STATUS,
   PAGINATION,
-  SlidingWindowRateLimiter,
 } from "../_shared/validation/index.ts";
+import { createSlidingWindowLimiter } from "../_shared/utils/limiter-util.ts";
 import { sanitizeSearchQuery } from "../_shared/utils/sanitizer-util.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
@@ -25,8 +25,11 @@ import { sanitizeSearchQuery } from "../_shared/utils/sanitizer-util.ts";
 // and might crash. And so, we split them up into e.g. 50 events per page, and send them that way
 
 // Rate limiter for public API: 100 requests per minute per IP
-const apiRateLimiter = new SlidingWindowRateLimiter();
-apiRateLimiter.initialize("get-events", 100, 60000);
+const apiRateLimiter = createSlidingWindowLimiter({
+  name: "get-events",
+  maxRequests: 100,
+  windowMs: 60_000,
+});
 
 /**
  * Validate and parse query parameters for get-events
@@ -273,7 +276,7 @@ async function handler(req: Request): Promise<Response> {
 
     // 2. Rate limiting check (100 requests per minute per IP)
     const clientIp = getClientIp(req);
-    const isLimited = !apiRateLimiter.check("get-events", clientIp);
+    const isLimited = !apiRateLimiter.check(clientIp);
 
     if (isLimited) {
       logger.warn(`Rate limit exceeded for IP: ${clientIp}`);

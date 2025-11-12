@@ -1,1 +1,1 @@
-export * from "../packages/shared/dist/types.js";
+export type * from "@event-aggregator/shared/types";

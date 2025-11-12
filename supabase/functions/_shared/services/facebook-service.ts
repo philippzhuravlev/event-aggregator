@@ -14,21 +14,21 @@ const {
 
 const supabaseLogger: FacebookServiceLogger = {
   info: (
-    message,
-    metadata,
+    message: string,
+    metadata?: Record<string, unknown>,
   ) => logger.info(message, metadata),
   warn: (
-    message,
-    metadata,
+    message: string,
+    metadata?: Record<string, unknown>,
   ) => logger.warn(message, metadata),
   error: (
-    message,
-    error,
-    metadata,
+    message: string,
+    error?: Error | null,
+    metadata?: Record<string, unknown>,
   ) => logger.error(message, error ?? null, metadata),
   debug: (
-    message,
-    metadata,
+    message: string,
+    metadata?: Record<string, unknown>,
   ) => logger.debug(message, metadata),
 };
 
@@ -43,6 +43,7 @@ export {
   setFacebookServiceLogger,
 };
 
+// @deno-types="../../../../packages/shared/src/services/facebook-service.ts"
 export type {
   FacebookCover,
   FacebookErrorResponse,

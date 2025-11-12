@@ -4,7 +4,7 @@
  */
 
 import { logger } from "../_shared/services/index.ts";
-import { SlidingWindowRateLimiter } from "../_shared/validation/index.ts";
+import { createSlidingWindowLimiter } from "../_shared/utils/limiter-util.ts";
 
 // this is one of many "helper", which are different from utils; 90% of the time,
 // helpers are for one file and thus specific for domain stuff/business logic (calculating,
@@ -18,8 +18,11 @@ import { SlidingWindowRateLimiter } from "../_shared/validation/index.ts";
 // doesn't belong in the main handler goes here
 
 // Rate limiter for webhooks (1 webhook per page per 1000ms)
-const webhookRateLimiter = new SlidingWindowRateLimiter();
-webhookRateLimiter.initialize("facebook-webhooks", 1, 1000);
+const webhookRateLimiter = createSlidingWindowLimiter({
+  name: "facebook-webhooks",
+  maxRequests: 1,
+  windowMs: 1_000,
+});
 
 
 
@@ -61,7 +64,7 @@ export function shouldProcessEventType(eventType: string): boolean {
  * @returns true if rate limited, false if should process
  */
 export function isWebhookRateLimited(pageId: string): boolean {
-  return !webhookRateLimiter.check("facebook-webhooks", pageId);
+  return !webhookRateLimiter.check(pageId);
 }
 
 /**
