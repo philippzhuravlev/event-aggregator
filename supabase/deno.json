@@ -2,19 +2,15 @@
   "compilerOptions": {
     "lib": ["deno.window", "deno.unstable"],
     "strict": true,
-    "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": {
-      "@shared/*": ["functions/_shared/*"],
-      "@event-aggregator/shared/*": ["./functions/packages/shared/dist/*"]
-    }
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": false
   },
   "tasks": {
     "test": "deno test --allow-all"
   },
   "imports": {
     "std/": "https://deno.land/std@0.208.0/",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@^2.81.1",
     "@event-aggregator/shared": "./functions/packages/shared/dist/index.js",
     "@event-aggregator/shared/runtime/browser": "./functions/packages/shared/dist/runtime/browser.js",
     "@event-aggregator/shared/validation": "./functions/packages/shared/dist/validation/index.js",
@@ -23,6 +19,8 @@
     "@event-aggregator/shared/validation/": "./functions/packages/shared/dist/validation/",
     "@event-aggregator/shared/services": "./functions/packages/shared/dist/services/index.js",
     "@event-aggregator/shared/services/": "./functions/packages/shared/dist/services/",
-    "@event-aggregator/shared/types": "./functions/packages/shared/dist/types.js"
+    "@event-aggregator/shared/types": "./functions/packages/shared/dist/types.js",
+    "@shared/": "./functions/_shared/",
+    "@shared-src/": "../packages/shared/src/"
   }
 }

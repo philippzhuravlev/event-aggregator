@@ -10,25 +10,25 @@ const entry = {
   "config/validation-config": "src/config/validation-config.ts",
   "services/index": "src/services/index.ts",
   "services/facebook-service": "src/services/facebook-service.ts",
+  "services/logger-service": "src/services/logger-service.ts",
   "runtime/index": "src/runtime/index.ts",
   "runtime/base": "src/runtime/base.ts",
   "runtime/node": "src/runtime/node.ts",
   "runtime/deno": "src/runtime/deno.ts",
   "runtime/browser": "src/runtime/browser.ts",
   "validation/index": "src/validation/index.ts",
-  "validation/api-response-validation": "src/validation/api-response-validation.ts",
+  "validation/api-response-validation":
+    "src/validation/api-response-validation.ts",
   "validation/auth-validation": "src/validation/auth-validation.ts",
   "validation/data-validation": "src/validation/data-validation.ts",
   "validation/input-validation": "src/validation/input-validation.ts",
   "validation/oauth-validation": "src/validation/oauth-validation.ts",
   "validation/rate-limit-validation": "src/validation/rate-limit-validation.ts",
   "validation/request-validation": "src/validation/request-validation.ts",
-  "logging/index": "src/logging/index.ts",
-  "logging/logger": "src/logging/logger.ts",
   "utils/index": "src/utils/index.ts",
-  "utils/origin": "src/utils/origin.ts",
-  "utils/event-normalizer": "src/utils/event-normalizer.ts",
-  "utils/token-expiry": "src/utils/token-expiry.ts",
+  "utils/origin": "src/utils/origin-util.ts",
+  "utils/event-normalizer": "src/utils/event-normalizer-util.ts",
+  "utils/token-expiry": "src/utils/token-expiry-util.ts",
   "utils/sanitizer-util": "src/utils/sanitizer-util.ts",
 };
 
@@ -41,7 +41,7 @@ const sharedOptions = {
   treeshake: false,
   target: "es2020",
   keepNames: true,
-  outExtension: ({ format }) => ({
+  outExtension: ({ format }: { format: string }) => ({
     js: format === "cjs" ? ".cjs" : ".js",
   }),
 };

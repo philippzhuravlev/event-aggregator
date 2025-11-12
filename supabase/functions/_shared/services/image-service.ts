@@ -1,4 +1,4 @@
-import { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "./logger-service.ts";
 import type { FileMetadata, UploadOptions } from "../types.ts";
 

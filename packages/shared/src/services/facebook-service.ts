@@ -203,7 +203,9 @@ export async function exchangeCodeForToken(
   });
 
   const data = await withRetry<{ access_token: string }>(async () => {
-    return await fetch(`${FACEBOOK_CONFIG.BASE_URL}/oauth/access_token?${params}`);
+    return await fetch(
+      `${FACEBOOK_CONFIG.BASE_URL}/oauth/access_token?${params}`,
+    );
   });
 
   if (!data.access_token) {
@@ -227,7 +229,9 @@ export async function exchangeForLongLivedToken(
   });
 
   const data = await withRetry<{ access_token: string }>(async () => {
-    return await fetch(`${FACEBOOK_CONFIG.BASE_URL}/oauth/access_token?${params}`);
+    return await fetch(
+      `${FACEBOOK_CONFIG.BASE_URL}/oauth/access_token?${params}`,
+    );
   });
 
   if (!data.access_token) {
@@ -251,9 +255,13 @@ export async function getUserPages(
       limit: String(FACEBOOK_CONFIG.PAGINATION_LIMIT),
     });
 
-    const currentUrl = nextUrl.includes("?") ? nextUrl : `${nextUrl}?${params}`;
+    const currentUrl: string = nextUrl.includes("?")
+      ? nextUrl
+      : `${nextUrl}?${params}`;
 
-    const response = await withRetry<PaginatedPageResponse>(async () => {
+    const response: PaginatedPageResponse = await withRetry<
+      PaginatedPageResponse
+    >(async () => {
       return await fetch(currentUrl);
     });
 
@@ -283,10 +291,14 @@ export async function getPageEvents(
       limit: String(FACEBOOK_CONFIG.PAGINATION_LIMIT),
     });
 
-    const currentUrl = nextUrl.includes("?") ? nextUrl : `${nextUrl}?${params}`;
+    const currentUrl: string = nextUrl.includes("?")
+      ? nextUrl
+      : `${nextUrl}?${params}`;
 
     try {
-      const response = await withRetry<PaginatedEventResponse>(async () => {
+      const response: PaginatedEventResponse = await withRetry<
+        PaginatedEventResponse
+      >(async () => {
         return await fetch(currentUrl);
       });
 
@@ -365,4 +377,3 @@ export type {
   PaginatedEventResponse,
   PaginatedPageResponse,
 } from "../types.ts";
-

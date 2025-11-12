@@ -5,13 +5,13 @@ import {
   logger,
 } from "../_shared/services/index.ts";
 import {
+  TokenBucketRateLimiter,
   createErrorResponse,
   createSuccessResponse,
   extractBearerToken,
   getRateLimitExceededResponse,
   handleCORSPreflight,
   HTTP_STATUS,
-  TokenBucketRateLimiter,
   verifyBearerToken,
 } from "../_shared/validation/index.ts";
 import { RATE_LIMITS } from "../_shared/utils/constants-util.ts";
@@ -33,6 +33,10 @@ import { syncSinglePage } from "./helpers.ts";
 // Rate limiter for sync endpoint: 10 calls per day per token
 // See RATE_LIMITS.SYNC_ENDPOINT for configuration
 const syncRateLimiter = new TokenBucketRateLimiter();
+syncRateLimiter.configure(
+  RATE_LIMITS.SYNC_ENDPOINT.capacity,
+  RATE_LIMITS.SYNC_ENDPOINT.refillRate,
+);
 
 /**
  * Sync events, simple as. We have a manual and cron version
@@ -149,12 +153,7 @@ Deno.serve(async (req: Request) => {
 
     // Rate limiting check: 10 calls per day per token
     const tokenId = token ?? "unknown";
-    const isRateLimited = !syncRateLimiter.check(
-      tokenId,
-      1,
-      RATE_LIMITS.SYNC_ENDPOINT.capacity,
-      RATE_LIMITS.SYNC_ENDPOINT.windowMs,
-    );
+    const isRateLimited = !syncRateLimiter.check(tokenId);
 
     if (isRateLimited) {
       logger.warn(`Sync endpoint rate limit exceeded for token: ${tokenId}`);

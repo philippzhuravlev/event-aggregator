@@ -1,1 +1,1 @@
-export type * from "@event-aggregator/shared/types";
+export type * from "../../../packages/shared/src/types.ts";

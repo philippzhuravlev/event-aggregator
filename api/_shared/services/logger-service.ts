@@ -1,5 +1,5 @@
 import process from "node:process";
-import { createStructuredLogger } from "@event-aggregator/shared/logging";
+import { createStructuredLogger } from "@event-aggregator/shared/services/logger-service";
 import type {
   ErrorMetadata,
   LogMetadata,

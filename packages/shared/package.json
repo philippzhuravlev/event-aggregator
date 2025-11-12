@@ -52,16 +52,6 @@
       "import": "./dist/esm/services/*.js",
       "require": "./dist/node/services/*.cjs"
     },
-    "./logging": {
-      "types": "./dist/esm/logging/index.d.ts",
-      "import": "./dist/esm/logging/index.js",
-      "require": "./dist/node/logging/index.cjs"
-    },
-    "./logging/*": {
-      "types": "./dist/esm/logging/*.d.ts",
-      "import": "./dist/esm/logging/*.js",
-      "require": "./dist/node/logging/*.cjs"
-    },
     "./routing": {
       "types": "./dist/esm/routing.d.ts",
       "import": "./dist/esm/routing.js",

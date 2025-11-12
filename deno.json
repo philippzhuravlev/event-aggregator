@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "lib": ["deno.window", "deno.unstable"],
+    "strict": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": false
+  },
+  "imports": {
+    "std/": "https://deno.land/std@0.208.0/",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
+    "@event-aggregator/shared": "./supabase/functions/packages/shared/dist/index.js",
+    "@event-aggregator/shared/runtime/browser": "./supabase/functions/packages/shared/dist/runtime/browser.js",
+    "@event-aggregator/shared/validation": "./supabase/functions/packages/shared/dist/validation/index.js",
+    "@event-aggregator/shared/runtime/": "./supabase/functions/packages/shared/dist/runtime/",
+    "@event-aggregator/shared/config/": "./supabase/functions/packages/shared/dist/config/",
+    "@event-aggregator/shared/validation/": "./supabase/functions/packages/shared/dist/validation/",
+    "@event-aggregator/shared/services": "./supabase/functions/packages/shared/dist/services/index.js",
+    "@event-aggregator/shared/services/": "./supabase/functions/packages/shared/dist/services/",
+    "@event-aggregator/shared/types": "./supabase/functions/packages/shared/dist/types.js",
+    "@shared/": "./supabase/functions/_shared/",
+    "@shared-src/": "./packages/shared/src/"
+  }
+}
+
