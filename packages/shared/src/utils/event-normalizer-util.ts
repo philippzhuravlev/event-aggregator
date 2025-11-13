@@ -12,6 +12,14 @@ export function normalizeEvent(
   pageId: string,
   coverImageUrl: string | null = null,
 ): NormalizedEvent {
+  const numericPageId = Number.parseInt(pageId, 10);
+
+  if (Number.isNaN(numericPageId)) {
+    throw new Error(
+      `[normalizeEvent] Could not parse pageId "${pageId}" for event ${facebookEvent.id}`,
+    );
+  }
+
   const finalCoverUrl = coverImageUrl ??
     facebookEvent.cover?.source ??
     undefined;
@@ -42,7 +50,7 @@ export function normalizeEvent(
   }
 
   return {
-    page_id: parseInt(pageId, 10),
+    page_id: numericPageId,
     event_id: facebookEvent.id,
     event_data: eventData,
   };

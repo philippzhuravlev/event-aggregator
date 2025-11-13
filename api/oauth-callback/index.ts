@@ -28,6 +28,7 @@ import {
 } from "@event-aggregator/shared/services/facebook-service";
 import type {
   FacebookEvent,
+  NormalizedEvent,
   VercelRequest,
   VercelResponse,
 } from "@event-aggregator/shared/types";
@@ -283,14 +284,31 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
 
           if (events.length > 0) {
             // Normalize and store events in database using the correct schema
-            const normalizedEvents = events.map((event: FacebookEvent) => {
-              const normalized = normalizeEvent(event, page.id);
-              return {
-                event_id: normalized.event_id,
-                page_id: normalized.page_id,
-                event_data: normalized.event_data,
-              };
-            });
+            const normalizedEvents = events.reduce<
+              Array<{
+                event_id: string;
+                page_id: number;
+                event_data: NormalizedEvent["event_data"];
+              }>
+            >((acc, event: FacebookEvent) => {
+              try {
+                const normalized = normalizeEvent(event, page.id);
+                acc.push({
+                  event_id: normalized.event_id,
+                  page_id: normalized.page_id,
+                  event_data: normalized.event_data,
+                });
+              } catch (normalizeError) {
+                logEvent("warn", "Skipping event due to invalid page id", {
+                  pageId: page.id,
+                  eventId: event.id,
+                  error: normalizeError instanceof Error
+                    ? normalizeError.message
+                    : normalizeError,
+                });
+              }
+              return acc;
+            }, []);
 
             const { error: eventsError } = await supabase
               .from("events")
