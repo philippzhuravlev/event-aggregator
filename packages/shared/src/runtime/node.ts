@@ -30,6 +30,7 @@ import {
   resolveEnvironmentFlags,
   resolveOAuthCallbackUrl,
   resolveWebAppUrl,
+  createRuntimeOriginUtilities,
   type EnvGetter,
 } from "./base.ts";
 
@@ -63,4 +64,9 @@ const ENVIRONMENT_FLAGS = resolveEnvironmentFlags(envGetter);
 export const IS_PRODUCTION = ENVIRONMENT_FLAGS.isProduction;
 export const IS_DEVELOPMENT = ENVIRONMENT_FLAGS.isDevelopment;
 export const IS_TESTING = ENVIRONMENT_FLAGS.isTesting;
+
+const originUtilities = createRuntimeOriginUtilities(envGetter);
+
+export const isAllowedOrigin = originUtilities.isAllowedOrigin;
+export const getAllowedOrigins = originUtilities.getAllowedOrigins;
 

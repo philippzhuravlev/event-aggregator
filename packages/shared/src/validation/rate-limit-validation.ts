@@ -5,6 +5,7 @@ import { createBaseCorsHeaders, createCorsHeaders } from "../runtime/base.ts";
 import type {
   BruteForceEntry,
   SlidingWindowConfig,
+  SlidingWindowStatus,
   TokenBucketState,
 } from "../types.ts";
 
@@ -27,6 +28,17 @@ export function setRateLimitLogger(logger: RateLimitLogger): void {
     debug: logger.debug ?? noop,
     warn: logger.warn ?? noop,
   };
+}
+
+export interface SlidingWindowLimiterConfig extends SlidingWindowConfig {
+  name: string;
+}
+
+export interface SlidingWindowLimiter {
+  check(key: string): boolean;
+  getStatus(key: string): SlidingWindowStatus;
+  reset(key: string): void;
+  destroy(): void;
 }
 
 interface SlidingWindowBucket {
@@ -152,6 +164,20 @@ export class SlidingWindowRateLimiter {
       }
     }
   }
+}
+
+export function createSlidingWindowLimiter(
+  config: SlidingWindowLimiterConfig,
+): SlidingWindowLimiter {
+  const limiter = new SlidingWindowRateLimiter();
+  limiter.initialize(config.name, config.maxRequests, config.windowMs);
+
+  return {
+    check: (key: string) => limiter.check(config.name, key),
+    getStatus: (key: string) => limiter.getStatus(config.name, key),
+    reset: (key: string) => limiter.reset(config.name, key),
+    destroy: () => limiter.destroy(),
+  };
 }
 
 export class TokenBucketRateLimiter {

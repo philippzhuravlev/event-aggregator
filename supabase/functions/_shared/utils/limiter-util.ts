@@ -1,36 +1,13 @@
-import { SlidingWindowRateLimiter } from "../validation/index.ts";
+/**
+ * Rate limiter helpers are re-exported from the shared package so that both
+ * Supabase edge functions and Node runtimes use the same implementation.
+ */
+// @deno-types="../../../../packages/shared/src/validation/rate-limit-validation.ts"
+export {
+  createSlidingWindowLimiter,
+} from "../../packages/shared/dist/validation/index.js";
 
-export interface SlidingWindowLimiter {
-  check(key: string): boolean;
-  getStatus(
-    key: string,
-  ): {
-    used: number;
-    limit: number;
-    remaining: number;
-    resetAt: number;
-  };
-  reset(key: string): void;
-  destroy(): void;
-}
-
-export interface SlidingWindowLimiterConfig {
-  name: string;
-  maxRequests: number;
-  windowMs: number;
-}
-
-export function createSlidingWindowLimiter(
-  config: SlidingWindowLimiterConfig,
-): SlidingWindowLimiter {
-  const limiter = new SlidingWindowRateLimiter();
-  limiter.initialize(config.name, config.maxRequests, config.windowMs);
-
-  return {
-    check: (key: string) => limiter.check(config.name, key),
-    getStatus: (key: string) => limiter.getStatus(config.name, key),
-    reset: (key: string) => limiter.reset(config.name, key),
-    destroy: () => limiter.destroy(),
-  };
-}
-
+export type {
+  SlidingWindowLimiter,
+  SlidingWindowLimiterConfig,
+} from "../../../../packages/shared/src/validation/rate-limit-validation.ts";

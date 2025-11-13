@@ -1,10 +1,9 @@
-import {
-  createAllowedOriginChecker,
-} from "../../packages/shared/dist/utils/origin.js";
-
-const WEB_APP_URL = Deno.env.get("WEB_APP_URL") ?? "http://localhost:3000";
-
-export const isAllowedOrigin = createAllowedOriginChecker({
-  webAppUrl: WEB_APP_URL,
-  knownHostnames: ["event-aggregator-nine.vercel.app"],
-});
+/**
+ * Origin utilities are re-exported from the shared runtime so both Deno and
+ * Node environments rely on the same configuration logic.
+ */
+// @deno-types="../../packages/shared/src/runtime/deno.ts"
+export {
+  getAllowedOrigins,
+  isAllowedOrigin,
+} from "../../packages/shared/dist/runtime/deno.js";

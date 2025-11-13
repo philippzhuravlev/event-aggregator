@@ -8,6 +8,11 @@ import {
   TOKEN_REFRESH_DEFAULTS,
   TOKEN_REFRESH_SCHEDULE,
 } from "../config/functions-config.ts";
+import {
+  createOriginUtilities,
+  type OriginUtilities,
+  type OriginUtilitiesOptions,
+} from "../utils/url-builder-util.ts";
 
 export type EnvGetter = (key: string) => string | undefined;
 
@@ -36,6 +41,12 @@ export interface EnvironmentFlagOptions {
 export interface WebhookOptions {
   verifyTokenEnvKey?: string;
   defaultVerifyToken?: string;
+}
+
+export interface RuntimeOriginUtilitiesOptions
+  extends Partial<OriginUtilitiesOptions> {
+  webAppUrlEnvKey?: string;
+  vercelUrlEnvKey?: string;
 }
 
 export const stringToBoolean = (value: unknown): boolean => {
@@ -187,4 +198,32 @@ export const createWebhookConfig = (
     MODE_PARAM: "hub.mode",
     MODE_SUBSCRIBE: "subscribe",
   } as const;
+};
+
+export const createRuntimeOriginUtilities = (
+  getEnv: EnvGetter,
+  options: RuntimeOriginUtilitiesOptions = {},
+): OriginUtilities => {
+  const {
+    webAppUrlEnvKey = "WEB_APP_URL",
+    vercelUrlEnvKey = "VERCEL_URL",
+    ...originOptions
+  } = options;
+
+  const resolvedWebAppUrl = originOptions.webAppUrl ??
+    resolveEnvValue(getEnv, webAppUrlEnvKey, URL_DEFAULTS.WEB_APP) ??
+    URL_DEFAULTS.WEB_APP;
+
+  const resolvedVercelUrl = Object.prototype.hasOwnProperty.call(
+      originOptions,
+      "vercelUrl",
+    )
+    ? originOptions.vercelUrl
+    : resolveEnvValue(getEnv, vercelUrlEnvKey);
+
+  return createOriginUtilities({
+    ...originOptions,
+    webAppUrl: resolvedWebAppUrl,
+    vercelUrl: resolvedVercelUrl,
+  });
 };

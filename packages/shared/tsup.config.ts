@@ -30,6 +30,7 @@ const entry = {
   "utils/event-normalizer": "src/utils/event-normalizer-util.ts",
   "utils/token-expiry": "src/utils/token-expiry-util.ts",
   "utils/sanitizer-util": "src/utils/sanitizer-util.ts",
+  "utils/url-builder": "src/utils/url-builder-util.ts",
 };
 
 const sharedOptions = {
