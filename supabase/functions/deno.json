@@ -5,9 +5,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": false
   },
-  "imports": {
-    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
-    "@shared/": "./_shared/"
-  }
+  "importMap": "./import_map.json"
 }
+
 

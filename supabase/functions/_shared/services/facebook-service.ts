@@ -1,6 +1,6 @@
 import { logger } from "./logger-service.ts";
-import type { FacebookServiceLogger } from "@shared-src/services/facebook-service.ts";
-// @deno-types="@shared-src/services/facebook-service.ts"
+import type { FacebookServiceLogger } from "../../../../packages/shared/src/services/facebook-service.ts";
+// @deno-types="../../../../packages/shared/src/services/facebook-service.ts"
 import * as facebookService from "../../packages/shared/dist/services/index.js";
 
 const {
@@ -43,7 +43,6 @@ export {
   setFacebookServiceLogger,
 };
 
-// @deno-types="@shared-src/services/facebook-service.ts"
 export type {
   FacebookCover,
   FacebookErrorResponse,
@@ -53,4 +52,4 @@ export type {
   FacebookPlace,
   FacebookPlaceLocation,
   FacebookServiceLogger,
-} from "@shared-src/services/facebook-service.ts";
+} from "../../../../packages/shared/src/services/facebook-service.ts";

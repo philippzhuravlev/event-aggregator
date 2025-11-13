@@ -5,13 +5,13 @@ import {
   logger,
 } from "../_shared/services/index.ts";
 import {
-  TokenBucketRateLimiter,
   createErrorResponse,
   createSuccessResponse,
   extractBearerToken,
   getRateLimitExceededResponse,
   handleCORSPreflight,
   HTTP_STATUS,
+  TokenBucketRateLimiter,
   verifyBearerToken,
 } from "../_shared/validation/index.ts";
 import { RATE_LIMITS } from "../_shared/utils/constants-util.ts";
@@ -138,8 +138,8 @@ Deno.serve(async (req: Request) => {
     }
 
     const token = extractBearerToken(authHeader);
-    const isAuthorized =
-      typeof token === "string" && verifyBearerToken(token, expectedToken);
+    const isAuthorized = typeof token === "string" &&
+      verifyBearerToken(token, expectedToken);
 
     if (!isAuthorized) {
       logger.warn("Unauthorized sync-events request", {

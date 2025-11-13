@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
+    "@shared/": "./_shared/",
+    "@shared-src/": "../../packages/shared/src/"
+  }
+}
+
+
