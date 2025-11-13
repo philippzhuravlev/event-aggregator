@@ -1,13 +1,14 @@
 import { logger } from "./logger-service.ts";
-import type { FacebookServiceLogger } from "../../../../packages/shared/src/services/facebook-service.ts";
+import type { FacebookServiceLogger } from "@event-aggregator/shared/src/services/facebook-service.ts";
 // @deno-types="../../../../packages/shared/src/services/facebook-service.ts"
-import * as facebookService from "../../packages/shared/dist/services/index.js";
+import * as facebookService from "@event-aggregator/shared/services/index.js";
 
 const {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
   getAllRelevantEvents,
   getPageEvents,
+  getEventDetails,
   getUserPages,
   setFacebookServiceLogger,
 } = facebookService;
@@ -39,6 +40,7 @@ export {
   exchangeForLongLivedToken,
   getAllRelevantEvents,
   getPageEvents,
+  getEventDetails,
   getUserPages,
   setFacebookServiceLogger,
 };
@@ -52,4 +54,4 @@ export type {
   FacebookPlace,
   FacebookPlaceLocation,
   FacebookServiceLogger,
-} from "../../../../packages/shared/src/services/facebook-service.ts";
+} from "@event-aggregator/shared/src/services/facebook-service.ts";

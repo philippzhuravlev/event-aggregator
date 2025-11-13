@@ -25,13 +25,41 @@ import {
   exchangeForLongLivedToken,
   getAllRelevantEvents,
   getUserPages,
-} from "../_shared/services/facebook-service";
-import type { FacebookEvent } from "../_shared/types";
-import { validateOAuthState } from "../_shared/validation";
+} from "@event-aggregator/shared/services/facebook-service";
+import type {
+  FacebookEvent,
+  VercelRequest,
+  VercelResponse,
+} from "@event-aggregator/shared/types";
+import { validateOAuthState } from "@event-aggregator/shared/validation";
 import { validateOAuthCallbackQuery } from "./schema";
-import type { VercelRequest, VercelResponse } from "../_shared/types";
-import { getAllowedOrigins } from "../_shared/utils/url-builder-util";
+import { getAllowedOrigins } from "@event-aggregator/shared/runtime/node";
 import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer";
+
+function buildRedirectUrl(
+  stateValue: string | null,
+  allowedOrigins: readonly string[],
+  params: Record<string, string>,
+): string | null {
+  if (!stateValue) {
+    return null;
+  }
+
+  const stateValidation = validateOAuthState(stateValue, allowedOrigins);
+  if (!stateValidation.valid) {
+    return null;
+  }
+
+  try {
+    const redirectUrl = new URL(stateValue);
+    for (const [key, value] of Object.entries(params)) {
+      redirectUrl.searchParams.set(key, value);
+    }
+    return redirectUrl.toString();
+  } catch (_error) {
+    return null;
+  }
+}
 
 /**
  * Main handler for OAuth callback requests
@@ -54,13 +82,14 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     return;
   }
 
+  const host = req.headers.host || process.env.VERCEL_URL || "localhost";
+  const protocol = process.env.NODE_ENV === "development"
+    ? "http://"
+    : "https://";
+  const requestOrigin = `${protocol}${host}`;
+  const allowedOrigins = getAllowedOrigins(requestOrigin);
+
   try {
-    // Get the host from request headers or use the VERCEL_URL environment variable
-    const host = req.headers.host || process.env.VERCEL_URL || "localhost";
-    const protocol = process.env.NODE_ENV === "development"
-      ? "http://"
-      : "https://";
-    const requestOrigin = `${protocol}${host}`;
     const url = new URL(`${requestOrigin}${req.url}`);
 
     // Validate query parameters
@@ -69,9 +98,14 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
       // If error param is present, it's from Facebook - redirect back to frontend with error
       const errorParam = url.searchParams.get("error");
       const stateParam = url.searchParams.get("state");
-      if (errorParam && stateParam) {
-        res.redirect(`${stateParam}?error=${encodeURIComponent(errorParam)}`);
-        return;
+      if (errorParam) {
+        const redirectUrl = buildRedirectUrl(stateParam, allowedOrigins, {
+          error: errorParam,
+        });
+        if (redirectUrl) {
+          res.redirect(redirectUrl);
+          return;
+        }
       }
       // Otherwise return validation error as JSON
       res.status(400).json({
@@ -83,18 +117,25 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     const { code, state } = validation.data!;
 
     // Validate state parameter (CSRF protection) using dynamic allowed origins
-    const allowedOrigins = getAllowedOrigins(requestOrigin);
     const stateValidation = validateOAuthState(state, allowedOrigins);
     if (!stateValidation.valid) {
-      res.redirect(
-        `${state}?error=${
-          encodeURIComponent(stateValidation.error || "Invalid state")
-        }`,
-      );
+      const redirectUrl = buildRedirectUrl(state, allowedOrigins, {
+        error: stateValidation.error || "Invalid state",
+      });
+      if (redirectUrl) {
+        res.redirect(redirectUrl);
+        return;
+      }
+
+      res.status(400).json({
+        error: stateValidation.error || "Invalid state",
+      });
       return;
     }
 
     const frontendOrigin = stateValidation.origin!;
+    res.setHeader("Access-Control-Allow-Origin", frontendOrigin);
+    res.setHeader("Vary", "Origin");
 
     // Get environment variables directly from process.env (Vercel injects them)
     const facebookAppId = process.env.FACEBOOK_APP_ID;
@@ -131,13 +172,25 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     const pages = await getUserPages(longLivedToken);
 
     if (pages.length === 0) {
-      res.redirect(
-        `${frontendOrigin}?error=${
-          encodeURIComponent(
+      const redirectUrl = buildRedirectUrl(
+        state,
+        allowedOrigins,
+        {
+          error:
             "No Facebook pages found. Please make sure you have admin access to at least one page.",
-          )
-        }`,
+        },
       );
+      if (redirectUrl) {
+        res.redirect(redirectUrl);
+      } else {
+        res.redirect(
+          `${frontendOrigin}?error=${
+            encodeURIComponent(
+              "No Facebook pages found. Please make sure you have admin access to at least one page.",
+            )
+          }`,
+        );
+      }
       return;
     }
 
@@ -145,7 +198,9 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     let pagesStored = 0;
+    let pagesFailed = 0;
     let eventsAdded = 0;
+    let eventSyncFailures = 0;
 
     for (const page of pages) {
       try {
@@ -169,6 +224,11 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
         );
 
         if (storeError) {
+          console.error("Failed to store page token in Supabase", {
+            pageId: page.id,
+            error: storeError?.message ?? storeError,
+          });
+          pagesFailed++;
           continue;
         }
 
@@ -194,37 +254,61 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
               .upsert(normalizedEvents);
 
             if (eventsError) {
-              // Silent fail
+              console.error("Failed to upsert events in Supabase", {
+                pageId: page.id,
+                error: eventsError.message,
+              });
+              eventSyncFailures += events.length;
             } else {
               eventsAdded += events.length;
             }
           }
         } catch (eventError) {
-          console.error(`Error syncing events for page ${page.id}:`, eventError);
+          console.error("Error syncing events for page", {
+            pageId: page.id,
+            error: eventError instanceof Error ? eventError.message : eventError,
+          });
+          eventSyncFailures++;
         }
       } catch (pageError) {
-        // Continue with next page
+        pagesFailed++;
+        console.error("Unhandled error processing page", {
+          pageId: page.id,
+          error: pageError instanceof Error ? pageError.message : pageError,
+        });
       }
     }
 
     // Redirect back to frontend with success
-    res.redirect(
-      `${frontendOrigin}?success=true&pages=${pagesStored}&events=${eventsAdded}`,
-    );
+    const redirectParams: Record<string, string> = {
+      success: "true",
+      pages: String(pagesStored),
+      events: String(eventsAdded),
+    };
+    if (pagesFailed > 0) {
+      redirectParams.pagesFailed = String(pagesFailed);
+    }
+    if (eventSyncFailures > 0) {
+      redirectParams.eventErrors = String(eventSyncFailures);
+    }
+
+    const successRedirectUrl = buildRedirectUrl(state, allowedOrigins, redirectParams) ??
+      `${frontendOrigin}?success=true&pages=${pagesStored}&events=${eventsAdded}`;
+
+    res.redirect(successRedirectUrl);
   } catch (error) {
     // Log error for debugging (in Vercel, this goes to function logs)
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
 
     // Try to redirect to frontend with error if we have the URL
     try {
-      const host = req.headers.host || process.env.VERCEL_URL || "localhost";
-      const protocol = process.env.NODE_ENV === "development"
-        ? "http://"
-        : "https://";
-      const url = new URL(`${protocol}${host}${req.url}`);
+      const url = new URL(`${requestOrigin}${req.url}`);
       const stateParam = url.searchParams.get("state");
-      if (stateParam) {
-        res.redirect(`${stateParam}?error=${encodeURIComponent(errorMsg)}`);
+      const redirectUrl = buildRedirectUrl(stateParam, allowedOrigins, {
+        error: errorMsg,
+      });
+      if (redirectUrl) {
+        res.redirect(redirectUrl);
         return;
       }
     } catch (_urlError) {

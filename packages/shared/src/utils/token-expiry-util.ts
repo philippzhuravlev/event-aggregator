@@ -9,7 +9,8 @@ export function calculateDaysUntilExpiry(
   expiresAt: Date,
   now: Date = new Date(),
 ): number {
-  return Math.round((expiresAt.getTime() - now.getTime()) / MS_PER_DAY);
+  const diffInDays = (expiresAt.getTime() - now.getTime()) / MS_PER_DAY;
+  return Math.ceil(diffInDays);
 }
 
 export function isTokenExpiring(

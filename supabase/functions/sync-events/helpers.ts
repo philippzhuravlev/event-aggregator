@@ -1,16 +1,13 @@
 import {
   checkTokenExpiry,
-  getAllRelevantEvents,
-  getPageToken,
-  logger,
   markTokenExpired,
-} from "../_shared/services/index.ts";
-import {
-  EVENT_SYNC,
-  normalizeEvent,
-  TOKEN_REFRESH,
-} from "../_shared/utils/index.ts";
-import { DatabasePage } from "../_shared/types.ts";
+} from "../_shared/services/supabase-service.ts";
+import { getAllRelevantEvents } from "../_shared/services/facebook-service.ts";
+import { getPageToken } from "../_shared/services/vault-service.ts";
+import { logger } from "../_shared/services/logger-service.ts";
+import { EVENT_SYNC, TOKEN_REFRESH } from "@event-aggregator/shared/runtime/deno.js";
+import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer.js";
+import type { DatabasePage } from "@event-aggregator/shared/types.ts";
 import { ExpiringToken, PageSyncResult } from "./types.ts";
 
 // this is one of many "helper", which are different from utils; 90% of the time,
@@ -119,7 +116,7 @@ export async function syncSinglePage(
       // Extract cover image URL if available
       // Note: For production, pass the Supabase client to this function to enable
       // downloading and storing images in Supabase Storage instead of using Facebook URLs
-      let coverImageUrl: string | null = null;
+      let coverImageUrl: string | undefined;
 
       if (event.cover && event.cover.source) {
         logger.debug("Event has cover image", {
@@ -133,7 +130,7 @@ export async function syncSinglePage(
       const normalized = normalizeEvent(
         event,
         String(page.page_id),
-        coverImageUrl,
+        (coverImageUrl ?? null) as null | undefined,
       );
       pageEventData.push(normalized);
     }

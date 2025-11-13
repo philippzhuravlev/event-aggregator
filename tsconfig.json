@@ -19,7 +19,6 @@
     "baseUrl": ".",
     "paths": {
       "@api/*": ["api/*"],
-      "@shared/*": ["api/_shared/*"],
       "@event-aggregator/shared/*": ["packages/shared/src/*"]
     }
   },

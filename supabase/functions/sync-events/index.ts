@@ -1,20 +1,20 @@
 import { createClient } from "@supabase/supabase-js";
-import {
-  batchWriteEvents,
-  getActivePages,
-  logger,
-} from "../_shared/services/index.ts";
+import { batchWriteEvents, getActivePages } from "../_shared/services/supabase-service.ts";
+import { logger } from "../_shared/services/logger-service.ts";
 import {
   createErrorResponse,
   createSuccessResponse,
   extractBearerToken,
   getRateLimitExceededResponse,
   handleCORSPreflight,
-  HTTP_STATUS,
   TokenBucketRateLimiter,
   verifyBearerToken,
-} from "../_shared/validation/index.ts";
-import { RATE_LIMITS } from "../_shared/utils/constants-util.ts";
+} from "@event-aggregator/shared/validation/index.js";
+import { HTTP_STATUS, RATE_LIMITS } from "@event-aggregator/shared/runtime/deno.js";
+import type {
+  ExpiringToken,
+  SynchronizedEvent,
+} from "./types.ts";
 import { SyncResult } from "./types.ts";
 import { syncSinglePage } from "./helpers.ts";
 
@@ -61,10 +61,8 @@ async function syncAllPageEvents(
   }
 
   let totalEvents = 0;
-  // deno-lint-ignore no-explicit-any
-  const eventsToSync: any[] = [];
-  // deno-lint-ignore no-explicit-any
-  const expiringTokens: any[] = [];
+  const eventsToSync: SynchronizedEvent[] = [];
+  const expiringTokens: ExpiringToken[] = [];
 
   // Sync all pages in parallel using Promise.all. That's the excellent utility
   // of Promise in JS/TS
@@ -73,8 +71,7 @@ async function syncAllPageEvents(
   );
 
   // Collect all events from all pages
-  // deno-lint-ignore no-explicit-any
-  const errors: any[] = [];
+  const errors: Array<{ pageId: string; error: string }> = [];
   for (const result of syncResults) {
     eventsToSync.push(...result.events);
     totalEvents += result.events.length;
@@ -176,10 +173,9 @@ Deno.serve(async (req: Request) => {
     logger.info("Manual sync started");
     const result = await syncAllPageEvents(supabase);
     logger.info("Manual sync completed successfully", {
-      // deno-lint-ignore no-explicit-any
-      totalEvents: (result as any).totalEvents,
-      // deno-lint-ignore no-explicit-any
-      totalPages: (result as any).totalPages,
+      eventsAdded: result.eventsAdded,
+      pagesProcessed: result.pagesProcessed,
+      errors: result.errors.length,
     });
 
     return createSuccessResponse(result);

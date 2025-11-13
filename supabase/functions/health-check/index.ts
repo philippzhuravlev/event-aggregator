@@ -1,10 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
-import { logger, sendTokenExpiryWarning } from "../_shared/services/index.ts";
-import { calculateDaysUntilExpiry } from "../_shared/utils/index.ts";
+import { logger } from "../_shared/services/logger-service.ts";
+import { sendTokenExpiryWarning } from "../_shared/services/mail-service.ts";
+import { calculateDaysUntilExpiry } from "@event-aggregator/shared/utils/token-expiry.js";
 import {
   createErrorResponse,
   createSuccessResponse,
-} from "../_shared/validation/index.ts";
+} from "@event-aggregator/shared/validation/index.js";
 import {
   HealthCheckResponse,
   PageTokenStatus,

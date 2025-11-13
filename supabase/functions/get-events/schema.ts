@@ -3,8 +3,9 @@
  * Defines and validates the query params for paginated event retrieval
  */
 
-import { PAGINATION } from "../_shared/validation/index.ts";
-import { GetEventsQuery } from "../_shared/types.ts";
+import { PAGINATION } from "@event-aggregator/shared/runtime/deno.js";
+import type { GetEventsQuery } from "@event-aggregator/shared/types.ts";
+import { sanitizeSearchQuery } from "@event-aggregator/shared/utils/sanitizer-util.js";
 
 /**
  * Validate and parse query parameters for get-events
@@ -43,14 +44,21 @@ export function validateGetEventsQuery(
     // Parse search (optional)
     let search = params.get("search") || undefined;
     if (search) {
-      search = search.trim();
-      if (search.length === 0) search = undefined;
-      if (search && search.length > PAGINATION.MAX_SEARCH_LENGTH) {
+      const sanitized = sanitizeSearchQuery(
+        search,
+        PAGINATION.MAX_SEARCH_LENGTH,
+      );
+
+      if (sanitized.length === 0) {
+        search = undefined;
+      } else if (sanitized.length > PAGINATION.MAX_SEARCH_LENGTH) {
         return {
           success: false,
           error:
             `Search query too long (max ${PAGINATION.MAX_SEARCH_LENGTH} characters)`,
         };
+      } else {
+        search = sanitized;
       }
     }
 

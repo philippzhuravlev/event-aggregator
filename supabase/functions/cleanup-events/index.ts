@@ -1,12 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
-import { deleteOldEvents, logger } from "../_shared/services/index.ts";
-import { CleanupResult } from "../_shared/types.ts";
+import { deleteOldEvents } from "../_shared/services/supabase-service.ts";
+import { logger } from "../_shared/services/logger-service.ts";
+import type { CleanupResult } from "@event-aggregator/shared/types.ts";
 import {
   createErrorResponse,
   createSuccessResponse,
   handleCORSPreflight,
-  HTTP_STATUS,
-} from "../_shared/validation/index.ts";
+} from "@event-aggregator/shared/validation/index.js";
+import { HTTP_STATUS } from "@event-aggregator/shared/runtime/deno.js";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
 // or help etc), but because we've refactored to supabase, it's now a "Edge Function".

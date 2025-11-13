@@ -1,16 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
-import {
-  exchangeForLongLivedToken,
-  logger,
-  sendTokenRefreshFailedAlert,
-} from "../_shared/services/index.ts";
-import { calculateDaysUntilExpiry } from "../_shared/utils/index.ts";
+import { exchangeForLongLivedToken } from "../_shared/services/facebook-service.ts";
+import { logger } from "../_shared/services/logger-service.ts";
+import { sendTokenRefreshFailedAlert } from "../_shared/services/mail-service.ts";
+import { calculateDaysUntilExpiry } from "@event-aggregator/shared/utils/token-expiry.js";
 import {
   createErrorResponse,
   createSuccessResponse,
   TokenBucketRateLimiter,
-} from "../_shared/validation/index.ts";
-import { RATE_LIMITS } from "../_shared/utils/constants-util.ts";
+} from "@event-aggregator/shared/validation/index.js";
+import { RATE_LIMITS } from "@event-aggregator/shared/runtime/deno.js";
 import { PageToken, RefreshResult } from "./types.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
@@ -56,10 +54,10 @@ async function refreshExpiredTokens(
   try {
     // Get all active pages with tokens
     const { data: pages, error: queryError } = await supabase
-      .from("facebook_pages")
-      .select("page_id, access_token, expires_at")
-      .eq("is_active", true)
-      .not("access_token", "is", null);
+      .from("pages")
+      .select("page_id, page_name, token_expiry, token_status, page_access_token_id")
+      .eq("token_status", "active")
+      .not("page_access_token_id", "is", null);
 
     if (queryError) {
       throw new Error(`Failed to fetch pages: ${queryError.message}`);
@@ -74,46 +72,86 @@ async function refreshExpiredTokens(
 
     // Check each page's token expiry
     for (const page of pages as PageToken[]) {
+      const pageId = String(page.page_id);
       try {
-        // Rate limit: max 24 refreshes per day per page (1 per hour)
-    const isLimited = !tokenRefreshLimiter.check(page.page_id);
+        const { data: tokenData, error: tokenError } = await supabase.rpc(
+          "get_page_access_token",
+          { page_id_input: page.page_id },
+        );
 
-        if (isLimited) {
-          logger.debug(`Token refresh rate limited for page ${page.page_id}`);
+        if (tokenError) {
+          const errorMsg =
+            `Failed to retrieve token for page ${pageId}: ${tokenError.message}`;
+          logger.error(errorMsg, null, { pageId });
+          await sendTokenRefreshFailedAlert(pageId, errorMsg);
           results.push({
-            pageId: page.page_id,
+            pageId,
             success: false,
-            error: "Rate limited - too many refresh attempts today",
+            error: "Failed to read existing token",
           });
           failedCount++;
           continue;
         }
 
-        if (!page.expires_at) {
-          logger.warn(`No expiry data found for page ${page.page_id}`);
+        const tokenRecord = Array.isArray(tokenData)
+          ? tokenData[0]
+          : tokenData;
+        const accessToken = tokenRecord?.token ?? "";
+
+        if (!accessToken) {
+          logger.warn("No access token returned from Vault", { pageId });
+          await sendTokenRefreshFailedAlert(
+            pageId,
+            "No stored access token found for page",
+          );
+          results.push({
+            pageId,
+            success: false,
+            error: "No stored token found",
+          });
+          failedCount++;
           continue;
         }
 
-        const expiresAt = new Date(page.expires_at);
+        const expirySource = tokenRecord?.expiry ?? page.token_expiry;
+        let expiresAt: Date | null = null;
+        if (expirySource) {
+          const parsedExpiry = new Date(expirySource);
+          if (!Number.isNaN(parsedExpiry.getTime())) {
+            expiresAt = parsedExpiry;
+          }
+        }
+
+        if (!expiresAt) {
+          logger.warn("No token expiry data found for page", { pageId });
+          results.push({
+            pageId,
+            success: false,
+            error: "Missing token expiry metadata",
+          });
+          failedCount++;
+          continue;
+        }
+
         const now = new Date();
         const daysUntilExpiry = calculateDaysUntilExpiry(expiresAt, now);
 
         // Only refresh if expires within 7 days
         if (daysUntilExpiry > 7) {
-          logger.debug(`Token for page ${page.page_id} not expiring soon`, {
+          logger.debug(`Token for page ${pageId} not expiring soon`, {
             daysUntilExpiry,
           });
           continue;
         }
 
         if (daysUntilExpiry <= 0) {
-          logger.warn(`Token for page ${page.page_id} already expired!`);
+          logger.warn(`Token for page ${pageId} already expired!`);
           await sendTokenRefreshFailedAlert(
-            page.page_id,
+            pageId,
             "Token already expired - immediate refresh needed",
           );
           results.push({
-            pageId: page.page_id,
+            pageId,
             success: false,
             error: "Token already expired",
           });
@@ -121,8 +159,22 @@ async function refreshExpiredTokens(
           continue;
         }
 
+        // Rate limit: max 24 refreshes per day per page (1 per hour)
+        const isLimited = !tokenRefreshLimiter.check(pageId);
+
+        if (isLimited) {
+          logger.debug(`Token refresh rate limited for page ${pageId}`);
+          results.push({
+            pageId,
+            success: false,
+            error: "Rate limited - too many refresh attempts today",
+          });
+          failedCount++;
+          continue;
+        }
+
         // Token expires soon - refresh it
-        logger.info(`Refreshing token for page ${page.page_id}`, {
+        logger.info(`Refreshing token for page ${pageId}`, {
           daysUntilExpiry,
         });
 
@@ -136,7 +188,7 @@ async function refreshExpiredTokens(
           }
 
           const newToken = await exchangeForLongLivedToken(
-            page.access_token,
+            accessToken,
             appId,
             appSecret,
           );
@@ -145,29 +197,29 @@ async function refreshExpiredTokens(
           const sixtyDaysFromNow = new Date();
           sixtyDaysFromNow.setDate(sixtyDaysFromNow.getDate() + 60);
 
-          // Store new token in database
-          const { error: updateError } = await (supabase
-            .from("facebook_pages")
-            .update({
-              access_token: newToken,
-              expires_at: sixtyDaysFromNow.toISOString(),
-              token_refreshed_at: new Date().toISOString(),
-            })
-            // deno-lint-ignore no-explicit-any
-            .eq("page_id", page.page_id) as any);
+          // Store new token in database via RPC to keep Vault in sync
+          const { error: storeError } = await supabase.rpc(
+            "store_page_token",
+            {
+              p_page_id: page.page_id,
+              p_page_name: page.page_name,
+              p_access_token: newToken,
+              p_expiry: sixtyDaysFromNow.toISOString(),
+            },
+          );
 
-          if (updateError) {
+          if (storeError) {
             throw new Error(
-              `Failed to update page token: ${updateError.message}`,
+              `Failed to store refreshed token: ${storeError.message ?? storeError}`,
             );
           }
 
-          logger.info(`Successfully refreshed token for page ${page.page_id}`, {
+          logger.info(`Successfully refreshed token for page ${pageId}`, {
             newExpiresAt: sixtyDaysFromNow.toISOString(),
           });
 
           results.push({
-            pageId: page.page_id,
+            pageId,
             success: true,
             expiresInDays: 60,
           });
@@ -178,20 +230,20 @@ async function refreshExpiredTokens(
             : "Unknown error";
 
           logger.error(
-            `Token refresh failed for page ${page.page_id}`,
+            `Token refresh failed for page ${pageId}`,
             refreshError instanceof Error ? refreshError : null,
             {
-              pageId: page.page_id,
+              pageId,
             },
           );
 
           await sendTokenRefreshFailedAlert(
-            page.page_id,
+            pageId,
             errorMsg,
           );
 
           results.push({
-            pageId: page.page_id,
+            pageId,
             success: false,
             error: errorMsg,
           });
@@ -203,20 +255,20 @@ async function refreshExpiredTokens(
           : "Unknown error";
 
         logger.error(
-          `Error processing page ${page.page_id}`,
+          `Error processing page ${pageId}`,
           pageError instanceof Error ? pageError : null,
           {
-            pageId: page.page_id,
+            pageId,
           },
         );
 
         await sendTokenRefreshFailedAlert(
-          page.page_id,
+          pageId,
           errorMsg,
         );
 
         results.push({
-          pageId: page.page_id,
+          pageId,
           success: false,
           error: errorMsg,
         });

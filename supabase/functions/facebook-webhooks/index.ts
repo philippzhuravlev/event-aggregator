@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import { logger, sendEventSyncFailedAlert } from "../_shared/services/index.ts";
+import { logger } from "../_shared/services/logger-service.ts";
+import { sendEventSyncFailedAlert } from "../_shared/services/mail-service.ts";
 import {
   extractEventChanges,
   extractPageIdFromEntry,
@@ -15,8 +16,8 @@ import {
   SIZE_LIMITS,
   validateBodySize,
   verifyHmacSignature,
-} from "../_shared/validation/index.ts";
-import { WEBHOOK } from "../_shared/utils/constants-util.ts";
+} from "@event-aggregator/shared/validation/index.js";
+import { WEBHOOK } from "@event-aggregator/shared/runtime/deno.js";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
 // or help etc), but because we've refactored to supabase, it's now a "Edge Function".

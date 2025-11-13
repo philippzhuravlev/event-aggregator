@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "./logger-service.ts";
-import type { DatabasePage, NormalizedEvent } from "../types.ts";
+import type { DatabasePage, NormalizedEvent } from "@event-aggregator/shared/types.ts";
 import {
   calculateDaysUntilExpiry,
   isTokenExpiring,
-} from "../utils/token-expiry-util.ts";
-import { TOKEN_EXPIRY_CONFIG } from "../utils/constants-util.ts";
+} from "@event-aggregator/shared/utils/token-expiry.js";
+import { TOKEN_EXPIRY_CONFIG } from "@event-aggregator/shared/runtime/deno.js";
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, Supabase and
@@ -94,9 +94,12 @@ export async function batchWriteEvents(
     page_id: event.page_id,
     event_id: event.event_id,
     event_data: event.event_data,
+    updated_at: new Date().toISOString(),
   }));
 
-  const { error } = await supabase.from("events").upsert(eventsToUpsert);
+  const { error } = await supabase
+    .from("events")
+    .upsert(eventsToUpsert, { onConflict: "page_id,event_id" });
 
   if (error) {
     logger.error("Failed to batch write events to Supabase", null, {
@@ -129,7 +132,8 @@ export async function getActivePages(
   const { data, error } = await supabase
     .from("pages")
     .select("*")
-    .eq("token_status", "valid");
+    .eq("token_status", "active")
+    .not("page_access_token_id", "is", null);
 
   if (error) {
     logger.error("Failed to retrieve active pages from Supabase", null, {

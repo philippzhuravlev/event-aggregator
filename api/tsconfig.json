@@ -3,7 +3,6 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["./_shared/*"],
       "@event-aggregator/shared/*": ["../packages/shared/src/*"]
     },
     "outDir": "../dist/api",

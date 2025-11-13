@@ -9,16 +9,19 @@
     "std/": "https://deno.land/std@0.208.0/",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
     "@event-aggregator/shared": "./supabase/functions/packages/shared/dist/index.js",
-    "@event-aggregator/shared/runtime/browser": "./supabase/functions/packages/shared/dist/runtime/browser.js",
-    "@event-aggregator/shared/validation": "./supabase/functions/packages/shared/dist/validation/index.js",
-    "@event-aggregator/shared/runtime/": "./supabase/functions/packages/shared/dist/runtime/",
-    "@event-aggregator/shared/config/": "./supabase/functions/packages/shared/dist/config/",
-    "@event-aggregator/shared/validation/": "./supabase/functions/packages/shared/dist/validation/",
-    "@event-aggregator/shared/services": "./supabase/functions/packages/shared/dist/services/index.js",
-    "@event-aggregator/shared/services/": "./supabase/functions/packages/shared/dist/services/",
+    "@event-aggregator/shared/": "./supabase/functions/packages/shared/dist/",
+    "@event-aggregator/shared/services/index.js": "./supabase/functions/packages/shared/dist/services/index.js",
+    "@event-aggregator/shared/services/logger-service.js": "./supabase/functions/packages/shared/dist/services/logger-service.js",
+    "@event-aggregator/shared/utils/token-expiry.js": "./supabase/functions/packages/shared/dist/utils/token-expiry.js",
+    "@event-aggregator/shared/utils/event-normalizer.js": "./supabase/functions/packages/shared/dist/utils/event-normalizer.js",
+    "@event-aggregator/shared/utils/sanitizer-util.js": "./supabase/functions/packages/shared/dist/utils/sanitizer-util.js",
+    "@event-aggregator/shared/validation/index.js": "./supabase/functions/packages/shared/dist/validation/index.js",
+    "@event-aggregator/shared/validation/rate-limit-validation.js": "./supabase/functions/packages/shared/dist/validation/rate-limit-validation.js",
+    "@event-aggregator/shared/runtime/deno.js": "./supabase/functions/packages/shared/dist/runtime/deno.js",
     "@event-aggregator/shared/types": "./supabase/functions/packages/shared/dist/types.js",
-    "@shared/": "./supabase/functions/_shared/",
-    "@shared-src/": "./packages/shared/src/"
+    "@event-aggregator/shared/types.ts": "./packages/shared/src/types.ts",
+    "@event-aggregator/shared/src/services/facebook-service.ts": "./packages/shared/src/services/facebook-service.ts",
+    "@event-aggregator/shared/src/": "./packages/shared/src/"
   }
 }
 

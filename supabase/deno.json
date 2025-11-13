@@ -12,15 +12,18 @@
     "std/": "https://deno.land/std@0.208.0/",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@^2.81.1",
     "@event-aggregator/shared": "./functions/packages/shared/dist/index.js",
-    "@event-aggregator/shared/runtime/browser": "./functions/packages/shared/dist/runtime/browser.js",
-    "@event-aggregator/shared/validation": "./functions/packages/shared/dist/validation/index.js",
-    "@event-aggregator/shared/runtime/": "./functions/packages/shared/dist/runtime/",
-    "@event-aggregator/shared/config/": "./functions/packages/shared/dist/config/",
-    "@event-aggregator/shared/validation/": "./functions/packages/shared/dist/validation/",
-    "@event-aggregator/shared/services": "./functions/packages/shared/dist/services/index.js",
-    "@event-aggregator/shared/services/": "./functions/packages/shared/dist/services/",
+    "@event-aggregator/shared/": "./functions/packages/shared/dist/",
+    "@event-aggregator/shared/services/index.js": "./functions/packages/shared/dist/services/index.js",
+    "@event-aggregator/shared/services/logger-service.js": "./functions/packages/shared/dist/services/logger-service.js",
+    "@event-aggregator/shared/utils/token-expiry.js": "./functions/packages/shared/dist/utils/token-expiry.js",
+    "@event-aggregator/shared/utils/event-normalizer.js": "./functions/packages/shared/dist/utils/event-normalizer.js",
+    "@event-aggregator/shared/utils/sanitizer-util.js": "./functions/packages/shared/dist/utils/sanitizer-util.js",
+    "@event-aggregator/shared/validation/index.js": "./functions/packages/shared/dist/validation/index.js",
+    "@event-aggregator/shared/validation/rate-limit-validation.js": "./functions/packages/shared/dist/validation/rate-limit-validation.js",
+    "@event-aggregator/shared/runtime/deno.js": "./functions/packages/shared/dist/runtime/deno.js",
     "@event-aggregator/shared/types": "./functions/packages/shared/dist/types.js",
-    "@shared/": "./functions/_shared/",
-    "@shared-src/": "../packages/shared/src/"
+    "@event-aggregator/shared/types.ts": "../packages/shared/src/types.ts",
+    "@event-aggregator/shared/src/services/facebook-service.ts": "../packages/shared/src/services/facebook-service.ts",
+    "@event-aggregator/shared/src/": "../packages/shared/src/"
   }
 }

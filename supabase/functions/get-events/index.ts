@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import { logger } from "../_shared/services/index.ts";
-import type { GetEventsQuery } from "../_shared/types.ts";
+import { logger } from "../_shared/services/logger-service.ts";
+import type { GetEventsQuery } from "@event-aggregator/shared/types.ts";
 import { GetEventsResponse } from "./types.ts";
 import {
   createErrorResponse,
@@ -8,11 +8,10 @@ import {
   getClientIp,
   getRateLimitExceededResponse,
   handleCORSPreflight,
-  HTTP_STATUS,
-  PAGINATION,
-} from "../_shared/validation/index.ts";
-import { createSlidingWindowLimiter } from "../_shared/utils/limiter-util.ts";
-import { sanitizeSearchQuery } from "../_shared/utils/sanitizer-util.ts";
+} from "@event-aggregator/shared/validation/index.js";
+import { HTTP_STATUS, PAGINATION } from "@event-aggregator/shared/runtime/deno.js";
+import { createSlidingWindowLimiter } from "@event-aggregator/shared/validation/rate-limit-validation.js";
+import { validateGetEventsQuery } from "./schema.ts";
 
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
 // or help etc), but because we've refactored to supabase, it's now a "Edge Function".
@@ -31,69 +30,25 @@ const apiRateLimiter = createSlidingWindowLimiter({
   windowMs: 60_000,
 });
 
-/**
- * Validate and parse query parameters for get-events
- */
-function validateQueryParams(
-  url: URL,
-): { success: boolean; data?: GetEventsQuery; error?: string } {
-  try {
-    const params = url.searchParams;
+function escapeIlikePattern(value: string): string {
+  return value
+    .replace(/[%_]/g, (match) => `\\${match}`)
+    .replace(/'/g, "''")
+    .replace(/,/g, " ")
+    .trim();
+}
 
-    // Parse limit (optional, default: 50, max: 100)
-    const limitStr = params.get("limit");
-    const limit = limitStr
-      ? Math.min(Math.max(parseInt(limitStr, 10), 1), PAGINATION.MAX_LIMIT)
-      : PAGINATION.DEFAULT_LIMIT;
-
-    if (isNaN(limit)) {
-      return { success: false, error: "Invalid limit parameter" };
-    }
-
-    // Parse pageToken (optional)
-    const pageToken = params.get("pageToken") || undefined;
-
-    // Parse pageId (optional)
-    const pageId = params.get("pageId") || undefined;
-
-    // Parse upcoming (optional, default: true)
-    const upcomingStr = params.get("upcoming");
-    const upcoming = upcomingStr ? upcomingStr !== "false" : true;
-
-    // Parse search (optional)
-    let search = params.get("search") || undefined;
-    if (search) {
-      const sanitized = sanitizeSearchQuery(
-        search,
-        PAGINATION.MAX_SEARCH_LENGTH,
-      );
-
-      if (sanitized.length === 0) {
-        search = undefined;
-      } else if (sanitized.length > PAGINATION.MAX_SEARCH_LENGTH) {
-        return {
-          success: false,
-          error:
-            `Search query too long (max ${PAGINATION.MAX_SEARCH_LENGTH} characters)`,
-        };
-      } else {
-        search = sanitized;
-      }
-    }
-
-    return {
-      success: true,
-      data: {
-        limit,
-        pageToken,
-        pageId,
-        upcoming,
-        search,
-      },
-    };
-  } catch {
-    return { success: false, error: "Invalid query parameters" };
+function buildSearchPattern(value?: string): string | null {
+  if (!value) {
+    return null;
   }
+
+  const escaped = escapeIlikePattern(value);
+  if (!escaped) {
+    return null;
+  }
+
+  return `%${escaped}%`;
 }
 
 /**
@@ -127,116 +82,143 @@ async function getEvents(
     hasSearch: !!searchQuery,
   });
 
-  // 1. Start by making a Supabase query - fetch all event_data JSON column
-  let query = supabase.from("events").select("id, page_id, event_data");
+  const nowIso = new Date().toISOString();
+  const fetchLimit = Math.min(limit, PAGINATION.MAX_LIMIT) + 1;
 
-  // 2. Filter by page if specified
+  let cursorIso: string | null = null;
+  if (pageToken) {
+    try {
+      const decoded = atob(pageToken);
+      const timestamp = Number.parseInt(decoded, 10);
+      if (!Number.isNaN(timestamp)) {
+        cursorIso = new Date(timestamp).toISOString();
+      } else {
+        logger.warn("Invalid page token provided", { pageToken });
+      }
+    } catch {
+      logger.warn("Invalid page token provided", { pageToken });
+    }
+  }
+
+  let lowerBoundIso: string | null = null;
+  if (upcoming) {
+    lowerBoundIso = nowIso;
+  }
+  if (cursorIso) {
+    lowerBoundIso = lowerBoundIso && lowerBoundIso > cursorIso
+      ? lowerBoundIso
+      : cursorIso;
+  }
+
+  let query = supabase
+    .from("events")
+    .select("page_id,event_id,event_data,created_at,updated_at")
+    .order("event_data->>start_time", { ascending: true })
+    .order("event_id", { ascending: true })
+    .limit(fetchLimit);
+
   if (pageId) {
     query = query.eq("page_id", parseInt(pageId, 10));
   }
 
-  // 8. Execute the query
-  const { data: allEvents, error } = await query;
+  if (lowerBoundIso) {
+    query = query.gte("event_data->>start_time", lowerBoundIso);
+  }
+
+  const searchPattern = buildSearchPattern(searchQuery);
+  if (searchPattern) {
+    const orClause = [
+      `event_data->>name.ilike.${searchPattern}`,
+      `event_data->>description.ilike.${searchPattern}`,
+      `event_data->place->>name.ilike.${searchPattern}`,
+    ].join(",");
+    query = query.or(orClause);
+  }
+
+  const { data, error } = await query;
+
   if (error) {
     throw new Error(`Failed to get events from Supabase: ${error.message}`);
   }
 
-  // 9. Process the events - extract from event_data JSON and apply filters
-  // deno-lint-ignore no-explicit-any
-  const processedEvents: any[] = [];
-  const now = new Date();
+  const rows = data ?? [];
+  const hasMore = rows.length > limit;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
 
-  for (const row of allEvents || []) {
-    const eventData = row.event_data;
-    if (!eventData) continue;
-
-    // Extract start_time for filtering
-    const startTime = eventData.start_time
-      ? new Date(eventData.start_time)
-      : null;
-
-    // 3. Filter upcoming events if specified
-    if (upcoming && (!startTime || startTime < now)) {
-      continue;
-    }
-
-    // 4. Apply full-text search if provided
-    if (searchQuery) {
-      const searchableText = `${eventData.name || ""} ${
-        eventData.description || ""
-      } ${eventData.place?.name || ""}`.toLowerCase();
-      if (!searchableText.includes(searchQuery.toLowerCase())) {
-        continue;
+  const events = pageRows
+    .map((row) => {
+      // deno-lint-ignore no-explicit-any
+      const eventData = (row as any).event_data ?? {};
+      if (!eventData?.start_time) {
+        return null;
       }
-    }
 
-    processedEvents.push({
-      startTime: startTime ? startTime.getTime() : 0,
-      event: eventData,
-      page_id: row.page_id, // Store page_id so we can include it in the response
-    });
-  }
+      const createdAtIso = (() => {
+        const value = (row as any).created_at;
+        if (value instanceof Date) {
+          return value.toISOString();
+        }
+        if (typeof value === "string") {
+          const parsed = new Date(value);
+          return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+        }
+        return undefined;
+      })();
 
-  // Sort by start time
-  processedEvents.sort((a, b) => a.startTime - b.startTime);
+      const updatedAtIso = (() => {
+        const value = (row as any).updated_at;
+        if (value instanceof Date) {
+          return value.toISOString();
+        }
+        if (typeof value === "string") {
+          const parsed = new Date(value);
+          return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+        }
+        return undefined;
+      })();
 
-  // Apply cursor-based pagination
-  let startIdx = 0;
-  if (pageToken) {
-    try {
-      const cursorTime = parseInt(atob(pageToken), 10);
-      startIdx = processedEvents.findIndex((e) => e.startTime >= cursorTime);
-      if (startIdx === -1) startIdx = 0;
-    } catch {
-      logger.warn("Invalid page token provided", { pageToken });
-      startIdx = 0;
-    }
-  }
+      const createdTimestamp = createdAtIso ??
+        new Date(eventData.start_time).toISOString();
+      const updatedTimestamp = updatedAtIso ?? createdTimestamp;
 
-  // Extract the page of results
-  const pageSize = limit!;
-  const events = processedEvents.slice(startIdx, startIdx + pageSize).map(
-    (e) => {
-      const eventData = e.event;
-
-      // Transform database format (Facebook API fields) to frontend format (camelCase + renamed fields)
-      // Database stores: id, name, start_time, end_time, description, place, cover (within event_data column)
-      // Also gets: page_id from the row itself
-      // Frontend expects: id, title, startTime, endTime, description, place, coverImageUrl, eventURL, pageId, createdAt, updatedAt
       const transformedEvent: Record<string, unknown> = {
-        id: eventData?.id,
-        pageId: String(e.page_id), // Include the Facebook page ID - essential for frontend filtering!
-        title: eventData?.name, // Facebook uses "name", frontend expects "title"
-        startTime: eventData?.start_time, // Facebook uses "start_time", frontend expects "startTime"
-        description: eventData?.description,
-        place: eventData?.place,
-        coverImageUrl: eventData?.cover?.source,
-        eventURL: `https://facebook.com/events/${eventData?.id}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        id: eventData.id,
+        pageId: String(row.page_id),
+        title: eventData.name,
+        startTime: eventData.start_time,
+        description: eventData.description,
+        place: eventData.place,
+        coverImageUrl: eventData.cover?.source,
+        eventURL: eventData.id
+          ? `https://facebook.com/events/${eventData.id}`
+          : undefined,
+        createdAt: createdTimestamp,
+        updatedAt: updatedTimestamp,
       };
 
-      // Add optional fields if present
-      if (eventData?.end_time) {
+      if (eventData.end_time) {
         transformedEvent.endTime = eventData.end_time;
       }
 
       return transformedEvent;
-    },
-  );
-  const hasMore = startIdx + pageSize < processedEvents.length;
+    })
+    .filter((event): event is Record<string, unknown> => event !== null);
 
-  // Generate next page token if more results exist
   let nextPageToken: string | undefined;
-  if (hasMore && events.length > 0) {
-    // Use the start time of the next event as the cursor
-    const nextEvent = processedEvents[startIdx + pageSize];
-    if (nextEvent) {
-      nextPageToken = btoa(String(nextEvent.startTime));
+  if (hasMore) {
+    // Use the first row beyond the current page as the cursor
+    const nextRow = rows[limit];
+    // deno-lint-ignore no-explicit-any
+    const nextEventData = (nextRow as any)?.event_data;
+    const nextStartTime = nextEventData?.start_time;
+    if (typeof nextStartTime === "string") {
+      const nextStart = new Date(nextStartTime);
+      if (!Number.isNaN(nextStart.getTime())) {
+        nextPageToken = btoa(String(nextStart.getTime()));
+      }
     }
   }
 
-  // 11. Log and return the results
   logger.debug("Events retrieved successfully", {
     totalReturned: events.length,
     hasMore,
@@ -285,7 +267,7 @@ async function handler(req: Request): Promise<Response> {
 
     // 3. Parse and validate query parameters
     const url = new URL(req.url);
-    const validation = validateQueryParams(url);
+    const validation = validateGetEventsQuery(url);
 
     if (!validation.success) {
       return createErrorResponse(

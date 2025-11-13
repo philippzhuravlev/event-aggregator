@@ -3,8 +3,13 @@
  * Includes signature verification and payload processing
  */
 
-import { logger } from "../_shared/services/index.ts";
-import { createSlidingWindowLimiter } from "../_shared/utils/limiter-util.ts";
+import { logger } from "../_shared/services/logger-service.ts";
+import { batchWriteEvents } from "../_shared/services/supabase-service.ts";
+import { getEventDetails } from "../_shared/services/facebook-service.ts";
+import { getPageToken } from "../_shared/services/vault-service.ts";
+import { createSlidingWindowLimiter } from "@event-aggregator/shared/validation/rate-limit-validation.js";
+import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer.js";
+import type { NormalizedEvent } from "@event-aggregator/shared/types.ts";
 
 // this is one of many "helper", which are different from utils; 90% of the time,
 // helpers are for one file and thus specific for domain stuff/business logic (calculating,
@@ -96,10 +101,35 @@ export function normalizeWebhookChange(
     value: Record<string, unknown>;
   },
 ): NormalizedWebhookEvent {
-  const value = change.value;
-  const verb = (value.verb as string) || "unknown";
-  const published = (value.published as number) ||
-    Math.floor(Date.now() / 1000);
+  const value = change.value ?? {};
+  const verb = typeof value.verb === "string"
+    ? value.verb.toLowerCase()
+    : "unknown";
+  const published = typeof value.published === "number"
+    ? value.published
+    : Math.floor(Date.now() / 1000);
+
+  const eventIdCandidates: unknown[] = [
+    value.id,
+    value.event_id,
+    value.eventId,
+    value.parent_id,
+    value.parentId,
+  ];
+
+  const eventObj = value.event;
+  if (eventObj && typeof eventObj === "object") {
+    eventIdCandidates.push((eventObj as Record<string, unknown>).id);
+  }
+
+  const objectObj = value.object;
+  if (objectObj && typeof objectObj === "object") {
+    eventIdCandidates.push((objectObj as Record<string, unknown>).id);
+  }
+
+  const eventId = eventIdCandidates.find((candidate): candidate is string =>
+    typeof candidate === "string" && candidate.length > 0
+  );
 
   const actionMap: Record<
     string,
@@ -113,13 +143,25 @@ export function normalizeWebhookChange(
     remove: "deleted",
   };
 
+  const eventTypeMap: Record<string, string> = {
+    add: "event.create",
+    create: "event.create",
+    edit: "event.update",
+    update: "event.update",
+    delete: "event.delete",
+    remove: "event.delete",
+  };
+
+  const action = actionMap[verb] ?? "unknown";
+  const eventType = eventTypeMap[verb] ?? change.field;
+
   return {
-    eventId: (value.id as string) || undefined,
+    eventId,
     pageId,
     timestamp: published * 1000, // Convert to milliseconds
-    action: actionMap[verb] || "unknown",
-    eventType: change.field,
-    story: (value.story as string) || undefined,
+    action,
+    eventType,
+    story: typeof value.story === "string" ? value.story : undefined,
   };
 }
 
@@ -132,64 +174,162 @@ export function normalizeWebhookChange(
  */
 export async function processWebhookChanges(
   pageId: string,
-  changes: Array<
-    { field: string; event: { type: string; object?: Record<string, unknown> } }
-  >,
+  changes: Array<{ field: string; value: Record<string, unknown> }>,
   // deno-lint-ignore no-explicit-any
   supabase: any,
 ): Promise<{ processed: number; failed: number }> {
   let processed = 0;
   let failed = 0;
+  const eventsToUpsert: NormalizedEvent[] = [];
+  let cachedAccessToken: string | null | undefined;
+
+  const resolveAccessToken = async (): Promise<string | null> => {
+    if (cachedAccessToken !== undefined) {
+      return cachedAccessToken;
+    }
+    cachedAccessToken = await getPageToken(supabase, pageId);
+    if (!cachedAccessToken) {
+      logger.warn("No access token found for page when processing webhook", {
+        pageId,
+      });
+    }
+    return cachedAccessToken;
+  };
 
   for (const change of changes) {
     try {
-      if (!shouldProcessEventType(change.event.type)) {
-        logger.debug(`Skipping event type: ${change.event.type}`);
+      const normalized = normalizeWebhookChange(pageId, change);
+
+      if (
+        normalized.eventType &&
+        !shouldProcessEventType(normalized.eventType)
+      ) {
+        logger.debug("Skipping webhook event type", {
+          eventType: normalized.eventType,
+          pageId,
+        });
         continue;
       }
 
-      // Normalize webhook event to standard format
-      const normalized = normalizeWebhookChange(pageId, {
-        field: change.field,
-        value: change.event.object || {},
-      });
-
-      // Store in database - use insert with onConflict to upsert
-      const eventData = {
-        page_id: normalized.pageId,
-        external_id: normalized.eventId ||
-          `${normalized.pageId}-${normalized.timestamp}`,
-        title: normalized.story || `Event ${normalized.action}`,
-        description: `Facebook ${normalized.action} event`,
-        start_time: new Date(normalized.timestamp).toISOString(),
-        end_time: new Date(normalized.timestamp + 3600000).toISOString(),
-        source: "facebook_webhook",
-        created_at: new Date().toISOString(),
-      };
-
-      const { error: storeError } = await (supabase
-        .from("events")
-        // deno-lint-ignore no-explicit-any
-        .upsert(eventData as any, { onConflict: "external_id" }) as any);
-
-      if (storeError) {
-        throw new Error(`Failed to store event: ${storeError.message}`);
+      const eventId = resolveEventId(change.value, normalized.eventId);
+      if (!eventId) {
+        logger.warn("Webhook change missing event id", {
+          pageId,
+          valueKeys: Object.keys(change.value ?? {}),
+        });
+        failed++;
+        continue;
       }
 
-      logger.debug(`Processed webhook event for page ${pageId}`, {
-        eventType: change.event.type,
-        action: normalized.action,
-      });
+      if (normalized.action === "deleted") {
+        const { error: deleteError } = await supabase
+          .from("events")
+          .delete()
+          .eq("page_id", parseInt(pageId, 10))
+          .eq("event_id", eventId);
 
-      processed++;
+        if (deleteError) {
+          throw new Error(
+            `Failed to delete event ${eventId}: ${deleteError.message}`,
+          );
+        }
+
+        logger.debug("Deleted event from webhook change", {
+          pageId,
+          eventId,
+        });
+        processed++;
+        continue;
+      }
+
+      const accessToken = await resolveAccessToken();
+      if (!accessToken) {
+        failed++;
+        continue;
+      }
+
+      let eventDetails;
+      try {
+        eventDetails = await getEventDetails(eventId, accessToken);
+      } catch (fetchError) {
+        logger.error(
+          "Failed to fetch event details for webhook change",
+          fetchError instanceof Error ? fetchError : null,
+          {
+            pageId,
+            eventId,
+          },
+        );
+        failed++;
+        continue;
+      }
+
+      if (!eventDetails) {
+        logger.warn("Event details not returned for webhook change", {
+          pageId,
+          eventId,
+        });
+        failed++;
+        continue;
+      }
+
+      eventsToUpsert.push(normalizeEvent(eventDetails, pageId));
     } catch (changeError) {
       logger.error(
-        `Error processing webhook change`,
+        "Error processing webhook change",
         changeError instanceof Error ? changeError : null,
+        {
+          pageId,
+        },
       );
       failed++;
     }
   }
 
+  if (eventsToUpsert.length > 0) {
+    try {
+      await batchWriteEvents(supabase, eventsToUpsert);
+      processed += eventsToUpsert.length;
+    } catch (storeError) {
+      logger.error(
+        "Failed to persist webhook events",
+        storeError instanceof Error ? storeError : null,
+        { pageId, count: eventsToUpsert.length },
+      );
+      failed += eventsToUpsert.length;
+    }
+  }
+
   return { processed, failed };
+}
+
+function resolveEventId(
+  value: Record<string, unknown>,
+  fallback?: string,
+): string | undefined {
+  const candidates: unknown[] = [
+    value.id,
+    value.event_id,
+    value.eventId,
+    value.parent_id,
+    value.parentId,
+  ];
+
+  const nestedEvent = value.event;
+  if (nestedEvent && typeof nestedEvent === "object") {
+    candidates.push((nestedEvent as Record<string, unknown>).id);
+  }
+
+  const nestedObject = value.object;
+  if (nestedObject && typeof nestedObject === "object") {
+    candidates.push((nestedObject as Record<string, unknown>).id);
+  }
+
+  if (fallback) {
+    candidates.push(fallback);
+  }
+
+  return candidates.find((candidate): candidate is string =>
+    typeof candidate === "string" && candidate.length > 0
+  );
 }

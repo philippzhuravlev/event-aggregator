@@ -330,6 +330,27 @@ export async function getPageEvents(
   return allEvents;
 }
 
+export async function getEventDetails(
+  eventId: string,
+  accessToken: string,
+): Promise<FacebookEvent> {
+  const params = new URLSearchParams({
+    access_token: accessToken,
+    fields:
+      "id,name,description,start_time,end_time,place,cover{source}",
+  });
+
+  const response = await withRetry<FacebookEvent>(async () => {
+    return await fetch(`${GRAPH_BASE_URL}/${eventId}?${params}`);
+  });
+
+  logDebug("Fetched Facebook event details", {
+    eventId,
+  });
+
+  return response;
+}
+
 export async function getAllRelevantEvents(
   pageId: string,
   accessToken: string,

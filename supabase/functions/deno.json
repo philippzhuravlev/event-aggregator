@@ -5,7 +5,23 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": false
   },
-  "importMap": "./import_map.json"
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
+    "@event-aggregator/shared": "./packages/shared/dist/index.js",
+    "@event-aggregator/shared/": "./packages/shared/dist/",
+    "@event-aggregator/shared/services/index.js": "./packages/shared/dist/services/index.js",
+    "@event-aggregator/shared/services/logger-service.js": "./packages/shared/dist/services/logger-service.js",
+    "@event-aggregator/shared/utils/token-expiry.js": "./packages/shared/dist/utils/token-expiry.js",
+    "@event-aggregator/shared/utils/event-normalizer.js": "./packages/shared/dist/utils/event-normalizer.js",
+    "@event-aggregator/shared/utils/sanitizer-util.js": "./packages/shared/dist/utils/sanitizer-util.js",
+    "@event-aggregator/shared/validation/index.js": "./packages/shared/dist/validation/index.js",
+    "@event-aggregator/shared/validation/rate-limit-validation.js": "./packages/shared/dist/validation/rate-limit-validation.js",
+    "@event-aggregator/shared/runtime/deno.js": "./packages/shared/dist/runtime/deno.js",
+    "@event-aggregator/shared/types": "./packages/shared/dist/types.js",
+    "@event-aggregator/shared/types.ts": "../../packages/shared/src/types.ts",
+    "@event-aggregator/shared/src/services/facebook-service.ts": "../../packages/shared/src/services/facebook-service.ts",
+    "@event-aggregator/shared/src/": "../../packages/shared/src/"
+  }
 }
 
 

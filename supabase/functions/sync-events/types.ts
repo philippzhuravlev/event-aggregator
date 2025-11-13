@@ -2,6 +2,7 @@
  * Sync Events Types
  * Response types for event synchronization operations
  */
+import type { NormalizedEvent } from "@event-aggregator/shared/types.ts";
 
 /**
  * Result of syncing all page events
@@ -22,10 +23,12 @@ export interface SyncResult {
  * Result of syncing events for a single page
  */
 export interface PageSyncResult {
-  events: unknown[];
+  events: SynchronizedEvent[];
   pageId: string;
   error: string | null;
 }
+
+export type SynchronizedEvent = NormalizedEvent;
 
 /**
  * Token expiring soon that needs notification

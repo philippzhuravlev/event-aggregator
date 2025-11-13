@@ -43,7 +43,7 @@ export {
   sendTokenRefreshFailedAlert,
 } from "./mail-service.ts";
 
-export type { AlertEmailOptions, EmailOptions } from "../types.ts";
+export type { AlertEmailOptions, EmailOptions } from "@event-aggregator/shared/types.ts";
 
 // Supabase Service - Database operations
 export {
