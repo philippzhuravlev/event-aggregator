@@ -51,11 +51,61 @@ async function refreshExpiredTokens(
   let refreshedCount = 0;
   let failedCount = 0;
 
+  async function recordFailure(
+    pageId: string,
+    reason: string,
+    options: {
+      logLevel?: "warn" | "error";
+      alertMessage?: string;
+      includeAlert?: boolean;
+      error?: unknown;
+    } = {},
+  ): Promise<void> {
+    const {
+      logLevel = "error",
+      alertMessage,
+      includeAlert = true,
+      error,
+    } = options;
+
+    const metadata = { pageId, reason };
+    if (logLevel === "warn") {
+      logger.warn(reason, {
+        ...metadata,
+        error: error instanceof Error ? error.message : error ?? undefined,
+      });
+    } else {
+      logger.error(
+        reason,
+        error instanceof Error ? error : null,
+        error instanceof Error
+          ? metadata
+          : { ...metadata, error: error ?? undefined },
+      );
+    }
+
+    if (includeAlert) {
+      await sendTokenRefreshFailedAlert(
+        pageId,
+        alertMessage ?? reason,
+      );
+    }
+
+    results.push({
+      pageId,
+      success: false,
+      error: reason,
+    });
+    failedCount++;
+  }
+
   try {
     // Get all active pages with tokens
     const { data: pages, error: queryError } = await supabase
       .from("pages")
-      .select("page_id, page_name, token_expiry, token_status, page_access_token_id")
+      .select(
+        "page_id, page_name, token_expiry, token_status, page_access_token_id",
+      )
       .eq("token_status", "active")
       .not("page_access_token_id", "is", null);
 
@@ -82,34 +132,21 @@ async function refreshExpiredTokens(
         if (tokenError) {
           const errorMsg =
             `Failed to retrieve token for page ${pageId}: ${tokenError.message}`;
-          logger.error(errorMsg, null, { pageId });
-          await sendTokenRefreshFailedAlert(pageId, errorMsg);
-          results.push({
-            pageId,
-            success: false,
-            error: "Failed to read existing token",
+          await recordFailure(pageId, "Failed to read existing token", {
+            error: tokenError,
+            alertMessage: errorMsg,
           });
-          failedCount++;
           continue;
         }
 
-        const tokenRecord = Array.isArray(tokenData)
-          ? tokenData[0]
-          : tokenData;
+        const tokenRecord = Array.isArray(tokenData) ? tokenData[0] : tokenData;
         const accessToken = tokenRecord?.token ?? "";
 
         if (!accessToken) {
-          logger.warn("No access token returned from Vault", { pageId });
-          await sendTokenRefreshFailedAlert(
-            pageId,
-            "No stored access token found for page",
-          );
-          results.push({
-            pageId,
-            success: false,
-            error: "No stored token found",
+          await recordFailure(pageId, "No stored token found", {
+            logLevel: "warn",
+            alertMessage: "No stored access token found for page",
           });
-          failedCount++;
           continue;
         }
 
@@ -123,13 +160,10 @@ async function refreshExpiredTokens(
         }
 
         if (!expiresAt) {
-          logger.warn("No token expiry data found for page", { pageId });
-          results.push({
-            pageId,
-            success: false,
-            error: "Missing token expiry metadata",
+          await recordFailure(pageId, "Missing token expiry metadata", {
+            logLevel: "warn",
+            includeAlert: false,
           });
-          failedCount++;
           continue;
         }
 
@@ -145,17 +179,10 @@ async function refreshExpiredTokens(
         }
 
         if (daysUntilExpiry <= 0) {
-          logger.warn(`Token for page ${pageId} already expired!`);
-          await sendTokenRefreshFailedAlert(
-            pageId,
-            "Token already expired - immediate refresh needed",
-          );
-          results.push({
-            pageId,
-            success: false,
-            error: "Token already expired",
+          await recordFailure(pageId, "Token already expired", {
+            logLevel: "warn",
+            alertMessage: "Token already expired - immediate refresh needed",
           });
-          failedCount++;
           continue;
         }
 
@@ -210,7 +237,9 @@ async function refreshExpiredTokens(
 
           if (storeError) {
             throw new Error(
-              `Failed to store refreshed token: ${storeError.message ?? storeError}`,
+              `Failed to store refreshed token: ${
+                storeError.message ?? storeError
+              }`,
             );
           }
 
@@ -229,52 +258,25 @@ async function refreshExpiredTokens(
             ? refreshError.message
             : "Unknown error";
 
-          logger.error(
-            `Token refresh failed for page ${pageId}`,
-            refreshError instanceof Error ? refreshError : null,
-            {
-              pageId,
-            },
-          );
-
-          await sendTokenRefreshFailedAlert(
-            pageId,
-            errorMsg,
-          );
-
-          results.push({
-            pageId,
-            success: false,
-            error: errorMsg,
+          await recordFailure(pageId, errorMsg, {
+            error: refreshError,
           });
-          failedCount++;
         }
       } catch (pageError) {
         const errorMsg = pageError instanceof Error
           ? pageError.message
           : "Unknown error";
 
-        logger.error(
-          `Error processing page ${pageId}`,
-          pageError instanceof Error ? pageError : null,
-          {
-            pageId,
-          },
-        );
-
-        await sendTokenRefreshFailedAlert(
-          pageId,
-          errorMsg,
-        );
-
-        results.push({
-          pageId,
-          success: false,
-          error: errorMsg,
+        await recordFailure(pageId, errorMsg, {
+          error: pageError,
         });
-        failedCount++;
       }
     }
+
+    logger.info("Token refresh sweep finished", {
+      refreshedCount,
+      failedCount,
+    });
 
     return {
       refreshed: refreshedCount,
