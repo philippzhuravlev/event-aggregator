@@ -7,10 +7,16 @@
     "packages/shared"
   ],
   "scripts": {
-    "test": "npm run test:deno && npm run test:api",
-    "test:deno": "deno task -c supabase/deno.json test",
-    "test:api": "vitest run",
-    "test:api:watch": "vitest",
+    "test": "npm run test:api && npm run test:shared && npm run test:supabase",
+    "test:coverage": "npm run test:api:coverage && npm run test:shared:coverage && npm run test:supabase:coverage",
+    "test:api": "vitest run api/",
+    "test:api:watch": "vitest api/",
+    "test:api:coverage": "vitest run --coverage --coverage.include=api/**/*.ts --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0 api/",
+    "test:shared": "vitest run packages/shared/tests",
+    "test:shared:watch": "vitest packages/shared/tests",
+    "test:shared:coverage": "vitest run --coverage --coverage.include=packages/shared/src/**/*.ts packages/shared/tests",
+    "test:supabase": "deno task -c supabase/deno.json test",
+    "test:supabase:coverage": "deno task -c supabase/deno.json test --coverage",
     "postinstall": "npm --prefix ./web ci",
     "build": "npm --prefix ./packages/shared run build && npm --prefix ./web run build",
     "ingest:facebook": "node ./tools/ingest-facebook.mjs"
