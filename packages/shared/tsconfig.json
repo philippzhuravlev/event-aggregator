@@ -15,7 +15,8 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "emitDeclarationOnly": true
   },
   "include": ["src/**/*"]
 }

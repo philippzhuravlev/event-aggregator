@@ -4,7 +4,7 @@ import {
   calculateExpirationDate,
   getTokenStatus,
   isTokenExpiring,
-} from "./token-expiry-util.ts";
+} from "../../src/utils/token-expiry-util.ts";
 
 describe("token-expiry-util", () => {
   it("calculates days until expiry using ceil semantics", () => {
@@ -34,3 +34,4 @@ describe("token-expiry-util", () => {
     expect(expiresAt.toISOString()).toBe("2024-02-11T00:00:00.000Z");
   });
 });
+

@@ -111,13 +111,14 @@ export const createEventSyncConfig = (
 
 export const resolveWebAppUrl = (
   getEnv: EnvGetter,
-  fallback = URL_DEFAULTS.WEB_APP,
-) => resolveEnvValue(getEnv, "WEB_APP_URL", fallback) ?? fallback;
+  fallback: string = URL_DEFAULTS.WEB_APP,
+): string => resolveEnvValue(getEnv, "WEB_APP_URL", fallback) ?? fallback;
 
 export const resolveOAuthCallbackUrl = (
   getEnv: EnvGetter,
-  fallback = URL_DEFAULTS.OAUTH_CALLBACK,
-) => resolveEnvValue(getEnv, "OAUTH_CALLBACK_URL", fallback) ?? fallback;
+  fallback: string = URL_DEFAULTS.OAUTH_CALLBACK,
+): string =>
+  resolveEnvValue(getEnv, "OAUTH_CALLBACK_URL", fallback) ?? fallback;
 
 export const resolveAllowedOrigins = (
   getEnv: EnvGetter,

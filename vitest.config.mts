@@ -1,7 +1,7 @@
-import { defineConfig, type ViteUserConfig } from "vitest/config";
+import { defineConfig } from "vitest/config";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-const config = {
+export default defineConfig({
   plugins: [
     tsconfigPaths({
       projects: [
@@ -19,9 +19,10 @@ const config = {
     },
     include: [
       "api/**/*.test.{ts,tsx,js,jsx}",
-      "packages/shared/src/**/*.test.{ts,tsx,js,jsx}",
+      "packages/shared/tests/**/*.test.{ts,tsx,js,jsx}",
     ],
   },
-} as unknown as ViteUserConfig;
+});
 
-export default defineConfig(config);
+
+
