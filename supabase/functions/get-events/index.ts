@@ -101,7 +101,7 @@ function buildSearchPattern(value?: string): string | null {
  * - upcoming: Only show upcoming events (default: true)
  * - search: Search query for title/description/place
  */
-async function getEvents(
+export async function getEvents(
   supabase: SupabaseClient,
   queryParams: GetEventsQuery,
 ): Promise<GetEventsResponse> {
@@ -280,7 +280,7 @@ async function getEvents(
  * HTTP handler for GET /getEvents endpoint
  * Public endpoint (no auth required) with CORS support
  */
-async function handler(req: Request): Promise<Response> {
+export async function handleGetEvents(req: Request): Promise<Response> {
   // Extract the request origin for CORS
   const origin = req.headers.get("origin") || "";
 
@@ -356,5 +356,7 @@ async function handler(req: Request): Promise<Response> {
   }
 }
 
-// Start the handler with Deno.serve()
-Deno.serve(handler);
+// Start server when executed directly (Supabase runtime)
+if (import.meta.main) {
+  Deno.serve(handleGetEvents);
+}

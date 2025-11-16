@@ -41,7 +41,7 @@ syncRateLimiter.configure(
 /**
  * Sync events, simple as. We have a manual and cron version
  */
-async function syncAllPageEvents(
+export async function syncAllPageEvents(
   // deno-lint-ignore no-explicit-any
   supabase: any,
 ): Promise<SyncResult> {
@@ -107,7 +107,8 @@ async function syncAllPageEvents(
   };
 }
 
-Deno.serve(async (req: Request) => {
+// Handler
+export async function handleSyncEvents(req: Request): Promise<Response> {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return handleCORSPreflight();
@@ -186,4 +187,9 @@ Deno.serve(async (req: Request) => {
       HTTP_STATUS.INTERNAL_SERVER_ERROR,
     );
   }
-});
+}
+
+// Start server when executed directly (Supabase runtime)
+if (import.meta.main) {
+  Deno.serve(handleSyncEvents);
+}

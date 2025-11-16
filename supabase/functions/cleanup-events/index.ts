@@ -25,7 +25,7 @@ import { HTTP_STATUS } from "@event-aggregator/shared/runtime/deno.js";
  * @param dryRun - If true, only simulate cleanup without deleting
  * @returns Cleanup result with counts and details
  */
-async function cleanupOldEvents(
+export async function cleanupOldEvents(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   daysToKeep: number = 90,
@@ -71,8 +71,8 @@ async function cleanupOldEvents(
   }
 }
 
-// Start server
-Deno.serve(async (req: Request) => {
+// Handler
+export async function handleCleanupEvents(req: Request): Promise<Response> {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return handleCORSPreflight();
@@ -131,4 +131,9 @@ Deno.serve(async (req: Request) => {
       HTTP_STATUS.INTERNAL_SERVER_ERROR,
     );
   }
-});
+}
+
+// Start server when executed directly (Supabase runtime)
+if (import.meta.main) {
+  Deno.serve(handleCleanupEvents);
+}

@@ -187,7 +187,7 @@ async function monitorTokens(
 /**
  * Perform comprehensive health check
  */
-async function performHealthCheck(
+export async function performHealthCheck(
   // deno-lint-ignore no-explicit-any
   supabase: any,
 ): Promise<HealthCheckResponse> {
@@ -237,7 +237,7 @@ async function performHealthCheck(
 }
 
 // Handler
-Deno.serve(async (req: Request) => {
+export async function handleHealthCheck(req: Request): Promise<Response> {
   // Only allow GET requests
   if (req.method !== "GET") {
     return createErrorResponse(
@@ -286,4 +286,9 @@ Deno.serve(async (req: Request) => {
       500,
     );
   }
-});
+}
+
+// Start server when executed directly (Supabase runtime)
+if (import.meta.main) {
+  Deno.serve(handleHealthCheck);
+}

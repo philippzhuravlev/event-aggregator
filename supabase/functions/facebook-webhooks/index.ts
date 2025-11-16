@@ -63,7 +63,7 @@ import { WEBHOOK } from "@event-aggregator/shared/runtime/deno.js";
 // happens. It's a way for one system to notify another system in real-time. In this case,
 // the webhook is used to receive event updates from Facebook, but like GitHub also have them
 
-function handleWebhookGet(url: URL): Response {
+export function handleWebhookGet(url: URL): Response {
   // Facebook calls GET during webhook setup to verify the endpoint
   // When you set up a webhook subscription with Facebook, they need to verify that
   // you actually own the endpoint you're providing. So during setup, Facebook calls GET
@@ -99,7 +99,7 @@ function handleWebhookGet(url: URL): Response {
   );
 }
 
-async function handleWebhookPost(
+export async function handleWebhookPost(
   req: Request,
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -240,7 +240,7 @@ async function handleWebhookPost(
   }
 }
 
-async function handleWebhook(req: Request): Promise<Response> {
+export async function handleWebhook(req: Request): Promise<Response> {
   const url = new URL(req.url);
 
   // GET requests - subscription verification
@@ -268,4 +268,7 @@ async function handleWebhook(req: Request): Promise<Response> {
   );
 }
 
-Deno.serve(handleWebhook);
+// Start server when executed directly (Supabase runtime)
+if (import.meta.main) {
+  Deno.serve(handleWebhook);
+}
