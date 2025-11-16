@@ -27,7 +27,7 @@ export default defineConfig({
         "**/supabase/**",
         "**/*.config.{ts,js,mts}",
         "**/types.ts",
-        "**/index.ts", // Re-export files
+        "packages/**/index.ts", // Re-export files in packages
         "**/routing.ts", // Placeholder
       ],
       include: [
