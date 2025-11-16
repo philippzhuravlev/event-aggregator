@@ -9,7 +9,7 @@ export default defineConfig({
         "api/tsconfig.json",
         "packages/shared/tsconfig.json",
       ],
-    }),
+    }) as any,
   ],
   test: {
     environment: "node",

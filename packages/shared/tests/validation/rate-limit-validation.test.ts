@@ -96,8 +96,8 @@ describe("rate-limit-validation", () => {
       const limiter = new TokenBucketRateLimiter();
       limiter.configure(10, 10 / 1000);
 
-      expect(limiter.check("test", "key1")).toBe(true);
-      expect(limiter.check("test", "key1")).toBe(true);
+      expect(limiter.check("key1")).toBe(true);
+      expect(limiter.check("key1")).toBe(true);
     });
 
     it("blocks requests when bucket is empty", () => {
