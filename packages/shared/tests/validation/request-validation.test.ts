@@ -286,6 +286,81 @@ describe("request-validation", () => {
       expect(validateJsonStructure(["a", "b", "c", "d", "e"], schema).valid)
         .toBe(false);
     });
+
+    it("validates string pattern matching", () => {
+      const schema = {
+        type: "string" as const,
+        pattern: "^[a-z]+$",
+      };
+      expect(validateJsonStructure("abc", schema).valid).toBe(true);
+      expect(validateJsonStructure("ABC", schema).valid).toBe(false);
+      expect(validateJsonStructure("abc123", schema).valid).toBe(false);
+    });
+
+    it("validates nested object properties", () => {
+      const schema = {
+        type: "object" as const,
+        properties: {
+          user: {
+            type: "object" as const,
+            properties: {
+              name: { type: "string" as const },
+            },
+            required: ["name"],
+          },
+        },
+      };
+      expect(
+        validateJsonStructure({ user: { name: "John" } }, schema).valid,
+      ).toBe(true);
+      expect(validateJsonStructure({ user: {} }, schema).valid).toBe(false);
+    });
+
+    it("validates array items with nested schemas", () => {
+      const schema = {
+        type: "array" as const,
+        items: {
+          type: "object" as const,
+          properties: {
+            id: { type: "number" as const },
+          },
+          required: ["id"],
+        },
+      };
+      expect(
+        validateJsonStructure([{ id: 1 }, { id: 2 }], schema).valid,
+      ).toBe(true);
+      expect(validateJsonStructure([{ id: 1 }, {}], schema).valid).toBe(false);
+    });
+
+    it("rejects wrong type", () => {
+      const schema = { type: "string" as const };
+      expect(validateJsonStructure(123, schema).valid).toBe(false);
+      expect(validateJsonStructure(null, schema).valid).toBe(false);
+    });
+
+    it("validates object with properties but no required fields", () => {
+      const schema = {
+        type: "object" as const,
+        properties: {
+          name: { type: "string" as const },
+        },
+      };
+      expect(validateJsonStructure({ name: "John" }, schema).valid).toBe(true);
+      expect(validateJsonStructure({}, schema).valid).toBe(true);
+    });
+
+    it("validates object with extra properties not in schema", () => {
+      const schema = {
+        type: "object" as const,
+        properties: {
+          name: { type: "string" as const },
+        },
+      };
+      expect(
+        validateJsonStructure({ name: "John", extra: "field" }, schema).valid,
+      ).toBe(true);
+    });
   });
 
   describe("validateRequestJson", () => {
@@ -497,6 +572,98 @@ describe("request-validation", () => {
       });
       expect(result.valid).toBe(true);
     });
+
+    it("fails JSON schema validation when data doesn't match", () => {
+      const request = new Request("https://example.com", {
+        headers: { "Content-Type": "application/json" },
+      });
+      const body = '{"age":30}';
+      const result = validateRequest(request, body, {
+        jsonSchema: {
+          type: "object",
+          required: ["name"],
+          properties: {
+            name: { type: "string" },
+          },
+        },
+      });
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("Missing required field");
+    });
+
+    it("fails when body size exceeds limit", () => {
+      const request = new Request("https://example.com", {
+        headers: { "Content-Type": "application/json" },
+      });
+      const body = "x".repeat(2000);
+      const result = validateRequest(request, body, {
+        maxBodySize: 1000,
+      });
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("exceeds maximum size");
+    });
+
+    it("fails when required headers are missing", () => {
+      const request = new Request("https://example.com", {
+        headers: { "Content-Type": "application/json" },
+      });
+      const result = validateRequest(request, "", {
+        requiredHeaders: ["Authorization", "X-Custom-Header"],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("Missing required headers");
+    });
+
+    it("fails when origin doesn't match", () => {
+      const request = new Request("https://example.com", {
+        headers: { "Origin": "https://evil.com" },
+      });
+      const result = validateRequest(request, "", {
+        validateOrigin: "https://example.com",
+      });
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("Origin not allowed");
+    });
+
+    it("validates with multiple options combined", () => {
+      const request = new Request("https://example.com", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Origin": "https://example.com",
+          "Authorization": "Bearer token",
+        },
+      });
+      const body = '{"name":"John"}';
+      const result = validateRequest(request, body, {
+        method: ["POST", "PUT"],
+        contentType: "application/json",
+        maxBodySize: 1000,
+        validateOrigin: "https://example.com",
+        requiredHeaders: ["Authorization"],
+        jsonSchema: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+          },
+        },
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it("fails when JSON is invalid in schema validation", () => {
+      const request = new Request("https://example.com", {
+        headers: { "Content-Type": "application/json" },
+      });
+      const body = "invalid json";
+      const result = validateRequest(request, body, {
+        jsonSchema: {
+          type: "object",
+        },
+      });
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("Invalid JSON");
+    });
   });
 
   describe("validateRequestJsonBody", () => {
@@ -517,6 +684,16 @@ describe("request-validation", () => {
       });
       const result = await validateRequestJsonBody(request);
       expect(result.valid).toBe(false);
+    });
+
+    it("handles empty body", async () => {
+      const request = new Request("https://example.com", {
+        method: "POST",
+        body: "",
+      });
+      const result = await validateRequestJsonBody(request);
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("Request body is empty");
     });
   });
 });
