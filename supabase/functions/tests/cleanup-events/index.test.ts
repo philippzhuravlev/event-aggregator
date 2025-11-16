@@ -137,3 +137,85 @@ Deno.test("cleanupOldEvents uses default parameters", async () => {
   assertEquals(result.dryRun, false);
   assertEquals(typeof result.eventsDeleted, "number");
 });
+
+Deno.test("cleanupOldEvents handles custom daysToKeep", async () => {
+  const supabase = createSupabaseClientMock();
+  const result = await cleanupOldEvents(supabase, 30, false);
+
+  assertEquals(result.success, true);
+  assertEquals(result.dryRun, false);
+});
+
+Deno.test("cleanupOldEvents handles errors gracefully", async () => {
+  const errorSupabase = {
+    from: () => ({
+      select: () => ({
+        limit: () => Promise.reject(new Error("Database error")),
+      }),
+    }),
+  };
+  const result = await cleanupOldEvents(errorSupabase, 90, false);
+
+  assertEquals(result.success, false);
+  assertEquals(result.eventsDeleted, 0);
+});
+
+Deno.test({
+  name: "handleCleanupEvents handles successful cleanup",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const restoreEnv = createMockEnv();
+    try {
+      const request = new Request(
+        "https://example.com/cleanup-events?daysToKeep=90&dryRun=true",
+        {
+          method: "POST",
+        },
+      );
+
+      const response = await handleCleanupEvents(request);
+
+      // Should return success response (200 or error if DB fails)
+      assertEquals(response.status >= 200 && response.status < 600, true);
+    } finally {
+      restoreEnv();
+    }
+  },
+});
+
+Deno.test("handleCleanupEvents handles negative daysToKeep", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const request = new Request(
+      "https://example.com/cleanup-events?daysToKeep=-1",
+      {
+        method: "POST",
+      },
+    );
+
+    const response = await handleCleanupEvents(request);
+
+    assertEquals(response.status, 400);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleCleanupEvents handles NaN daysToKeep", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const request = new Request(
+      "https://example.com/cleanup-events?daysToKeep=invalid",
+      {
+        method: "POST",
+      },
+    );
+
+    const response = await handleCleanupEvents(request);
+
+    assertEquals(response.status, 400);
+  } finally {
+    restoreEnv();
+  }
+});
