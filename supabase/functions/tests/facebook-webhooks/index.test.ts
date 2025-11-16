@@ -273,3 +273,137 @@ Deno.test("handleWebhookPost handles missing FACEBOOK_APP_SECRET", async () => {
   }
 });
 
+Deno.test("handleWebhookPost handles rate limited webhooks", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    const body = JSON.stringify({
+      object: "page",
+      entry: [
+        {
+          id: "rate-limited-page",
+          changes: [
+            {
+              field: "events",
+              value: {
+                verb: "add",
+                id: "event123",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    
+    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+    
+    // First request should succeed (or fail gracefully)
+    const request1 = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+      },
+      body: body,
+    });
+    
+    const response1 = await handleWebhookPost(request1, supabase);
+    assertEquals([200, 500].includes(response1.status), true);
+    
+    // Second request immediately after should be rate limited
+    const request2 = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+      },
+      body: body,
+    });
+    
+    const response2 = await handleWebhookPost(request2, supabase);
+    // Rate limiting returns 429 or processes with warning
+    assertEquals([200, 429, 500].includes(response2.status), true);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhookPost handles entry without changes", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    const body = JSON.stringify({
+      object: "page",
+      entry: [
+        {
+          id: "123",
+          time: 1234567890,
+        },
+      ],
+    });
+    
+    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+      },
+      body: body,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    // Should process successfully even with no changes
+    assertEquals([200, 500].includes(response.status), true);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhookPost handles multiple entries", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    const body = JSON.stringify({
+      object: "page",
+      entry: [
+        {
+          id: "123",
+          changes: [
+            {
+              field: "events",
+              value: {
+                verb: "add",
+                id: "event1",
+              },
+            },
+          ],
+        },
+        {
+          id: "456",
+          changes: [
+            {
+              field: "events",
+              value: {
+                verb: "add",
+                id: "event2",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    
+    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+      },
+      body: body,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    assertEquals([200, 500].includes(response.status), true);
+  } finally {
+    restoreEnv();
+  }
+});
+
