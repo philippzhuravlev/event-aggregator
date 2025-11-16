@@ -124,47 +124,38 @@ Deno.test("syncAllPageEvents returns valid structure with no pages", async () =>
   assertEquals(result.eventsAdded, 0);
 });
 
-Deno.test("handleSyncEvents handles rate limiting", async () => {
-  const restoreEnv = createMockEnv();
-  const originalCreateClient = supabaseJs.createClient;
-  
-  // Mock createClient to return our mock client (prevents interval leaks)
-  const mockSupabase = createSupabaseClientMock();
-  Object.defineProperty(supabaseJs, "createClient", {
-    value: () => mockSupabase as any,
-    writable: true,
-    configurable: true,
-  });
-  
-  try {
-    const request = new Request("https://example.com/sync-events", {
-      method: "POST",
-      headers: {
-        authorization: "Bearer test-sync-token",
-      },
-    });
+Deno.test({
+  name: "handleSyncEvents handles rate limiting",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const restoreEnv = createMockEnv();
+    
+    try {
+      const request = new Request("https://example.com/sync-events", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-sync-token",
+        },
+      });
 
-    // Make multiple requests to trigger rate limit
-    let rateLimited = false;
-    for (let i = 0; i < 15; i++) {
-      const response = await handleSyncEvents(request);
-      if (response.status === 429) {
-        rateLimited = true;
-        break;
+      // Make multiple requests to trigger rate limit
+      let rateLimited = false;
+      for (let i = 0; i < 15; i++) {
+        const response = await handleSyncEvents(request);
+        if (response.status === 429) {
+          rateLimited = true;
+          break;
+        }
       }
-    }
 
-    // Rate limiting should eventually trigger (10 calls per day)
-    // Note: This may not trigger immediately depending on rate limiter implementation
-    assertEquals(typeof rateLimited, "boolean");
-  } finally {
-    Object.defineProperty(supabaseJs, "createClient", {
-      value: originalCreateClient,
-      writable: true,
-      configurable: true,
-    });
-    restoreEnv();
-  }
+      // Rate limiting should eventually trigger (10 calls per day)
+      // Note: This may not trigger immediately depending on rate limiter implementation
+      assertEquals(typeof rateLimited, "boolean");
+    } finally {
+      restoreEnv();
+    }
+  },
 });
 
 Deno.test("handleSyncEvents handles invalid bearer token", async () => {

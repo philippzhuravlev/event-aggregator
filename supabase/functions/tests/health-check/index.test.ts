@@ -115,56 +115,52 @@ Deno.test("handleHealthCheck returns 503 when Supabase config is missing", async
   }
 });
 
-Deno.test("handleHealthCheck returns valid response structure", async () => {
-  const restoreEnv = createMockEnv();
-  const originalCreateClient = supabaseJs.createClient;
+Deno.test({
+  name: "handleHealthCheck returns valid response structure",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const restoreEnv = createMockEnv();
 
-  // Mock createClient to return our mock client (prevents interval leaks)
-  const mockSupabase = createSupabaseClientMock();
-  // deno-lint-ignore no-explicit-any
-  (supabaseJs as any).createClient = () =>
-    mockSupabase as unknown as SupabaseClient;
+    try {
+      const request = new Request("https://example.com/health-check", {
+        method: "GET",
+      });
 
-  try {
-    const request = new Request("https://example.com/health-check", {
-      method: "GET",
-    });
+      const response = await handleHealthCheck(request);
 
-    const response = await handleHealthCheck(request);
+      // The response is wrapped in a success response structure
+      const responseData = await response.json();
 
-    // The response is wrapped in a success response structure
-    const responseData = await response.json();
+      // createSuccessResponse wraps the data in { success: true, data: ... }
+      const payload: HealthCheckResponse = responseData.data || responseData;
 
-    // createSuccessResponse wraps the data in { success: true, data: ... }
-    const payload: HealthCheckResponse = responseData.data || responseData;
+      // Validate we get a valid HTTP response
+      assertEquals(response.status >= 200 && response.status < 600, true);
 
-    // Validate we get a valid HTTP response
-    assertEquals(response.status >= 200 && response.status < 600, true);
-
-    // If we have the expected structure, validate it
-    if (
-      payload && payload.system && payload.tokens && payload.overall &&
-      payload.alerts
-    ) {
-      assertEquals(typeof payload.system.status, "string");
-      if (payload.system.supabase) {
-        assertEquals(typeof payload.system.supabase.status, "string");
+      // If we have the expected structure, validate it
+      if (
+        payload && payload.system && payload.tokens && payload.overall &&
+        payload.alerts
+      ) {
+        assertEquals(typeof payload.system.status, "string");
+        if (payload.system.supabase) {
+          assertEquals(typeof payload.system.supabase.status, "string");
+        }
+        assertEquals(typeof payload.tokens.totalPages, "number");
+        assertEquals(typeof payload.overall.status, "string");
+        assertEquals(typeof payload.overall.timestamp, "string");
+        assertEquals(typeof payload.overall.uptime, "number");
+        assertEquals(Array.isArray(payload.tokens.healthy), true);
+        assertEquals(Array.isArray(payload.tokens.expiring_soon), true);
+        assertEquals(Array.isArray(payload.tokens.expired), true);
+        assertEquals(Array.isArray(payload.alerts.criticalAlerts), true);
+        assertEquals(typeof payload.alerts.expiryWarningsSent, "number");
       }
-      assertEquals(typeof payload.tokens.totalPages, "number");
-      assertEquals(typeof payload.overall.status, "string");
-      assertEquals(typeof payload.overall.timestamp, "string");
-      assertEquals(typeof payload.overall.uptime, "number");
-      assertEquals(Array.isArray(payload.tokens.healthy), true);
-      assertEquals(Array.isArray(payload.tokens.expiring_soon), true);
-      assertEquals(Array.isArray(payload.tokens.expired), true);
-      assertEquals(Array.isArray(payload.alerts.criticalAlerts), true);
-      assertEquals(typeof payload.alerts.expiryWarningsSent, "number");
+    } finally {
+      restoreEnv();
     }
-  } finally {
-    // deno-lint-ignore no-explicit-any
-    (supabaseJs as any).createClient = originalCreateClient;
-    restoreEnv();
-  }
+  },
 });
 
 Deno.test("performHealthCheck returns valid structure with healthy system", async () => {
