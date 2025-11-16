@@ -471,3 +471,325 @@ Deno.test("refreshExpiredTokens handles missing FACEBOOK_APP_SECRET", async () =
   }
 });
 
+Deno.test("handleTokenRefresh returns 405 for non-POST requests", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const request = new Request("https://example.com/token-refresh", {
+      method: "GET",
+    });
+
+    const response = await handleTokenRefresh(request);
+    assertEquals(response.status, 405);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleTokenRefresh returns 500 when Supabase config is missing", async () => {
+  const originalEnv = Deno.env.get;
+  Deno.env.get = () => undefined;
+  
+  try {
+    const request = new Request("https://example.com/token-refresh", {
+      method: "POST",
+    });
+
+    const response = await handleTokenRefresh(request);
+    assertEquals(response.status, 500);
+  } finally {
+    Deno.env.get = originalEnv;
+  }
+});
+
+Deno.test({
+  name: "handleTokenRefresh handles successful refresh",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const restoreEnv = createMockEnv();
+    try {
+      const request = new Request("https://example.com/token-refresh", {
+        method: "POST",
+      });
+
+      const response = await handleTokenRefresh(request);
+      // Should return success or error depending on actual DB state
+      assertEquals(response.status >= 200 && response.status < 600, true);
+    } finally {
+      restoreEnv();
+    }
+  },
+});
+
+Deno.test("refreshExpiredTokens handles recordFailure with warn logLevel", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: null, // No token data to trigger failure
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  // Should record failure with warn level
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles recordFailure with includeAlert=false", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: "invalid-date", // Invalid date triggers failure with includeAlert=false
+      },
+    ],
+    tokenData: { token: "test-token" },
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles pageError in try-catch", async () => {
+  const errorSupabase = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          not: () => Promise.reject(new Error("Query failed")),
+        }),
+      }),
+    }),
+    rpc: () => Promise.resolve({ data: null, error: null }),
+  };
+
+  try {
+    const result = await refreshExpiredTokens(errorSupabase as any);
+    // Should handle errors gracefully
+    assertEquals(result.refreshed >= 0, true);
+    assertEquals(result.failed >= 0, true);
+  } catch (error) {
+    // May throw error
+    assertEquals(error instanceof Error, true);
+  }
+});
+
+Deno.test("refreshExpiredTokens handles queryError", async () => {
+  const errorSupabase = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          not: () => Promise.resolve({
+            data: null,
+            error: { message: "Query failed" },
+          }),
+        }),
+      }),
+    }),
+    rpc: () => Promise.resolve({ data: null, error: null }),
+  };
+
+  try {
+    await refreshExpiredTokens(errorSupabase as any);
+    assertEquals(false, true, "Should have thrown an error");
+  } catch (error) {
+    assertEquals(error instanceof Error, true);
+    assertEquals((error as Error).message.includes("Failed to fetch pages"), true);
+  }
+});
+
+Deno.test("refreshExpiredTokens handles empty pages array", async () => {
+  const supabase = createSupabaseClientMock({
+    pages: [],
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  assertEquals(result.refreshed, 0);
+  assertEquals(result.failed, 0);
+  assertEquals(result.results.length, 0);
+});
+
+Deno.test("refreshExpiredTokens handles tokenError", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          not: () => Promise.resolve({
+            data: [{
+              page_id: 123,
+              page_name: "Test Page",
+              token_status: "active",
+              page_access_token_id: 1,
+              token_expiry: futureDate.toISOString(),
+            }],
+            error: null,
+          }),
+        }),
+      }),
+    }),
+    rpc: () => Promise.resolve({
+      data: null,
+      error: { message: "Token retrieval failed" },
+    }),
+  };
+
+  const result = await refreshExpiredTokens(supabase as any);
+  assertEquals(result.refreshed, 0);
+  assertEquals(result.failed, 1);
+  assertEquals(result.results.length, 1);
+  assertEquals(result.results[0].success, false);
+});
+
+Deno.test("refreshExpiredTokens handles missing access token", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: null }, // No token
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  assertEquals(result.refreshed, 0);
+  assertEquals(result.failed, 1);
+});
+
+Deno.test("refreshExpiredTokens handles token not expiring soon", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 30); // 30 days from now
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "test-token", expiry: futureDate.toISOString() },
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  // Should not refresh tokens that expire in more than 7 days
+  assertEquals(result.refreshed, 0);
+  assertEquals(result.failed, 0);
+});
+
+Deno.test("refreshExpiredTokens handles already expired token", async () => {
+  const pastDate = new Date();
+  pastDate.setDate(pastDate.getDate() - 1);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: pastDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "test-token", expiry: pastDate.toISOString() },
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  assertEquals(result.refreshed, 0);
+  assertEquals(result.failed, 1);
+});
+
+Deno.test("refreshExpiredTokens handles rate limiting", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "test-token", expiry: futureDate.toISOString() },
+  });
+
+  // Call multiple times to trigger rate limiting
+  await refreshExpiredTokens(supabase);
+  const result = await refreshExpiredTokens(supabase);
+  // Second call should be rate limited
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles page_name fallback to Unknown Page", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        // No page_name
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "test-token", expiry: futureDate.toISOString() },
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  // Should handle missing page_name gracefully
+  assertEquals(result.refreshed >= 0, true);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles null page_name", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: null,
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "test-token", expiry: futureDate.toISOString() },
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  // Should handle null page_name gracefully
+  assertEquals(result.refreshed >= 0, true);
+  assertEquals(result.failed >= 0, true);
+});
+

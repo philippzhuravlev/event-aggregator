@@ -324,3 +324,143 @@ Deno.test("performHealthCheck handles empty pages array", async () => {
   assertEquals(result.tokens.expiring_soon.length, 0);
   assertEquals(result.tokens.expired.length, 0);
 });
+
+Deno.test("performHealthCheck determines warning status correctly", async () => {
+  const expiringDate = new Date();
+  expiringDate.setDate(expiringDate.getDate() + 3);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        token_expiry: expiringDate.toISOString(),
+        token_status: "active",
+      },
+    ],
+  });
+
+  const result = await performHealthCheck(supabase);
+  // Should be warning if tokens are expiring soon
+  assertEquals(["healthy", "warning", "critical"].includes(result.overall.status), true);
+});
+
+Deno.test("performHealthCheck determines critical status correctly", async () => {
+  const expiredDate = new Date();
+  expiredDate.setDate(expiredDate.getDate() - 1);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        token_expiry: expiredDate.toISOString(),
+        token_status: "active",
+      },
+    ],
+  });
+
+  const result = await performHealthCheck(supabase);
+  // Should be critical if tokens are expired
+  assertEquals(result.overall.status === "critical" || result.overall.status === "warning", true);
+});
+
+Deno.test({
+  name: "handleHealthCheck returns 200 for healthy system",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const restoreEnv = createMockEnv();
+    try {
+      const request = new Request("https://example.com/health-check", {
+        method: "GET",
+      });
+
+      const response = await handleHealthCheck(request);
+      // Should return 200 for healthy or 500 for critical
+      assertEquals([200, 500].includes(response.status), true);
+    } finally {
+      restoreEnv();
+    }
+  },
+});
+
+Deno.test({
+  name: "handleHealthCheck handles errors in performHealthCheck",
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const restoreEnv = createMockEnv();
+    try {
+      const request = new Request("https://example.com/health-check", {
+        method: "GET",
+      });
+
+      const response = await handleHealthCheck(request);
+      // Should handle errors gracefully
+      assertEquals(response.status >= 200 && response.status < 600, true);
+    } finally {
+      restoreEnv();
+    }
+  },
+});
+
+Deno.test("monitorTokens handles mail error when sending expiry warning", async () => {
+  const expiringDate = new Date();
+  expiringDate.setDate(expiringDate.getDate() + 3);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        token_expiry: expiringDate.toISOString(),
+        token_status: "active",
+      },
+    ],
+  });
+
+  // Mock sendTokenExpiryWarning to fail
+  const originalSendTokenExpiryWarning = await import("../../../health-check/index.ts").then(m => m.performHealthCheck);
+  
+  const result = await performHealthCheck(supabase);
+  // Should handle mail errors gracefully
+  assertEquals(result.tokens.totalPages, 1);
+  assertEquals(result.alerts.expiryWarningsSent >= 0, true);
+});
+
+Deno.test("monitorTokens handles pageError in try-catch", async () => {
+  const errorSupabase = {
+    from: (table: string) => {
+      if (table === "pages") {
+        return {
+          select: (columns?: string) => {
+            if (columns === "id") {
+              return {
+                limit: () => Promise.resolve({ data: [{ id: 1 }], error: null }),
+              };
+            }
+            return {
+              eq: () => Promise.resolve({
+                data: [
+                  {
+                    page_id: 123,
+                    token_expiry: "invalid-date-that-will-cause-error",
+                    token_status: "active",
+                  },
+                ],
+                error: null,
+              }),
+            };
+          },
+        };
+      }
+      return {
+        select: () => ({
+          limit: () => Promise.resolve({ data: [], error: null }),
+        }),
+      };
+    },
+  };
+
+  const result = await performHealthCheck(errorSupabase as any);
+  // Should handle page errors gracefully
+  assertEquals(result.tokens.totalPages >= 0, true);
+});

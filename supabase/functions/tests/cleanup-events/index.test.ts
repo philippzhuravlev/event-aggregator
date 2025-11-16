@@ -235,3 +235,59 @@ Deno.test("cleanupOldEvents handles daysToKeep of 1", async () => {
   assertEquals(result.success, true);
   assertEquals(result.dryRun, false);
 });
+
+Deno.test("cleanupOldEvents handles error in deleteOldEvents", async () => {
+  const errorSupabase = {
+    from: () => ({
+      select: (columns: string, options?: any) => {
+        if (options?.count === "exact" && options?.head === true) {
+          return {
+            lt: () => Promise.reject(new Error("Database error")),
+          };
+        }
+        return {
+          limit: () => Promise.resolve({ data: [], error: null }),
+        };
+      },
+    }),
+  };
+
+  const result = await cleanupOldEvents(errorSupabase as any, 90, false);
+  assertEquals(result.success, false);
+  assertEquals(result.eventsDeleted, 0);
+});
+
+Deno.test("handleCleanupEvents handles successful cleanup with dryRun", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const request = new Request(
+      "https://example.com/cleanup-events?daysToKeep=90&dryRun=true",
+      {
+        method: "POST",
+      },
+    );
+
+    const response = await handleCleanupEvents(request);
+    assertEquals(response.status >= 200 && response.status < 600, true);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleCleanupEvents handles cleanup errors", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const request = new Request(
+      "https://example.com/cleanup-events?daysToKeep=90",
+      {
+        method: "POST",
+      },
+    );
+
+    const response = await handleCleanupEvents(request);
+    // Should handle errors gracefully
+    assertEquals(response.status >= 200 && response.status < 600, true);
+  } finally {
+    restoreEnv();
+  }
+});

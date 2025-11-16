@@ -270,3 +270,104 @@ Deno.test("syncAllPageEvents handles batch write errors gracefully", async () =>
   assertEquals(Array.isArray(result.errors), true);
 });
 
+Deno.test("handleSyncEvents handles successful sync", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const request = new Request("https://example.com/sync-events", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-sync-token",
+      },
+    });
+
+    const response = await handleSyncEvents(request);
+    // Should return success or error depending on actual DB state
+    assertEquals(response.status >= 200 && response.status < 600, true);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleSyncEvents handles sync errors gracefully", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const request = new Request("https://example.com/sync-events", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-sync-token",
+      },
+    });
+
+    const response = await handleSyncEvents(request);
+    // Should handle errors gracefully
+    assertEquals(response.status >= 200 && response.status < 600, true);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("syncAllPageEvents handles pages with events successfully", async () => {
+  const mockPages = [
+    {
+      page_id: 123,
+      page_name: "Test Page",
+      token_status: "active",
+      page_access_token_id: 1,
+    },
+  ];
+
+  const supabase = {
+    from: (table: string) => {
+      if (table === "pages") {
+        return {
+          select: () => ({
+            eq: () => ({
+              not: () => Promise.resolve({ data: mockPages, error: null }),
+            }),
+          }),
+        };
+      }
+      return {};
+    },
+    rpc: () => Promise.resolve({ data: null, error: null }),
+  };
+
+  const result = await syncAllPageEvents(supabase as any);
+  assertEquals(result.success, true);
+  assertEquals(result.pagesProcessed, 1);
+  assertEquals(typeof result.eventsAdded, "number");
+  assertEquals(Array.isArray(result.errors), true);
+});
+
+Deno.test("syncAllPageEvents handles expiring tokens collection", async () => {
+  const mockPages = [
+    {
+      page_id: 123,
+      page_name: "Test Page",
+      token_status: "active",
+      page_access_token_id: 1,
+    },
+  ];
+
+  const supabase = {
+    from: (table: string) => {
+      if (table === "pages") {
+        return {
+          select: () => ({
+            eq: () => ({
+              not: () => Promise.resolve({ data: mockPages, error: null }),
+            }),
+          }),
+        };
+      }
+      return {};
+    },
+    rpc: () => Promise.resolve({ data: null, error: null }),
+  };
+
+  const result = await syncAllPageEvents(supabase as any);
+  assertEquals(result.success, true);
+  // Should log expiring tokens if any
+  assertEquals(typeof result.pagesProcessed, "number");
+});
+

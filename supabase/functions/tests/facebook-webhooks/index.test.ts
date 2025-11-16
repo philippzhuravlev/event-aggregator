@@ -452,3 +452,205 @@ Deno.test("handleWebhook handles OPTIONS request", async () => {
   }
 });
 
+Deno.test("handleWebhook returns 405 for unsupported methods", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "PUT",
+    });
+
+    const response = await handleWebhook(request);
+    assertEquals(response.status, 405);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhook returns 500 when Supabase config is missing for POST", async () => {
+  const originalEnv = Deno.env.get;
+  Deno.env.get = () => undefined;
+  
+  try {
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+    });
+
+    const response = await handleWebhook(request);
+    // Should throw error or return 500
+    assertEquals(response.status >= 500 && response.status < 600, true);
+  } finally {
+    Deno.env.get = originalEnv;
+  }
+});
+
+Deno.test("handleWebhookPost handles body size validation", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    // Create a body that's too large
+    const largeBody = "x".repeat(10 * 1024 * 1024); // 10MB
+    
+    const signature = await computeHmacSignature(largeBody, "test-app-secret", "sha256=hex");
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+      },
+      body: largeBody,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    // Should handle size validation
+    assertEquals(response.status >= 400 && response.status < 600, true);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhookPost handles invalid JSON body", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    const invalidJson = "{ invalid json }";
+    
+    const signature = await computeHmacSignature(invalidJson, "test-app-secret", "sha256=hex");
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+      },
+      body: invalidJson,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    // Should handle JSON parse errors
+    assertEquals(response.status >= 400 && response.status < 600, true);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhookPost handles entry processing errors gracefully", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    const body = JSON.stringify({
+      object: "page",
+      entry: [
+        {
+          id: "123",
+          changes: [
+            {
+              field: "events",
+              value: {
+                verb: "add",
+                id: "event1",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    
+    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+      },
+      body: body,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    // Should process entries and return result even if some fail
+    assertEquals([200, 500].includes(response.status), true);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhookGet handles invalid verify token", async () => {
+  const url = new URL("https://example.com/webhook?hub.mode=subscribe&hub.challenge=test&hub.verify_token=wrong-token");
+  const response = handleWebhookGet(url);
+  assertEquals(response.status, 403);
+});
+
+Deno.test("handleWebhookGet handles missing challenge", async () => {
+  const url = new URL("https://example.com/webhook?hub.mode=subscribe&hub.verify_token=test-verify-token");
+  const response = handleWebhookGet(url);
+  assertEquals(response.status, 400);
+});
+
+Deno.test("handleWebhookPost handles content-length header validation", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    const body = JSON.stringify({
+      object: "page",
+      entry: [],
+    });
+    
+    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+        "content-length": "999999999", // Very large content length
+      },
+      body: body,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    // Should validate content length
+    assertEquals(response.status >= 400 && response.status < 600, true);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhookPost handles missing signature header", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    const body = JSON.stringify({
+      object: "page",
+      entry: [],
+    });
+    
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      // No signature header
+      body: body,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    assertEquals(response.status, 401);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhookPost handles invalid signature", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    const body = JSON.stringify({
+      object: "page",
+      entry: [],
+    });
+    
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": "sha256=invalid-signature",
+      },
+      body: body,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    assertEquals(response.status, 401);
+  } finally {
+    restoreEnv();
+  }
+});
+

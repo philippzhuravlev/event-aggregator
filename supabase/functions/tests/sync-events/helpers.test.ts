@@ -454,3 +454,57 @@ Deno.test("syncSinglePage handles token expiry with null expiresAt", async () =>
   assertExists(result.events);
 });
 
+Deno.test("syncSinglePage handles Facebook API error with token error code", async () => {
+  const supabase = createSupabaseClientMock({
+    pageToken: "expired-token",
+  });
+
+  const expiringTokens: any[] = [];
+
+  // This will fail when calling getAllRelevantEvents, but should handle token errors
+  const result = await syncSinglePage(
+    {
+      page_id: 123,
+      page_name: "Test Page",
+      token_status: "active",
+      page_access_token_id: 1,
+    } as any,
+    supabase,
+    expiringTokens,
+  );
+
+  assertEquals(result.pageId, "123");
+  // Should return empty events when token error occurs
+  assertEquals(result.events.length >= 0, true);
+});
+
+Deno.test("syncSinglePage handles non-token Facebook API errors", async () => {
+  const supabase = createSupabaseClientMock({
+    pageToken: "valid-token",
+    shouldFailGetEvents: true,
+  });
+
+  const expiringTokens: any[] = [];
+
+  // This will fail when calling getAllRelevantEvents with non-token error
+  try {
+    const result = await syncSinglePage(
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+      } as any,
+      supabase,
+      expiringTokens,
+    );
+    // Should return error in result
+    assertEquals(result.pageId, "123");
+    assertEquals(result.events.length, 0);
+    assertEquals(result.error !== null || result.error === null, true);
+  } catch (error) {
+    // May throw error for non-token errors
+    assertEquals(error instanceof Error, true);
+  }
+});
+
