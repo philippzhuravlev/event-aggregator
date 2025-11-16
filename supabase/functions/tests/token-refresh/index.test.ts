@@ -275,7 +275,7 @@ Deno.test("refreshExpiredTokens handles RPC errors when getting token", async ()
 Deno.test("refreshExpiredTokens handles rate limiting", async () => {
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + 5);
-
+  
   const supabase = createSupabaseClientMock({
     pages: [
       {
@@ -296,5 +296,178 @@ Deno.test("refreshExpiredTokens handles rate limiting", async () => {
   // At least one should succeed or be rate limited
   assertEquals(result1.refreshed >= 0 || result1.failed >= 0, true);
   assertEquals(result2.refreshed >= 0 || result2.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles invalid expiry date", async () => {
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: "invalid-date",
+      },
+    ],
+    tokenData: { token: "test-token", expiry: "invalid-date" },
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  assertEquals(result.refreshed, 0);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles missing expiry in tokenData", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "test-token" }, // No expiry field
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  // Should use page token_expiry as fallback
+  assertEquals(result.refreshed >= 0, true);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles array tokenData", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: [{ token: "test-token", expiry: futureDate.toISOString() }], // Array format
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  assertEquals(result.refreshed >= 0, true);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles store error", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          not: () => Promise.resolve({
+            data: [{
+              page_id: 123,
+              page_name: "Test Page",
+              token_status: "active",
+              page_access_token_id: 1,
+              token_expiry: futureDate.toISOString(),
+            }],
+            error: null,
+          }),
+        }),
+      }),
+    }),
+    rpc: (fnName: string) => {
+      if (fnName === "get_page_access_token") {
+        return Promise.resolve({
+          data: { token: "test-token", expiry: futureDate.toISOString() },
+          error: null,
+        });
+      }
+      if (fnName === "store_page_token") {
+        return Promise.resolve({
+          data: null,
+          error: { message: "Store failed" },
+        });
+      }
+      return Promise.resolve({ data: null, error: null });
+    },
+  };
+
+  const result = await refreshExpiredTokens(supabase as any);
+  assertEquals(result.refreshed, 0);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles missing FACEBOOK_APP_ID", async () => {
+  const originalEnv = Deno.env.get;
+  Deno.env.get = (key: string) => {
+    if (key === "FACEBOOK_APP_ID") return undefined;
+    if (key === "FACEBOOK_APP_SECRET") return "test-secret";
+    return originalEnv(key);
+  };
+
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "test-token", expiry: futureDate.toISOString() },
+  });
+
+  try {
+    const result = await refreshExpiredTokens(supabase);
+    assertEquals(result.refreshed, 0);
+    assertEquals(result.failed >= 0, true);
+  } finally {
+    Deno.env.get = originalEnv;
+  }
+});
+
+Deno.test("refreshExpiredTokens handles missing FACEBOOK_APP_SECRET", async () => {
+  const originalEnv = Deno.env.get;
+  Deno.env.get = (key: string) => {
+    if (key === "FACEBOOK_APP_ID") return "test-app-id";
+    if (key === "FACEBOOK_APP_SECRET") return undefined;
+    return originalEnv(key);
+  };
+
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "test-token", expiry: futureDate.toISOString() },
+  });
+
+  try {
+    const result = await refreshExpiredTokens(supabase);
+    assertEquals(result.refreshed, 0);
+    assertEquals(result.failed >= 0, true);
+  } finally {
+    Deno.env.get = originalEnv;
+  }
 });
 

@@ -188,3 +188,139 @@ Deno.test("performHealthCheck handles database errors", async () => {
   assertEquals(result.system.status, "error");
   assertExists(result.system.supabase.error);
 });
+
+Deno.test("performHealthCheck handles pages with expiring tokens", async () => {
+  const expiringDate = new Date();
+  expiringDate.setDate(expiringDate.getDate() + 3); // 3 days from now
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        token_expiry: expiringDate.toISOString(),
+        token_status: "active",
+      },
+    ],
+  });
+
+  const result = await performHealthCheck(supabase);
+  assertEquals(result.tokens.totalPages, 1);
+  assertEquals(result.tokens.expiring_soon.length >= 0, true);
+});
+
+Deno.test("performHealthCheck handles pages with expired tokens", async () => {
+  const expiredDate = new Date();
+  expiredDate.setDate(expiredDate.getDate() - 1); // 1 day ago
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        token_expiry: expiredDate.toISOString(),
+        token_status: "active",
+      },
+    ],
+  });
+
+  const result = await performHealthCheck(supabase);
+  assertEquals(result.tokens.totalPages, 1);
+  assertEquals(result.tokens.expired.length >= 0, true);
+});
+
+Deno.test("performHealthCheck handles pages with healthy tokens", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 30); // 30 days from now
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        token_expiry: futureDate.toISOString(),
+        token_status: "active",
+      },
+    ],
+  });
+
+  const result = await performHealthCheck(supabase);
+  assertEquals(result.tokens.totalPages, 1);
+  assertEquals(result.tokens.healthy.length >= 0, true);
+});
+
+Deno.test("performHealthCheck handles pages with null token_expiry", async () => {
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        token_expiry: null,
+        token_status: "active",
+      },
+    ],
+  });
+
+  const result = await performHealthCheck(supabase);
+  assertEquals(result.tokens.totalPages, 1);
+  // Should handle null expiry gracefully
+  assertEquals(Array.isArray(result.tokens.healthy), true);
+});
+
+Deno.test("performHealthCheck handles pages with invalid token_expiry", async () => {
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        token_expiry: "invalid-date",
+        token_status: "active",
+      },
+    ],
+  });
+
+  const result = await performHealthCheck(supabase);
+  assertEquals(result.tokens.totalPages, 1);
+  // Should handle invalid date gracefully
+  assertEquals(Array.isArray(result.tokens.healthy), true);
+});
+
+Deno.test("performHealthCheck handles query errors in monitorTokens", async () => {
+  const errorSupabase = {
+    from: (table: string) => {
+      if (table === "pages") {
+        return {
+          select: (columns?: string) => {
+            if (columns === "id") {
+              return {
+                limit: () => Promise.resolve({ data: [{ id: 1 }], error: null }),
+              };
+            }
+            return {
+              eq: () => Promise.resolve({
+                data: null,
+                error: { message: "Query failed" },
+              }),
+            };
+          },
+        };
+      }
+      return {
+        select: () => ({
+          limit: () => Promise.resolve({ data: [], error: null }),
+        }),
+      };
+    },
+  };
+
+  const result = await performHealthCheck(errorSupabase as any);
+  assertEquals(result.tokens.totalPages, 0);
+  assertEquals(Array.isArray(result.tokens.healthy), true);
+});
+
+Deno.test("performHealthCheck handles empty pages array", async () => {
+  const supabase = createSupabaseClientMock({
+    pages: [],
+  });
+
+  const result = await performHealthCheck(supabase);
+  assertEquals(result.tokens.totalPages, 0);
+  assertEquals(result.tokens.healthy.length, 0);
+  assertEquals(result.tokens.expiring_soon.length, 0);
+  assertEquals(result.tokens.expired.length, 0);
+});

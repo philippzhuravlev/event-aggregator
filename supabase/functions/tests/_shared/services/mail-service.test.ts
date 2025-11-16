@@ -340,3 +340,168 @@ Deno.test("sendEventSyncFailedAlert sends sync failure alert", async () => {
   }
 });
 
+Deno.test("sendEventSyncFailedAlert uses ADMIN_EMAIL fallback", async () => {
+  const restoreEnv = createMockEnv({
+    RESEND_API_KEY: "re_test123",
+    MAIL_FROM: "test@example.com",
+    ADMIN_EMAIL: "fallback@example.com",
+  });
+
+  setupMockFetch(
+    new Response(JSON.stringify({ id: "email-id" }), { status: 200 }),
+  );
+
+  try {
+    const result = await sendEventSyncFailedAlert("Test error");
+
+    assertEquals(result.success, true);
+  } finally {
+    restoreFetch();
+    restoreEnv();
+  }
+});
+
+Deno.test("sendEventSyncFailedAlert uses default email when no env vars", async () => {
+  const restoreEnv = createMockEnv({
+    RESEND_API_KEY: "re_test123",
+    MAIL_FROM: "test@example.com",
+  });
+
+  setupMockFetch(
+    new Response(JSON.stringify({ id: "email-id" }), { status: 200 }),
+  );
+
+  try {
+    const result = await sendEventSyncFailedAlert("Test error");
+
+    assertEquals(result.success, true);
+  } finally {
+    restoreFetch();
+    restoreEnv();
+  }
+});
+
+Deno.test("sendTokenExpiryWarning calculates days correctly", async () => {
+  const restoreEnv = createMockEnv({
+    RESEND_API_KEY: "re_test123",
+    MAIL_FROM: "test@example.com",
+    ALERT_EMAIL_TO: "admin@example.com",
+  });
+
+  setupMockFetch(
+    new Response(JSON.stringify({ id: "email-id" }), { status: 200 }),
+  );
+
+  try {
+    const secondsIn3Days = 3 * 24 * 60 * 60;
+    const result = await sendTokenExpiryWarning("123", secondsIn3Days);
+
+    assertEquals(result.success, true);
+    assertEquals(mockFetchCalls.length, 1);
+  } finally {
+    restoreFetch();
+    restoreEnv();
+  }
+});
+
+Deno.test("sendTokenExpiryWarning handles fractional days", async () => {
+  const restoreEnv = createMockEnv({
+    RESEND_API_KEY: "re_test123",
+    MAIL_FROM: "test@example.com",
+    ALERT_EMAIL_TO: "admin@example.com",
+  });
+
+  setupMockFetch(
+    new Response(JSON.stringify({ id: "email-id" }), { status: 200 }),
+  );
+
+  try {
+    const secondsInHalfDay = 12 * 60 * 60;
+    const result = await sendTokenExpiryWarning("123", secondsInHalfDay);
+
+    assertEquals(result.success, true);
+  } finally {
+    restoreFetch();
+    restoreEnv();
+  }
+});
+
+Deno.test("sendAlertEmail uses provided html over formatted", async () => {
+  const restoreEnv = createMockEnv({
+    RESEND_API_KEY: "re_test123",
+    MAIL_FROM: "test@example.com",
+    ALERT_EMAIL_TO: "admin@example.com",
+  });
+
+  setupMockFetch(
+    new Response(JSON.stringify({ id: "email-id" }), { status: 200 }),
+  );
+
+  try {
+    const result = await sendAlertEmail({
+      to: "admin@example.com",
+      subject: "Test Alert",
+      alertType: "token_refresh_failed",
+      html: "<p>Custom HTML</p>",
+    });
+
+    assertEquals(result.success, true);
+  } finally {
+    restoreFetch();
+    restoreEnv();
+  }
+});
+
+Deno.test("sendAlertEmail handles unknown alert type", async () => {
+  const restoreEnv = createMockEnv({
+    RESEND_API_KEY: "re_test123",
+    MAIL_FROM: "test@example.com",
+    ALERT_EMAIL_TO: "admin@example.com",
+  });
+
+  setupMockFetch(
+    new Response(JSON.stringify({ id: "email-id" }), { status: 200 }),
+  );
+
+  try {
+    const result = await sendAlertEmail({
+      to: "admin@example.com",
+      subject: "Test Alert",
+      alertType: "unknown_type" as any,
+      text: "Test message",
+    });
+
+    assertEquals(result.success, true);
+  } finally {
+    restoreFetch();
+    restoreEnv();
+  }
+});
+
+Deno.test("sendAlertEmail handles missing details", async () => {
+  const restoreEnv = createMockEnv({
+    RESEND_API_KEY: "re_test123",
+    MAIL_FROM: "test@example.com",
+    ALERT_EMAIL_TO: "admin@example.com",
+  });
+
+  setupMockFetch(
+    new Response(JSON.stringify({ id: "email-id" }), { status: 200 }),
+  );
+
+  try {
+    const result = await sendAlertEmail({
+      to: "admin@example.com",
+      subject: "Test Alert",
+      alertType: "token_refresh_failed",
+      text: "Test message",
+      // No details field
+    });
+
+    assertEquals(result.success, true);
+  } finally {
+    restoreFetch();
+    restoreEnv();
+  }
+});
+

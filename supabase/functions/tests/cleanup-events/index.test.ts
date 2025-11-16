@@ -219,3 +219,19 @@ Deno.test("handleCleanupEvents handles NaN daysToKeep", async () => {
     restoreEnv();
   }
 });
+
+Deno.test("cleanupOldEvents handles very large daysToKeep", async () => {
+  const supabase = createSupabaseClientMock();
+  const result = await cleanupOldEvents(supabase, 10000, false);
+
+  assertEquals(result.success, true);
+  assertEquals(typeof result.eventsDeleted, "number");
+});
+
+Deno.test("cleanupOldEvents handles daysToKeep of 1", async () => {
+  const supabase = createSupabaseClientMock();
+  const result = await cleanupOldEvents(supabase, 1, false);
+
+  assertEquals(result.success, true);
+  assertEquals(result.dryRun, false);
+});

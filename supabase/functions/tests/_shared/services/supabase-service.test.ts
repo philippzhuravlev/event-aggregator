@@ -344,6 +344,121 @@ Deno.test("checkTokenExpiry returns expiring when token expiry is null", async (
   assertEquals(result.expiresAt, null);
 });
 
+Deno.test("checkTokenExpiry handles invalid date string", async () => {
+  const supabase = createSupabaseClientMock({
+    tokenExpiry: "invalid-date",
+  });
+
+  const result = await checkTokenExpiry(supabase as any, "123", 7);
+  // Should handle invalid date gracefully
+  assertEquals(typeof result.isExpiring, "boolean");
+  assertEquals(typeof result.daysUntilExpiry, "number");
+});
+
+Deno.test("checkTokenExpiry handles custom warningDays", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 10);
+
+  const supabase = createSupabaseClientMock({
+    tokenExpiry: futureDate.toISOString(),
+  });
+
+  const result = await checkTokenExpiry(supabase as any, "123", 5);
+  assertEquals(typeof result.isExpiring, "boolean");
+  assertEquals(typeof result.daysUntilExpiry, "number");
+});
+
+Deno.test("checkTokenExpiry handles token expiring within warning days", async () => {
+  const expiringDate = new Date();
+  expiringDate.setDate(expiringDate.getDate() + 3);
+
+  const supabase = createSupabaseClientMock({
+    tokenExpiry: expiringDate.toISOString(),
+  });
+
+  const result = await checkTokenExpiry(supabase as any, "123", 7);
+  assertEquals(result.isExpiring, true);
+});
+
+Deno.test("checkTokenExpiry handles token not expiring", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 30);
+
+  const supabase = createSupabaseClientMock({
+    tokenExpiry: futureDate.toISOString(),
+  });
+
+  const result = await checkTokenExpiry(supabase as any, "123", 7);
+  assertEquals(result.isExpiring, false);
+});
+
+Deno.test("checkTokenExpiry handles already expired token", async () => {
+  const pastDate = new Date();
+  pastDate.setDate(pastDate.getDate() - 1);
+
+  const supabase = createSupabaseClientMock({
+    tokenExpiry: pastDate.toISOString(),
+  });
+
+  const result = await checkTokenExpiry(supabase as any, "123", 7);
+  assertEquals(result.isExpiring, true);
+  assertEquals(result.daysUntilExpiry <= 0, true);
+});
+
+Deno.test("deleteOldEvents handles count error", async () => {
+  const errorSupabase = {
+    from: () => ({
+      select: (columns: string, options?: any) => {
+        if (options?.count === "exact" && options?.head === true) {
+          return {
+            lt: () => Promise.resolve({
+              count: null,
+              error: { message: "Count failed" },
+            }),
+          };
+        }
+        return {
+          limit: () => Promise.resolve({ data: [], error: null }),
+        };
+      },
+    }),
+  };
+
+  const result = await deleteOldEvents(errorSupabase as any, new Date(), false);
+  assertEquals(result, 0);
+});
+
+Deno.test("deleteOldEvents handles delete error", async () => {
+  const errorSupabase = {
+    from: () => ({
+      select: (columns: string, options?: any) => {
+        if (options?.count === "exact" && options?.head === true) {
+          return {
+            lt: () => Promise.resolve({
+              count: 5,
+              error: null,
+            }),
+          };
+        }
+        return {
+          delete: () => ({
+            lt: () => Promise.resolve({
+              error: { message: "Delete failed" },
+            }),
+          }),
+        };
+      },
+    }),
+  };
+
+  try {
+    await deleteOldEvents(errorSupabase as any, new Date(), false);
+    assertEquals(false, true, "Should have thrown an error");
+  } catch (error) {
+    assertEquals(error instanceof Error, true);
+  }
+});
+
 Deno.test("checkTokenExpiry returns expiring when query fails", async () => {
   const supabase = createSupabaseClientMock({
     shouldFail: true,

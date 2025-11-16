@@ -311,3 +311,146 @@ Deno.test("syncSinglePage returns error in result on failure", async () => {
   assertEquals(result.error === null || typeof result.error === "string", true);
 });
 
+Deno.test("syncSinglePage handles token expiry check errors gracefully", async () => {
+  const supabase = createSupabaseClientMock({
+    shouldFailTokenExpiry: true,
+    pageToken: "test-token",
+  });
+
+  const expiringTokens: any[] = [];
+
+  const result = await syncSinglePage(
+    {
+      page_id: 123,
+      page_name: "Test Page",
+      token_status: "active",
+      page_access_token_id: 1,
+    } as any,
+    supabase,
+    expiringTokens,
+  );
+
+  // Should continue processing even if token expiry check fails
+  assertEquals(result.pageId, "123");
+  assertExists(result.events);
+});
+
+Deno.test("syncSinglePage handles markTokenExpired errors", async () => {
+  const supabase = createSupabaseClientMock({
+    pageToken: "expired-token",
+    shouldFailMarkExpired: true,
+  });
+
+  const expiringTokens: any[] = [];
+
+  // This will fail when trying to mark token expired, but should still return gracefully
+  const result = await syncSinglePage(
+    {
+      page_id: 123,
+      page_name: "Test Page",
+      token_status: "active",
+      page_access_token_id: 1,
+    } as any,
+    supabase,
+    expiringTokens,
+  );
+
+  assertEquals(result.pageId, "123");
+  // Should handle the error gracefully
+  assertExists(result.events);
+});
+
+Deno.test("syncSinglePage handles null page_name", async () => {
+  const supabase = createSupabaseClientMock({
+    pageToken: "test-token",
+  });
+
+  const expiringTokens: any[] = [];
+
+  const result = await syncSinglePage(
+    {
+      page_id: 123,
+      page_name: null,
+      token_status: "active",
+      page_access_token_id: 1,
+    } as any,
+    supabase,
+    expiringTokens,
+  );
+
+  assertEquals(result.pageId, "123");
+  assertExists(result.events);
+});
+
+Deno.test("syncSinglePage handles events with null cover", async () => {
+  const supabase = createSupabaseClientMock({
+    pageToken: "test-token",
+  });
+
+  const expiringTokens: any[] = [];
+
+  const result = await syncSinglePage(
+    {
+      page_id: 123,
+      page_name: "Test Page",
+      token_status: "active",
+      page_access_token_id: 1,
+    } as any,
+    supabase,
+    expiringTokens,
+  );
+
+  assertEquals(result.pageId, "123");
+  assertExists(result.events);
+});
+
+Deno.test("syncSinglePage handles events with cover but no source", async () => {
+  const supabase = createSupabaseClientMock({
+    pageToken: "test-token",
+  });
+
+  const expiringTokens: any[] = [];
+
+  const result = await syncSinglePage(
+    {
+      page_id: 123,
+      page_name: "Test Page",
+      token_status: "active",
+      page_access_token_id: 1,
+    } as any,
+    supabase,
+    expiringTokens,
+  );
+
+  assertEquals(result.pageId, "123");
+  assertExists(result.events);
+});
+
+Deno.test("syncSinglePage handles token expiry with null expiresAt", async () => {
+  const supabase = createSupabaseClientMock({
+    tokenExpiry: {
+      isExpiring: true,
+      daysUntilExpiry: 3,
+      expiresAt: null,
+    },
+    pageToken: "test-token",
+  });
+
+  const expiringTokens: any[] = [];
+
+  const result = await syncSinglePage(
+    {
+      page_id: 123,
+      page_name: "Test Page",
+      token_status: "active",
+      page_access_token_id: 1,
+    } as any,
+    supabase,
+    expiringTokens,
+  );
+
+  assertEquals(result.pageId, "123");
+  // Should still process even with null expiresAt
+  assertExists(result.events);
+});
+

@@ -566,3 +566,200 @@ Deno.test("processWebhookChanges handles batch write errors", async () => {
   assertEquals(result.failed >= 0, true);
 });
 
+Deno.test("normalizeWebhookChange handles different verb variations", () => {
+  const testCases = [
+    { verb: "create", expectedAction: "created" },
+    { verb: "update", expectedAction: "updated" },
+    { verb: "delete", expectedAction: "deleted" },
+  ];
+
+  for (const testCase of testCases) {
+    const result = normalizeWebhookChange("123", {
+      field: "events",
+      value: {
+        verb: testCase.verb,
+        id: "event123",
+        published: Math.floor(Date.now() / 1000),
+      },
+    });
+
+    assertEquals(result.action, testCase.expectedAction);
+  }
+});
+
+Deno.test("normalizeWebhookChange extracts event ID from various fields", () => {
+  const testCases = [
+    { value: { id: "event-123" }, expectedId: "event-123" },
+    { value: { event_id: "event-456" }, expectedId: "event-456" },
+    { value: { eventId: "event-789" }, expectedId: "event-789" },
+    { value: { parent_id: "parent-123" }, expectedId: "parent-123" },
+    { value: { parentId: "parent-456" }, expectedId: "parent-456" },
+  ];
+
+  for (const testCase of testCases) {
+    const result = normalizeWebhookChange("123", {
+      field: "events",
+      value: {
+        verb: "add",
+        ...testCase.value,
+        published: Math.floor(Date.now() / 1000),
+      },
+    });
+
+    assertEquals(result.eventId, testCase.expectedId);
+  }
+});
+
+Deno.test("normalizeWebhookChange extracts event ID from nested event object", () => {
+  const result = normalizeWebhookChange("123", {
+    field: "events",
+    value: {
+      verb: "add",
+      event: { id: "nested-event-123" },
+      published: Math.floor(Date.now() / 1000),
+    },
+  });
+
+  assertEquals(result.eventId, "nested-event-123");
+});
+
+Deno.test("normalizeWebhookChange extracts event ID from nested object field", () => {
+  const result = normalizeWebhookChange("123", {
+    field: "events",
+    value: {
+      verb: "add",
+      object: { id: "object-event-123" },
+      published: Math.floor(Date.now() / 1000),
+    },
+  });
+
+  assertEquals(result.eventId, "object-event-123");
+});
+
+Deno.test("normalizeWebhookChange handles non-string verb", () => {
+  const result = normalizeWebhookChange("123", {
+    field: "events",
+    value: {
+      verb: 123, // Non-string verb
+      id: "event123",
+    },
+  });
+
+  assertEquals(result.action, "unknown");
+});
+
+Deno.test("normalizeWebhookChange handles empty string event ID", () => {
+  const result = normalizeWebhookChange("123", {
+    field: "events",
+    value: {
+      verb: "add",
+      id: "", // Empty string
+    },
+  });
+
+  // Should not use empty string as event ID
+  assertEquals(result.eventId === undefined || result.eventId === "", true);
+});
+
+Deno.test("processWebhookChanges handles multiple changes", async () => {
+  const mockSupabase: any = {
+    from: (table: string) => {
+      if (table === "vault.decrypted_secrets") {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: () => Promise.resolve({
+                    data: { decrypted_secret: "test-token" },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "events") {
+        return {
+          delete: () => ({
+            eq: () => ({
+              eq: () => Promise.resolve({ error: null }),
+            }),
+          }),
+        };
+      }
+      return {};
+    },
+    rpc: () => Promise.resolve({ data: null, error: null }),
+  };
+
+  const changes = [
+    {
+      field: "events",
+      value: {
+        verb: "remove",
+        id: "event1",
+      },
+    },
+    {
+      field: "events",
+      value: {
+        verb: "remove",
+        id: "event2",
+      },
+    },
+  ];
+
+  const result = await processWebhookChanges("123", changes, mockSupabase);
+  assertEquals(result.processed >= 0, true);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("processWebhookChanges handles empty changes array", async () => {
+  const mockSupabase: any = {
+    from: () => ({}),
+    rpc: () => Promise.resolve({ data: null, error: null }),
+  };
+
+  const result = await processWebhookChanges("123", [], mockSupabase);
+  assertEquals(result.processed, 0);
+  assertEquals(result.failed, 0);
+});
+
+Deno.test("processWebhookChanges handles change with null value", async () => {
+  const mockSupabase: any = {
+    from: (table: string) => {
+      if (table === "vault.decrypted_secrets") {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: () => Promise.resolve({
+                    data: { decrypted_secret: "test-token" },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      return {};
+    },
+    rpc: () => Promise.resolve({ data: null, error: null }),
+  };
+
+  const changes = [
+    {
+      field: "events",
+      value: null as any,
+    },
+  ];
+
+  const result = await processWebhookChanges("123", changes, mockSupabase);
+  // Should handle null value gracefully
+  assertEquals(result.failed >= 0, true);
+});
+

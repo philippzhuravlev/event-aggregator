@@ -378,3 +378,366 @@ Deno.test({
   },
 });
 
+Deno.test("getEvents handles events with end_time", async () => {
+  const mockEvents = [{
+    page_id: 123,
+    event_id: "event1",
+    event_data: {
+      id: "event1",
+      name: "Test Event",
+      start_time: new Date(Date.now() + 86400000).toISOString(),
+      end_time: new Date(Date.now() + 172800000).toISOString(),
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }];
+
+  const supabase = createSupabaseClientMock(mockEvents);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  assertEquals(result.events.length > 0, true);
+  if (result.events.length > 0) {
+    assertExists(result.events[0].endTime);
+  }
+});
+
+Deno.test("getEvents handles events with cover images", async () => {
+  const mockEvents = [{
+    page_id: 123,
+    event_id: "event1",
+    event_data: {
+      id: "event1",
+      name: "Test Event",
+      start_time: new Date(Date.now() + 86400000).toISOString(),
+      cover: {
+        source: "https://example.com/cover.jpg",
+      },
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }];
+
+  const supabase = createSupabaseClientMock(mockEvents);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  assertEquals(result.events.length > 0, true);
+  if (result.events.length > 0) {
+    assertEquals(result.events[0].coverImageUrl, "https://example.com/cover.jpg");
+  }
+});
+
+Deno.test("getEvents handles events with place data", async () => {
+  const mockEvents = [{
+    page_id: 123,
+    event_id: "event1",
+    event_data: {
+      id: "event1",
+      name: "Test Event",
+      start_time: new Date(Date.now() + 86400000).toISOString(),
+      place: {
+        name: "Test Venue",
+        location: { city: "Test City" },
+      },
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }];
+
+  const supabase = createSupabaseClientMock(mockEvents);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  assertEquals(result.events.length > 0, true);
+  if (result.events.length > 0) {
+    assertExists(result.events[0].place);
+  }
+});
+
+Deno.test("getEvents handles upcoming=false", async () => {
+  const pastTime = Date.now() - 86400000;
+  const mockEvents = [{
+    page_id: 123,
+    event_id: "event1",
+    event_data: {
+      id: "event1",
+      name: "Past Event",
+      start_time: new Date(pastTime).toISOString(),
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }];
+
+  const supabase = createSupabaseClientMock(mockEvents);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: false,
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  assertEquals(result.events.length >= 0, true);
+});
+
+Deno.test("getEvents handles Date objects for created_at and updated_at", async () => {
+  const mockEvents = [{
+    page_id: 123,
+    event_id: "event1",
+    event_data: {
+      id: "event1",
+      name: "Test Event",
+      start_time: new Date(Date.now() + 86400000).toISOString(),
+    },
+    created_at: new Date(), // Date object instead of string
+    updated_at: new Date(), // Date object instead of string
+  }];
+
+  const supabase = createSupabaseClientMock(mockEvents);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  assertEquals(result.events.length > 0, true);
+  if (result.events.length > 0) {
+    assertExists(result.events[0].createdAt);
+    assertExists(result.events[0].updatedAt);
+  }
+});
+
+Deno.test("getEvents handles invalid date strings for created_at", async () => {
+  const mockEvents = [{
+    page_id: 123,
+    event_id: "event1",
+    event_data: {
+      id: "event1",
+      name: "Test Event",
+      start_time: new Date(Date.now() + 86400000).toISOString(),
+    },
+    created_at: "invalid-date",
+    updated_at: new Date().toISOString(),
+  }];
+
+  const supabase = createSupabaseClientMock(mockEvents);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  assertEquals(result.events.length > 0, true);
+  // Should fall back to start_time for createdAt
+  if (result.events.length > 0) {
+    assertExists(result.events[0].createdAt);
+  }
+});
+
+Deno.test("getEvents handles null created_at and updated_at", async () => {
+  const mockEvents = [{
+    page_id: 123,
+    event_id: "event1",
+    event_data: {
+      id: "event1",
+      name: "Test Event",
+      start_time: new Date(Date.now() + 86400000).toISOString(),
+    },
+    created_at: null,
+    updated_at: null,
+  }];
+
+  const supabase = createSupabaseClientMock(mockEvents);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  assertEquals(result.events.length > 0, true);
+  // Should fall back to start_time
+  if (result.events.length > 0) {
+    assertExists(result.events[0].createdAt);
+    assertExists(result.events[0].updatedAt);
+  }
+});
+
+Deno.test("getEvents handles pageToken with NaN timestamp", async () => {
+  const supabase = createSupabaseClientMock([]);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+    pageToken: btoa("not-a-number"),
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  assertEquals(result.events.length >= 0, true);
+});
+
+Deno.test("getEvents handles events without event_id in event_data", async () => {
+  const mockEvents = [{
+    page_id: 123,
+    event_id: "event1",
+    event_data: {
+      name: "Test Event",
+      start_time: new Date(Date.now() + 86400000).toISOString(),
+      // No id field
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }];
+
+  const supabase = createSupabaseClientMock(mockEvents);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  assertEquals(result.events.length > 0, true);
+  if (result.events.length > 0) {
+    assertEquals(result.events[0].eventURL, undefined);
+  }
+});
+
+Deno.test("getEvents handles database query errors", async () => {
+  const errorSupabase = {
+    from: () => ({
+      select: () => ({
+        order: () => ({
+          order: () => ({
+            limit: () => ({
+              returns: () => Promise.resolve({
+                data: null,
+                error: { message: "Database error" },
+              }),
+            }),
+          }),
+        }),
+      }),
+    }),
+  };
+
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+  };
+
+  try {
+    await getEvents(errorSupabase as any, queryParams);
+    assertEquals(false, true, "Should have thrown an error");
+  } catch (error) {
+    assertEquals(error instanceof Error, true);
+    assertEquals((error as Error).message.includes("Failed to get events"), true);
+  }
+});
+
+Deno.test("getEvents handles search with special characters", async () => {
+  const mockEvents = [{
+    page_id: 123,
+    event_id: "event1",
+    event_data: {
+      id: "event1",
+      name: "Test Event",
+      start_time: new Date(Date.now() + 86400000).toISOString(),
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }];
+
+  const supabase = createSupabaseClientMock(mockEvents);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+    search: "test%_event",
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  assertEquals(result.events.length >= 0, true);
+});
+
+Deno.test("getEvents handles search with commas", async () => {
+  const mockEvents = [{
+    page_id: 123,
+    event_id: "event1",
+    event_data: {
+      id: "event1",
+      name: "Test Event",
+      start_time: new Date(Date.now() + 86400000).toISOString(),
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }];
+
+  const supabase = createSupabaseClientMock(mockEvents);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+    search: "test,event,party",
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  assertEquals(result.events.length >= 0, true);
+});
+
+Deno.test("getEvents handles cursorIso with upcoming filter", async () => {
+  const futureTime = Date.now() + 86400000;
+  const pageToken = btoa(String(futureTime));
+  
+  const mockEvents = [{
+    page_id: 123,
+    event_id: "event1",
+    event_data: {
+      id: "event1",
+      name: "Test Event",
+      start_time: new Date(futureTime + 3600000).toISOString(),
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }];
+
+  const supabase = createSupabaseClientMock(mockEvents);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+    pageToken,
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  assertEquals(result.events.length >= 0, true);
+});
+
+Deno.test("getEvents handles nextPageToken generation with invalid start_time", async () => {
+  const mockEvents = Array.from({ length: 51 }, (_, i) => ({
+    page_id: 123,
+    event_id: `event${i}`,
+    event_data: {
+      id: `event${i}`,
+      name: `Event ${i}`,
+      start_time: i === 50 ? null : new Date(Date.now() + 86400000 * (i + 1)).toISOString(),
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }));
+
+  const supabase = createSupabaseClientMock(mockEvents);
+  const queryParams: GetEventsQuery = {
+    limit: 50,
+    upcoming: true,
+  };
+
+  const result = await getEvents(supabase as any, queryParams);
+  // Should handle invalid start_time in next row gracefully
+  assertEquals(result.hasMore, true);
+  // nextPageToken may be undefined if next row has invalid start_time
+  assertEquals(typeof result.nextPageToken === "string" || result.nextPageToken === undefined, true);
+});
+

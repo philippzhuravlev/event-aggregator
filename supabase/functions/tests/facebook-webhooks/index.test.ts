@@ -407,3 +407,48 @@ Deno.test("handleWebhookPost handles multiple entries", async () => {
   }
 });
 
+Deno.test("handleWebhookPost handles entry processing errors", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    const body = JSON.stringify({
+      object: "page",
+      entry: [
+        {
+          id: "invalid-entry",
+          // Missing required fields to trigger validation error
+        },
+      ],
+    });
+    
+    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+      },
+      body: body,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    // Should handle validation errors gracefully
+    assertEquals([200, 400, 500].includes(response.status), true);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhook handles OPTIONS request", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "OPTIONS",
+    });
+
+    const response = await handleWebhook(request);
+    assertEquals(response.status, 204);
+  } finally {
+    restoreEnv();
+  }
+});
+

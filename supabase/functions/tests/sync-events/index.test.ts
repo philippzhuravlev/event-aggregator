@@ -198,3 +198,75 @@ Deno.test("handleSyncEvents handles missing Supabase config", async () => {
   }
 });
 
+Deno.test("syncAllPageEvents handles pages with errors", async () => {
+  // Mock getActivePages to return pages
+  const mockPages = [
+    {
+      page_id: 123,
+      page_name: "Test Page 1",
+      token_status: "active",
+      page_access_token_id: 1,
+    },
+    {
+      page_id: 456,
+      page_name: "Test Page 2",
+      token_status: "active",
+      page_access_token_id: 2,
+    },
+  ];
+
+  const supabase = {
+    from: (table: string) => {
+      if (table === "pages") {
+        return {
+          select: () => ({
+            eq: () => ({
+              not: () => Promise.resolve({ data: mockPages, error: null }),
+            }),
+          }),
+        };
+      }
+      return {};
+    },
+    rpc: () => Promise.resolve({ data: null, error: null }),
+  };
+
+  const result = await syncAllPageEvents(supabase as any);
+  assertEquals(result.success, true);
+  assertEquals(result.pagesProcessed >= 0, true);
+  assertEquals(Array.isArray(result.errors), true);
+});
+
+Deno.test("syncAllPageEvents handles batch write errors gracefully", async () => {
+  const mockPages = [
+    {
+      page_id: 123,
+      page_name: "Test Page",
+      token_status: "active",
+      page_access_token_id: 1,
+    },
+  ];
+
+  const supabase = {
+    from: (table: string) => {
+      if (table === "pages") {
+        return {
+          select: () => ({
+            eq: () => ({
+              not: () => Promise.resolve({ data: mockPages, error: null }),
+            }),
+          }),
+        };
+      }
+      return {};
+    },
+    rpc: () => Promise.resolve({ data: null, error: null }),
+  };
+
+  // The function should handle errors from syncSinglePage gracefully
+  const result = await syncAllPageEvents(supabase as any);
+  assertEquals(result.success, true);
+  assertEquals(typeof result.pagesProcessed, "number");
+  assertEquals(Array.isArray(result.errors), true);
+});
+
