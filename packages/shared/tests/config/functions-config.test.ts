@@ -66,6 +66,3 @@ describe("functions config", () => {
     });
   });
 });
-
-
-

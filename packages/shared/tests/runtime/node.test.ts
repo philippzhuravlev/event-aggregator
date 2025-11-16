@@ -1,10 +1,5 @@
-import {
-  afterEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import process from "node:process";
 
 type MutableEnv = NodeJS.ProcessEnv & Record<string, string | undefined>;
 
@@ -81,5 +76,3 @@ describe("runtime/node", () => {
     );
   });
 });
-
-

@@ -55,6 +55,3 @@ describe("service config", () => {
     expect(FACEBOOK_ORIGIN).toBe("https://facebook.com");
   });
 });
-
-
-

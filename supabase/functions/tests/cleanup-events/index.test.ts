@@ -1,6 +1,5 @@
 import { assertEquals, assertObjectMatch } from "std/assert/mod.ts";
-import { handleCleanupEvents, cleanupOldEvents } from "./index.ts";
-import type { CleanupResult } from "@event-aggregator/shared/types.ts";
+import { cleanupOldEvents, handleCleanupEvents } from "../../cleanup-events/index.ts";
 
 function createSupabaseClientMock() {
   return {
@@ -77,7 +76,11 @@ Deno.test("handleCleanupEvents returns 400 for invalid daysToKeep", async () => 
       success: false,
     });
     assertEquals(typeof payload.error, "string");
-    assertEquals(payload.error.includes("Invalid daysToKeep") || payload.error.includes("must be"), true);
+    assertEquals(
+      payload.error.includes("Invalid daysToKeep") ||
+        payload.error.includes("must be"),
+      true,
+    );
   } finally {
     restoreEnv();
   }
@@ -86,7 +89,7 @@ Deno.test("handleCleanupEvents returns 400 for invalid daysToKeep", async () => 
 Deno.test("handleCleanupEvents returns 500 when Supabase config is missing", async () => {
   const originalEnv = Deno.env.get;
   Deno.env.get = () => undefined;
-  
+
   try {
     const request = new Request(
       "https://example.com/cleanup-events?daysToKeep=90",
@@ -134,4 +137,3 @@ Deno.test("cleanupOldEvents uses default parameters", async () => {
   assertEquals(result.dryRun, false);
   assertEquals(typeof result.eventsDeleted, "number");
 });
-

@@ -468,8 +468,8 @@ describe("data-validation", () => {
     });
 
     it("handles non-string input", () => {
-      expect(isValidEmail(null as any)).toBe(false);
-      expect(isValidEmail(123 as any)).toBe(false);
+      expect(isValidEmail(null as unknown as string)).toBe(false);
+      expect(isValidEmail(123 as unknown as string)).toBe(false);
     });
   });
 
@@ -516,8 +516,8 @@ describe("data-validation", () => {
     });
 
     it("handles non-string input", () => {
-      expect(isValidUrl(null as any)).toBe(false);
-      expect(isValidUrl(123 as any)).toBe(false);
+      expect(isValidUrl(null as unknown as string)).toBe(false);
+      expect(isValidUrl(123 as unknown as string)).toBe(false);
     });
   });
 
@@ -569,8 +569,8 @@ describe("data-validation", () => {
     });
 
     it("handles non-string input", () => {
-      expect(isValidJson(null as any)).toBe(false);
-      expect(isValidJson(123 as any)).toBe(false);
+      expect(isValidJson(null as unknown as string)).toBe(false);
+      expect(isValidJson(123 as unknown as string)).toBe(false);
     });
   });
 
@@ -593,7 +593,7 @@ describe("data-validation", () => {
     });
 
     it("rejects non-serializable objects", () => {
-      const circular: any = { key: "value" };
+      const circular: Record<string, unknown> = { key: "value" };
       circular.self = circular;
       // Note: JSON.stringify will throw for circular references
       // but the function should handle it

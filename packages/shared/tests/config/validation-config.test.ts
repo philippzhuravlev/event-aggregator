@@ -68,6 +68,3 @@ describe("validation config", () => {
     ]);
   });
 });
-
-
-
