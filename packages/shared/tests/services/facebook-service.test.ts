@@ -270,6 +270,76 @@ describe("services/facebook-service", () => {
       },
     ]);
   });
+
+  it("throws and logs when Facebook reports an invalid token", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        {
+          error: {
+            code: 190,
+            message: "Invalid OAuth 2.0 Access Token",
+            type: "OAuthException",
+          },
+        },
+        { ok: false, status: 400 },
+      ),
+    );
+
+    await expect(getUserPages("bad-token")).rejects.toThrowError(
+      "Facebook token invalid (190)",
+    );
+
+    expect(logger.error).toHaveBeenCalledWith(
+      "Facebook token expired or invalid",
+      null,
+      {
+        errorCode: 190,
+        status: 400,
+      },
+    );
+  });
+
+  it("retries on rate limits before succeeding", async () => {
+    vi.useFakeTimers();
+
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse(
+          {
+            error: {
+              message: "Rate limit hit",
+            },
+          },
+          { ok: false, status: 429 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          data: [{ id: "1", name: "Recovered Page" }],
+        }),
+      );
+
+    const promise = getUserPages("retry-token");
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const pages = await promise;
+
+    expect(pages).toEqual([{ id: "1", name: "Recovered Page" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Facebook API error - retrying with backoff",
+      expect.objectContaining({
+        status: 429,
+        attempt: 1,
+        maxRetries: 3,
+        delayMs: 1000,
+      }),
+    );
+
+    vi.useRealTimers();
+  });
 });
 
 

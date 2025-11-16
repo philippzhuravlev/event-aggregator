@@ -7,14 +7,14 @@ import {
   createTokenExpiryConfig,
   createTokenRefreshConfig,
   createWebhookConfig,
+  type EnvGetter,
   resolveAllowedOrigins,
   resolveCorsOrigin,
-  resolveEnvValue,
   resolveEnvironmentFlags,
+  resolveEnvValue,
   resolveOAuthCallbackUrl,
   resolveWebAppUrl,
   stringToBoolean,
-  type EnvGetter,
 } from "../../src/runtime/base.ts";
 import {
   EVENT_SYNC_DEFAULTS,
@@ -27,8 +27,9 @@ import {
   URL_DEFAULTS,
 } from "../../src/config/validation-config.ts";
 
-const makeEnvGetter = (values: Record<string, string | undefined>): EnvGetter =>
-  (key) => values[key];
+const makeEnvGetter =
+  (values: Record<string, string | undefined>): EnvGetter => (key) =>
+    values[key];
 
 describe("runtime/base string utilities", () => {
   it("coerces various truthy values to boolean true", () => {
@@ -264,5 +265,3 @@ describe("runtime/base environment helpers", () => {
     );
   });
 });
-
-
