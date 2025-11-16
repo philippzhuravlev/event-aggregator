@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "../_shared/services/logger-service.ts";
 import type { GetEventsQuery } from "@event-aggregator/shared/types.ts";
 import { GetEventsResponse } from "./types.ts";
@@ -9,7 +10,10 @@ import {
   getRateLimitExceededResponse,
   handleCORSPreflight,
 } from "@event-aggregator/shared/validation/index.js";
-import { HTTP_STATUS, PAGINATION } from "@event-aggregator/shared/runtime/deno.js";
+import {
+  HTTP_STATUS,
+  PAGINATION,
+} from "@event-aggregator/shared/runtime/deno.js";
 import { createSlidingWindowLimiter } from "@event-aggregator/shared/validation/rate-limit-validation.js";
 import { validateGetEventsQuery } from "./schema.ts";
 
@@ -29,6 +33,42 @@ const apiRateLimiter = createSlidingWindowLimiter({
   maxRequests: 100,
   windowMs: 60_000,
 });
+
+interface EventCover {
+  source?: string | null;
+}
+
+interface EventDataRow {
+  id?: string;
+  name?: string;
+  start_time?: string;
+  end_time?: string | null;
+  description?: string | null;
+  place?: Record<string, unknown> | null;
+  cover?: EventCover | null;
+}
+
+interface EventRow {
+  page_id: number;
+  event_id: string;
+  event_data: EventDataRow | null;
+  created_at: string | Date | null;
+  updated_at: string | Date | null;
+}
+
+interface TransformedEvent {
+  id?: string;
+  pageId: string;
+  title?: string;
+  startTime: string;
+  description?: string;
+  place?: Record<string, unknown>;
+  coverImageUrl?: string;
+  eventURL?: string;
+  createdAt: string;
+  updatedAt: string;
+  endTime?: string;
+}
 
 function escapeIlikePattern(value: string): string {
   return value
@@ -62,8 +102,7 @@ function buildSearchPattern(value?: string): string | null {
  * - search: Search query for title/description/place
  */
 async function getEvents(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
+  supabase: SupabaseClient,
   queryParams: GetEventsQuery,
 ): Promise<GetEventsResponse> {
   const {
@@ -135,7 +174,7 @@ async function getEvents(
     query = query.or(orClause);
   }
 
-  const { data, error } = await query;
+  const { data, error } = await query.returns<EventRow[]>();
 
   if (error) {
     throw new Error(`Failed to get events from Supabase: ${error.message}`);
@@ -146,33 +185,36 @@ async function getEvents(
   const pageRows = hasMore ? rows.slice(0, limit) : rows;
 
   const events = pageRows
-    .map((row) => {
-      // deno-lint-ignore no-explicit-any
-      const eventData = (row as any).event_data ?? {};
+    .map<TransformedEvent | null>((row: EventRow) => {
+      const eventData = row.event_data;
       if (!eventData?.start_time) {
         return null;
       }
 
       const createdAtIso = (() => {
-        const value = (row as any).created_at;
+        const value = row.created_at;
         if (value instanceof Date) {
           return value.toISOString();
         }
         if (typeof value === "string") {
           const parsed = new Date(value);
-          return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+          return Number.isNaN(parsed.getTime())
+            ? undefined
+            : parsed.toISOString();
         }
         return undefined;
       })();
 
       const updatedAtIso = (() => {
-        const value = (row as any).updated_at;
+        const value = row.updated_at;
         if (value instanceof Date) {
           return value.toISOString();
         }
         if (typeof value === "string") {
           const parsed = new Date(value);
-          return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+          return Number.isNaN(parsed.getTime())
+            ? undefined
+            : parsed.toISOString();
         }
         return undefined;
       })();
@@ -181,14 +223,14 @@ async function getEvents(
         new Date(eventData.start_time).toISOString();
       const updatedTimestamp = updatedAtIso ?? createdTimestamp;
 
-      const transformedEvent: Record<string, unknown> = {
+      const transformedEvent: TransformedEvent = {
         id: eventData.id,
         pageId: String(row.page_id),
         title: eventData.name,
         startTime: eventData.start_time,
-        description: eventData.description,
-        place: eventData.place,
-        coverImageUrl: eventData.cover?.source,
+        description: eventData.description ?? undefined,
+        place: eventData.place ?? undefined,
+        coverImageUrl: eventData.cover?.source ?? undefined,
         eventURL: eventData.id
           ? `https://facebook.com/events/${eventData.id}`
           : undefined,
@@ -202,14 +244,16 @@ async function getEvents(
 
       return transformedEvent;
     })
-    .filter((event): event is Record<string, unknown> => event !== null);
+    .filter(
+      (event: TransformedEvent | null): event is TransformedEvent =>
+        event !== null,
+    );
 
   let nextPageToken: string | undefined;
   if (hasMore) {
     // Use the first row beyond the current page as the cursor
     const nextRow = rows[limit];
-    // deno-lint-ignore no-explicit-any
-    const nextEventData = (nextRow as any)?.event_data;
+    const nextEventData = nextRow?.event_data;
     const nextStartTime = nextEventData?.start_time;
     if (typeof nextStartTime === "string") {
       const nextStart = new Date(nextStartTime);

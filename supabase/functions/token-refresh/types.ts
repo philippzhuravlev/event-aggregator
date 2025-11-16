@@ -3,16 +3,17 @@
  * Types for token refresh operations and status reporting
  */
 
+import type { DatabasePage } from "@event-aggregator/shared/types.ts";
+
 /**
  * Page token information
  */
-export interface PageToken {
-  page_id: number;
-  page_name: string;
-  token_expiry: string | null;
-  token_status: "active" | "expired" | "invalid";
+export type PageToken = Pick<
+  DatabasePage,
+  "page_id" | "page_name" | "token_expiry" | "token_status" | "page_access_token_id"
+> & {
   page_access_token_id?: string | null;
-}
+};
 
 /**
  * Result of a single page token refresh operation

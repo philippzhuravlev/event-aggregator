@@ -9,6 +9,11 @@ import {
   validateWebhookPayload,
   validateWebhookSubscription,
 } from "./schema.ts";
+type WebhookEventChange = {
+  field: string;
+  value: Record<string, unknown>;
+};
+
 import { isWebhookRateLimited, processWebhookChanges } from "./helpers.ts";
 import {
   createErrorResponse,
@@ -194,7 +199,7 @@ async function handleWebhookPost(
           continue;
         }
 
-        const changes = extractEventChanges(entry);
+        const changes = extractEventChanges(entry) as WebhookEventChange[];
         const result = await processWebhookChanges(pageId, changes, supabase);
         eventsProcessed += result.processed;
         eventsFailed += result.failed;

@@ -3,15 +3,18 @@
   "version": "1.0.0",
   "description": "This website will be a central registry for Technical University of Denmark (DTU)'s campus events from bars and cafes. JS/Node.js/REACT/Tailwind frontend, Supabase backend for hosting and DB. The site pulls through facebook's API from a number of DTU Campus bars and nearby form bars. Can be filtered by Lyngby Campus, Ballerup Campus and Dorms.",
   "main": "index.js",
-"workspaces": [
-  "packages/shared"
-],
-"scripts": {
-  "test": "echo \"Error: no test specified\" && exit 1",
+  "workspaces": [
+    "packages/shared"
+  ],
+  "scripts": {
+    "test": "npm run test:deno && npm run test:api",
+    "test:deno": "deno task -c supabase/deno.json test",
+    "test:api": "vitest run",
+    "test:api:watch": "vitest",
     "postinstall": "npm --prefix ./web ci",
     "build": "npm --prefix ./packages/shared run build && npm --prefix ./web run build",
-  "ingest:facebook": "node ./tools/ingest-facebook.mjs"
-},
+    "ingest:facebook": "node ./tools/ingest-facebook.mjs"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/philippzhuravlev/DTUEvent.git"
@@ -24,17 +27,20 @@
   },
   "homepage": "https://github.com/philippzhuravlev/DTUEvent#readme",
   "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.3",
     "node-fetch": "^3.3.2",
     "supabase": "^2.54.11",
-    "vite": "^7.1.12"
+    "vite-tsconfig-paths": "^5.1.1",
+    "vite": "^7.1.12",
+    "vitest": "^2.1.3"
   },
-"dependencies": {
-  "@event-aggregator/shared": "file:packages/shared",
-  "@supabase/supabase-js": "^2.45.0",
-  "axios": "^1.12.2",
-  "dotenv": "^17.2.3",
-  "express": "^5.1.0"
-},
+  "dependencies": {
+    "@event-aggregator/shared": "file:packages/shared",
+    "@supabase/supabase-js": "^2.45.0",
+    "axios": "^1.12.2",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0"
+  },
   "overrides": {
     "punycode": "^2.3.1"
   }

@@ -47,6 +47,11 @@ export interface FacebookWebhookPayload {
   }>;
 }
 
+export type WebhookEventChange = {
+  field: string;
+  value: Record<string, unknown>;
+};
+
 /**
  * Webhook subscription validation request (GET)
  */
@@ -199,33 +204,15 @@ export function hasEventChanges(
  */
 export function extractEventChanges(
   entry: FacebookWebhookPayload["entry"][0],
-): Array<{
-  field: string;
-  event: FacebookWebhookEvent;
-}> {
+): WebhookEventChange[] {
   if (!Array.isArray(entry.changes)) {
     return [];
   }
 
   return entry.changes
     .filter((change) => change.field === "events") // Only process event changes
-    .map((change) => {
-      const changeValue = change.value as Record<string, unknown>;
-      const fromObj = changeValue.from as Record<string, unknown> || {};
-
-      return {
-        field: change.field,
-        event: {
-          time: Math.floor(Date.now() / 1000),
-          type: (changeValue.verb as string) || "event.update",
-          id: fromObj.id as string | undefined,
-          object: {
-            id: fromObj.id as string | undefined,
-            type: "event",
-            story: changeValue.story,
-            published: changeValue.published,
-          },
-        } as unknown as FacebookWebhookEvent,
-      };
-    });
+    .map((change) => ({
+      field: change.field,
+      value: (change.value ?? {}) as Record<string, unknown>,
+    }));
 }

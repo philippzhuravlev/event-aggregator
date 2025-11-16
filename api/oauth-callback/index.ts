@@ -71,7 +71,7 @@ function logEvent(
   }
 }
 
-function buildRedirectUrl(
+export function buildRedirectUrl(
   stateValue: string | null,
   allowedOrigins: readonly string[],
   params: Record<string, string>,

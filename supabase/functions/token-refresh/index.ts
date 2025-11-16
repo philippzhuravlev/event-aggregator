@@ -11,6 +11,10 @@ import {
 import { RATE_LIMITS } from "@event-aggregator/shared/runtime/deno.js";
 import { PageToken, RefreshResult } from "./types.ts";
 
+type PageTokenWithExpiry = PageToken & {
+  token_expiry?: string | null;
+};
+
 // this used to be a "handler", i.e. "thing that does something" (rather than connect,
 // or help etc), but because we've refactored to supabase, it's now a "Edge Function".
 // They're run on deno, an upgrade to nodejs, and work similarly to serverless functions
@@ -39,7 +43,7 @@ tokenRefreshLimiter.configure(
  * 5. Send alert if refresh fails
  */
 
-async function refreshExpiredTokens(
+export async function refreshExpiredTokens(
   // deno-lint-ignore no-explicit-any
   supabase: any,
 ): Promise<{
@@ -150,7 +154,12 @@ async function refreshExpiredTokens(
           continue;
         }
 
-        const expirySource = tokenRecord?.expiry ?? page.token_expiry;
+        const pageRecord = page as PageTokenWithExpiry & {
+          page_name?: string | null;
+        };
+        const pageExpiry = pageRecord.token_expiry ?? null;
+        const pageName = pageRecord.page_name ?? "Unknown Page";
+        const expirySource = tokenRecord?.expiry ?? pageExpiry;
         let expiresAt: Date | null = null;
         if (expirySource) {
           const parsedExpiry = new Date(expirySource);
@@ -229,7 +238,7 @@ async function refreshExpiredTokens(
             "store_page_token",
             {
               p_page_id: page.page_id,
-              p_page_name: page.page_name,
+              p_page_name: pageName,
               p_access_token: newToken,
               p_expiry: sixtyDaysFromNow.toISOString(),
             },
@@ -294,7 +303,7 @@ async function refreshExpiredTokens(
 }
 
 // Handler for manual invocation or webhook trigger
-async function handleTokenRefresh(
+export async function handleTokenRefresh(
   req: Request,
 ): Promise<Response> {
   // Only allow POST requests
@@ -333,5 +342,7 @@ async function handleTokenRefresh(
   }
 }
 
-// Start server
-Deno.serve(handleTokenRefresh);
+// Start server when executed directly (Supabase runtime)
+if (import.meta.main) {
+  Deno.serve(handleTokenRefresh);
+}

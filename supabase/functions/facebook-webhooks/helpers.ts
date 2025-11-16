@@ -29,8 +29,6 @@ const webhookRateLimiter = createSlidingWindowLimiter({
   windowMs: 1_000,
 });
 
-
-
 /**
  * Check if event type should be processed
  * @param eventType - Event type string (e.g., 'event.create', 'event.update')

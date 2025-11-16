@@ -1,9 +1,7 @@
 {
   "compilerOptions": {
     "lib": ["deno.window", "deno.unstable"],
-    "strict": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": false
+    "strict": true
   },
   "imports": {
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
@@ -17,10 +15,14 @@
     "@event-aggregator/shared/validation/index.js": "./packages/shared/dist/validation/index.js",
     "@event-aggregator/shared/validation/rate-limit-validation.js": "./packages/shared/dist/validation/rate-limit-validation.js",
     "@event-aggregator/shared/runtime/deno.js": "./packages/shared/dist/runtime/deno.js",
+    "@event-aggregator/shared/runtime/browser.ts": "../../packages/shared/src/runtime/browser.ts",
     "@event-aggregator/shared/types": "./packages/shared/dist/types.js",
     "@event-aggregator/shared/types.ts": "../../packages/shared/src/types.ts",
+    "@event-aggregator/shared/config/index.ts": "../../packages/shared/src/config/index.ts",
     "@event-aggregator/shared/src/services/facebook-service.ts": "../../packages/shared/src/services/facebook-service.ts",
-    "@event-aggregator/shared/src/": "../../packages/shared/src/"
+    "@event-aggregator/shared/src/": "../../packages/shared/src/",
+    "std/": "https://deno.land/std@0.208.0/",
+    "std/assert": "https://deno.land/std@0.208.0/assert/mod.ts"
   }
 }
 

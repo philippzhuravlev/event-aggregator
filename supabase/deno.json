@@ -1,12 +1,10 @@
 {
   "compilerOptions": {
     "lib": ["deno.window", "deno.unstable"],
-    "strict": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": false
+    "strict": true
   },
   "tasks": {
-    "test": "deno test --allow-all"
+    "test": "deno test --allow-env --allow-net --allow-read"
   },
   "imports": {
     "std/": "https://deno.land/std@0.208.0/",
@@ -21,8 +19,10 @@
     "@event-aggregator/shared/validation/index.js": "./functions/packages/shared/dist/validation/index.js",
     "@event-aggregator/shared/validation/rate-limit-validation.js": "./functions/packages/shared/dist/validation/rate-limit-validation.js",
     "@event-aggregator/shared/runtime/deno.js": "./functions/packages/shared/dist/runtime/deno.js",
+    "@event-aggregator/shared/runtime/browser.ts": "../packages/shared/src/runtime/browser.ts",
     "@event-aggregator/shared/types": "./functions/packages/shared/dist/types.js",
     "@event-aggregator/shared/types.ts": "../packages/shared/src/types.ts",
+    "@event-aggregator/shared/config/index.ts": "../packages/shared/src/config/index.ts",
     "@event-aggregator/shared/src/services/facebook-service.ts": "../packages/shared/src/services/facebook-service.ts",
     "@event-aggregator/shared/src/": "../packages/shared/src/"
   }

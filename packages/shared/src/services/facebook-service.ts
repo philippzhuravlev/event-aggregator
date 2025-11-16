@@ -7,13 +7,9 @@ import {
 } from "../config/validation-config.ts";
 import { FACEBOOK as FACEBOOK_CONFIG } from "../config/service-config.ts";
 import type {
-  FacebookCover,
   FacebookErrorResponse,
   FacebookEvent,
   FacebookPage,
-  FacebookPagePictureData,
-  FacebookPlace,
-  FacebookPlaceLocation,
   PaginatedEventResponse,
   PaginatedPageResponse,
 } from "../types.ts";
@@ -336,8 +332,7 @@ export async function getEventDetails(
 ): Promise<FacebookEvent> {
   const params = new URLSearchParams({
     access_token: accessToken,
-    fields:
-      "id,name,description,start_time,end_time,place,cover{source}",
+    fields: "id,name,description,start_time,end_time,place,cover{source}",
   });
 
   const response = await withRetry<FacebookEvent>(async () => {
