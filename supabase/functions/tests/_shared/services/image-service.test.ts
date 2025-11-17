@@ -2,6 +2,7 @@ import {
   assertEquals,
   assertExists,
   assertRejects,
+  assertThrows,
 } from "std/assert/mod.ts";
 import {
   uploadFile,
@@ -60,7 +61,7 @@ function createSupabaseClientMock(options?: {
 
   return {
     storage: {
-      from: (bucket: string) => {
+      from: (_bucket: string) => {
         return {
           upload: (
             _filePath: string,
@@ -211,7 +212,7 @@ Deno.test("uploadFile throws error when fileContent is missing", async () => {
 Deno.test("uploadFile throws error when upload fails", async () => {
   const supabase = createSupabaseClientMock({
     shouldFailUpload: true,
-    uploadError: { message: "Storage upload failed" },
+    uploadError: new Error("Storage upload failed"),
   });
 
   await assertRejects(
@@ -318,7 +319,7 @@ Deno.test("downloadFile throws error when bucket is missing", async () => {
 Deno.test("downloadFile throws error when download fails", async () => {
   const supabase = createSupabaseClientMock({
     shouldFailDownload: true,
-    downloadError: { message: "Storage download failed" },
+    downloadError: new Error("Storage download failed"),
   });
 
   await assertRejects(
@@ -352,7 +353,7 @@ Deno.test("downloadFile throws error when no data returned", async () => {
   );
 });
 
-Deno.test("getPublicUrl returns public URL successfully", async () => {
+Deno.test("getPublicUrl returns public URL successfully", () => {
   const supabase = createSupabaseClientMock({
     publicUrl: "https://test.supabase.co/storage/v1/object/public/bucket/events/2025/event-123.jpg",
   });
@@ -369,11 +370,11 @@ Deno.test("getPublicUrl returns public URL successfully", async () => {
   );
 });
 
-Deno.test("getPublicUrl throws error when bucket is missing", async () => {
+Deno.test("getPublicUrl throws error when bucket is missing", () => {
   const supabase = createSupabaseClientMock();
 
-  await assertRejects(
-    async () => {
+  assertThrows(
+    () => {
       getPublicUrl(
         supabase as unknown as SupabaseClient,
         "",
@@ -385,13 +386,13 @@ Deno.test("getPublicUrl throws error when bucket is missing", async () => {
   );
 });
 
-Deno.test("getPublicUrl throws error when URL generation fails", async () => {
+Deno.test("getPublicUrl throws error when URL generation fails", () => {
   const supabase = createSupabaseClientMock({
     publicUrl: null,
   });
 
-  await assertRejects(
-    async () => {
+  assertThrows(
+    () => {
       getPublicUrl(
         supabase as unknown as SupabaseClient,
         "bucket",
@@ -523,7 +524,7 @@ Deno.test("listFiles throws error when bucket is missing", async () => {
 Deno.test("listFiles throws error when list fails", async () => {
   const supabase = createSupabaseClientMock({
     shouldFailList: true,
-    listError: { message: "Storage list operation failed" },
+    listError: new Error("Storage list operation failed"),
   });
 
   await assertRejects(
@@ -1141,7 +1142,7 @@ Deno.test("downloadFile handles non-Error exceptions", async () => {
   );
 });
 
-Deno.test("getPublicUrl handles non-Error exceptions", async () => {
+Deno.test("getPublicUrl handles non-Error exceptions", () => {
   const supabase = {
     storage: {
       from: () => ({
@@ -1152,8 +1153,8 @@ Deno.test("getPublicUrl handles non-Error exceptions", async () => {
     },
   };
 
-  await assertRejects(
-    async () => {
+  assertThrows(
+    () => {
       getPublicUrl(
         supabase as unknown as SupabaseClient,
         "bucket",
@@ -1165,11 +1166,11 @@ Deno.test("getPublicUrl handles non-Error exceptions", async () => {
   );
 });
 
-Deno.test("getPublicUrl throws error when filePath is missing", async () => {
+Deno.test("getPublicUrl throws error when filePath is missing", () => {
   const supabase = createSupabaseClientMock();
 
-  await assertRejects(
-    async () => {
+  assertThrows(
+    () => {
       getPublicUrl(
         supabase as unknown as SupabaseClient,
         "bucket",

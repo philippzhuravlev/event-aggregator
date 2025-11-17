@@ -1,6 +1,5 @@
 import {
   assertEquals,
-  assertExists,
   assertRejects,
 } from "std/assert/mod.ts";
 import {
@@ -31,11 +30,11 @@ function createSupabaseClientMock(options?: {
   } = options || {};
 
   return {
-    rpc: (functionName: string, params?: unknown) => {
+    rpc: (_functionName: string, _params?: unknown) => {
       if (shouldFailRpc || rpcError) {
         return Promise.resolve({
           data: null,
-          error: rpcError || { message: "RPC failed" },
+          error: rpcError || new Error("RPC failed"),
         });
       }
       return Promise.resolve({ data: rpcData, error: null });
@@ -67,10 +66,10 @@ function createSupabaseClientMock(options?: {
       }
       if (table === "pages") {
         return {
-          upsert: (data: unknown) => {
+          upsert: (_data: unknown) => {
             if (shouldFailUpsert) {
               return Promise.resolve({
-                error: { message: "Upsert failed" },
+                error: new Error("Upsert failed"),
               });
             }
             return Promise.resolve({ error: null });
@@ -101,7 +100,7 @@ Deno.test("storePageToken stores token successfully", async () => {
 Deno.test("storePageToken throws error when RPC fails", async () => {
   const supabase = createSupabaseClientMock({
     shouldFailRpc: true,
-    rpcError: { message: "Vault RPC failed" },
+    rpcError: new Error("Vault RPC failed"),
   });
 
   await assertRejects(
@@ -166,7 +165,7 @@ Deno.test("getPageToken returns null when token not found", async () => {
 
 Deno.test("getPageToken returns null when query fails", async () => {
   const supabase = createSupabaseClientMock({
-    vaultError: { message: "Query failed" },
+    vaultError: new Error("Query failed"),
   });
 
   const token = await getPageToken(
@@ -199,7 +198,7 @@ Deno.test("getApiKey returns null when key not found", async () => {
 
 Deno.test("getApiKey returns null when query fails", async () => {
   const supabase = createSupabaseClientMock({
-    vaultError: { message: "Query failed" },
+    vaultError: new Error("Query failed"),
   });
 
   const apiKey = await getApiKey(supabase as unknown as SupabaseClient);
@@ -233,7 +232,7 @@ Deno.test("getWebhookVerifyToken returns null when token not found", async () =>
 
 Deno.test("getWebhookVerifyToken returns null when query fails", async () => {
   const supabase = createSupabaseClientMock({
-    vaultError: { message: "Query failed" },
+    vaultError: new Error("Query failed"),
   });
 
   const token = await getWebhookVerifyToken(
@@ -263,7 +262,7 @@ Deno.test("updateSecret updates secret successfully", async () => {
 Deno.test("updateSecret throws error when RPC fails", async () => {
   const supabase = createSupabaseClientMock({
     shouldFailRpc: true,
-    rpcError: { message: "Update failed" },
+    rpcError: new Error("Update failed"),
   });
 
   await assertRejects(
@@ -296,7 +295,7 @@ Deno.test("deleteSecret deletes secret successfully", async () => {
 Deno.test("deleteSecret throws error when RPC fails", async () => {
   const supabase = createSupabaseClientMock({
     shouldFailRpc: true,
-    rpcError: { message: "Delete failed" },
+    rpcError: new Error("Delete failed"),
   });
 
   await assertRejects(
