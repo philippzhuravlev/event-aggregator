@@ -5,10 +5,41 @@ import {
 import { getAllRelevantEvents } from "../_shared/services/facebook-service.ts";
 import { getPageToken } from "../_shared/services/vault-service.ts";
 import { logger } from "../_shared/services/logger-service.ts";
-import { EVENT_SYNC, TOKEN_REFRESH } from "@event-aggregator/shared/runtime/deno.js";
+import {
+  EVENT_SYNC,
+  TOKEN_REFRESH,
+} from "@event-aggregator/shared/runtime/deno.js";
 import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer.js";
 import type { DatabasePage } from "@event-aggregator/shared/types.ts";
 import { ExpiringToken, PageSyncResult } from "./types.ts";
+
+type SyncSinglePageDeps = {
+  checkTokenExpiry: typeof checkTokenExpiry;
+  markTokenExpired: typeof markTokenExpired;
+  getPageToken: typeof getPageToken;
+  getAllRelevantEvents: typeof getAllRelevantEvents;
+  normalizeEvent: typeof normalizeEvent;
+};
+
+const defaultSyncDeps: SyncSinglePageDeps = {
+  checkTokenExpiry,
+  markTokenExpired,
+  getPageToken,
+  getAllRelevantEvents,
+  normalizeEvent,
+};
+
+let currentSyncDeps: SyncSinglePageDeps = { ...defaultSyncDeps };
+
+export function setSyncSinglePageDeps(
+  overrides: Partial<SyncSinglePageDeps>,
+) {
+  currentSyncDeps = { ...currentSyncDeps, ...overrides };
+}
+
+export function resetSyncSinglePageDeps() {
+  currentSyncDeps = { ...defaultSyncDeps };
+}
 
 // this is one of many "helper", which are different from utils; 90% of the time,
 // helpers are for one file and thus specific for domain stuff/business logic (calculating,
@@ -37,7 +68,7 @@ export async function syncSinglePage(
 ): Promise<PageSyncResult> {
   try {
     // 1. Check if token is expiring soon (within 7 days)
-    const tokenStatus = await checkTokenExpiry(
+    const tokenStatus = await currentSyncDeps.checkTokenExpiry(
       supabase,
       String(page.page_id),
       TOKEN_REFRESH.WARNING_DAYS,
@@ -60,7 +91,10 @@ export async function syncSinglePage(
     }
 
     // 2. Get access token from Supabase Vault
-    const accessToken = await getPageToken(supabase, String(page.page_id));
+    const accessToken = await currentSyncDeps.getPageToken(
+      supabase,
+      String(page.page_id),
+    );
     if (!accessToken) {
       logger.error("No access token found for page", null, {
         pageId: String(page.page_id),
@@ -77,7 +111,7 @@ export async function syncSinglePage(
     // 3. Get events from Facebook API
     let events;
     try {
-      events = await getAllRelevantEvents(
+      events = await currentSyncDeps.getAllRelevantEvents(
         String(page.page_id),
         accessToken,
         EVENT_SYNC.PAST_EVENTS_DAYS,
@@ -97,7 +131,7 @@ export async function syncSinglePage(
           },
         );
         // Mark the page as having expired token
-        await markTokenExpired(supabase, String(page.page_id));
+        await currentSyncDeps.markTokenExpired(supabase, String(page.page_id));
         return { events: [], pageId: String(page.page_id), error: null };
       }
       // If not token error, throw it
@@ -127,7 +161,7 @@ export async function syncSinglePage(
         coverImageUrl = event.cover.source;
       }
 
-      const normalized = normalizeEvent(
+      const normalized = currentSyncDeps.normalizeEvent(
         event,
         String(page.page_id),
         (coverImageUrl ?? null) as null | undefined,

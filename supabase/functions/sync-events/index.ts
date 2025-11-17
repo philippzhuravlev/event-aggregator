@@ -1,4 +1,8 @@
-import { batchWriteEvents, createSupabaseClient, getActivePages } from "../_shared/services/supabase-service.ts";
+import {
+  batchWriteEvents,
+  createSupabaseClient,
+  getActivePages,
+} from "../_shared/services/supabase-service.ts";
 import { logger } from "../_shared/services/logger-service.ts";
 import {
   createErrorResponse,
@@ -16,6 +20,28 @@ import type {
 } from "./types.ts";
 import { SyncResult } from "./types.ts";
 import { syncSinglePage } from "./helpers.ts";
+
+type SyncEventsDeps = {
+  getActivePages: typeof getActivePages;
+  syncSinglePage: typeof syncSinglePage;
+  batchWriteEvents: typeof batchWriteEvents;
+};
+
+const defaultSyncEventsDeps: SyncEventsDeps = {
+  getActivePages,
+  syncSinglePage,
+  batchWriteEvents,
+};
+
+let currentSyncEventsDeps: SyncEventsDeps = { ...defaultSyncEventsDeps };
+
+export function setSyncEventsDeps(overrides: Partial<SyncEventsDeps>) {
+  currentSyncEventsDeps = { ...currentSyncEventsDeps, ...overrides };
+}
+
+export function resetSyncEventsDeps() {
+  currentSyncEventsDeps = { ...defaultSyncEventsDeps };
+}
 
 // NB: "Handlers" like execute business logic; they "do something", like
 // syncing events or refreshing tokens, etc. Meanwhile "Services" connect
@@ -45,7 +71,7 @@ export async function syncAllPageEvents(
   supabase: any,
 ): Promise<SyncResult> {
   // Get all active pages from Supabase
-  const pages = await getActivePages(supabase);
+  const pages = await currentSyncEventsDeps.getActivePages(supabase);
 
   if (pages.length === 0) {
     logger.info("No active pages to sync");
@@ -66,7 +92,9 @@ export async function syncAllPageEvents(
   // Sync all pages in parallel using Promise.all. That's the excellent utility
   // of Promise in JS/TS
   const syncResults = await Promise.all(
-    pages.map((page) => syncSinglePage(page, supabase, expiringTokens)),
+    pages.map((page) =>
+      currentSyncEventsDeps.syncSinglePage(page, supabase, expiringTokens)
+    ),
   );
 
   // Collect all events from all pages
@@ -81,7 +109,7 @@ export async function syncAllPageEvents(
 
   // Batch write all events
   if (eventsToSync.length > 0) {
-    await batchWriteEvents(supabase, eventsToSync);
+    await currentSyncEventsDeps.batchWriteEvents(supabase, eventsToSync);
     logger.info("Sync completed successfully", {
       totalEvents,
       totalPages: pages.length,
