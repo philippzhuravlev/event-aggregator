@@ -1,10 +1,10 @@
 import { assertEquals, assertExists } from "std/assert/mod.ts";
 import {
-  validateWebhookSubscription,
-  validateWebhookPayload,
+  extractEventChanges,
   extractPageIdFromEntry,
   hasEventChanges,
-  extractEventChanges,
+  validateWebhookPayload,
+  validateWebhookSubscription,
 } from "../../facebook-webhooks/schema.ts";
 
 Deno.test("validateWebhookSubscription returns error for missing mode", () => {
@@ -90,7 +90,10 @@ Deno.test("validateWebhookPayload returns error for invalid object value", () =>
   const result = validateWebhookPayload({ object: "invalid", entry: [] });
 
   assertEquals(result.valid, false);
-  assertEquals(result.error, "Invalid 'object' value - must be 'page' or 'user'");
+  assertEquals(
+    result.error,
+    "Invalid 'object' value - must be 'page' or 'user'",
+  );
 });
 
 Deno.test("validateWebhookPayload returns error for missing entry array", () => {
@@ -279,7 +282,7 @@ Deno.test("hasEventChanges returns true for non-empty changes array", () => {
         value: { id: "event-123" },
       },
     ],
-  };
+  } as unknown as Parameters<typeof hasEventChanges>[0];
 
   const result = hasEventChanges(entry);
 
@@ -291,7 +294,7 @@ Deno.test("hasEventChanges returns false for non-array changes", () => {
     id: "page-123",
     time: 1234567890,
     changes: "not-an-array",
-  };
+  } as unknown as Parameters<typeof hasEventChanges>[0];
 
   const result = hasEventChanges(entry);
 
@@ -314,7 +317,7 @@ Deno.test("extractEventChanges returns empty array for non-array changes", () =>
     id: "page-123",
     time: 1234567890,
     changes: "not-an-array",
-  };
+  } as unknown as Parameters<typeof extractEventChanges>[0];
 
   const result = extractEventChanges(entry);
 
@@ -335,7 +338,7 @@ Deno.test("extractEventChanges filters for events field only", () => {
         value: { id: "post-123" },
       },
     ],
-  };
+  } as unknown as Parameters<typeof extractEventChanges>[0];
 
   const result = extractEventChanges(entry);
 
@@ -353,7 +356,7 @@ Deno.test("extractEventChanges handles null value", () => {
         value: null,
       },
     ],
-  };
+  } as unknown as Parameters<typeof extractEventChanges>[0];
 
   const result = extractEventChanges(entry);
 
@@ -376,7 +379,7 @@ Deno.test("extractEventChanges extracts multiple event changes", () => {
         value: { id: "event-2" },
       },
     ],
-  };
+  } as unknown as Parameters<typeof extractEventChanges>[0];
 
   const result = extractEventChanges(entry);
 
@@ -384,4 +387,3 @@ Deno.test("extractEventChanges extracts multiple event changes", () => {
   assertEquals(result[0].value.id, "event-1");
   assertEquals(result[1].value.id, "event-2");
 });
-

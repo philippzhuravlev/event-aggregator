@@ -1,23 +1,48 @@
+import { assertEquals, assertExists, assertRejects } from "std/assert/mod.ts";
 import {
-  assertEquals,
-  assertExists,
-  assertRejects,
-} from "std/assert/mod.ts";
-import {
-  savePage,
-  saveEvent,
   batchWriteEvents,
-  getActivePages,
   checkTokenExpiry,
-  markTokenExpired,
   deleteOldEvents,
+  getActivePages,
+  markTokenExpired,
+  saveEvent,
+  savePage,
 } from "../../../_shared/services/supabase-service.ts";
+import type {
+  DatabasePage,
+  NormalizedEvent,
+} from "@event-aggregator/shared/types.ts";
+
+type MockQueryResult<T> = {
+  data: T | null;
+  error: { message: string } | null;
+};
+
+type MockQueryBuilder = {
+  eq: (
+    column: string,
+    value: unknown,
+  ) => MockQueryBuilder | Promise<MockQueryResult<unknown>>;
+  not: (
+    column: string,
+    operator: string,
+    value: unknown,
+  ) => Promise<MockQueryResult<unknown>>;
+  limit: (n: number) => Promise<MockQueryResult<unknown>>;
+  single: () => Promise<MockQueryResult<unknown>>;
+  lt: (column: string, value: string) => Promise<MockQueryResult<unknown>>;
+};
+
+type MockSelectOptions = {
+  count?: string;
+  head?: boolean;
+};
 
 function createSupabaseClientMock(options?: {
   shouldFail?: boolean;
   failOperation?: string;
-  pages?: any[];
-  events?: any[];
+  pages?: DatabasePage[];
+  events?: NormalizedEvent[];
   tokenExpiry?: string | null;
   count?: number;
 }) {
@@ -30,72 +55,81 @@ function createSupabaseClientMock(options?: {
     count = 0,
   } = options || {};
 
-  const createQueryBuilder = (table: string, finalResult: any) => {
-    const builder: any = {
-      eq: (column: string, value: any) => {
-        if (table === "pages" && column === "token_status" && value === "active") {
-          return {
-            not: () => Promise.resolve(finalResult),
-          };
-        }
-        if (table === "pages" && column === "page_id") {
-          return {
-            single: () => Promise.resolve(finalResult),
-          };
-        }
-        // Return builder for chaining, but don't recurse
-        return builder;
-      },
-      not: (column: string, operator: string, value: any) => {
-        return Promise.resolve(finalResult);
-      },
-      limit: (n: number) => Promise.resolve(finalResult),
-      single: () => Promise.resolve(finalResult),
-      lt: (column: string, value: string) => Promise.resolve(finalResult),
+  const createQueryBuilder = (
+    table: string,
+    finalResult: MockQueryResult<unknown>,
+  ): MockQueryBuilder => {
+    const builder = {} as MockQueryBuilder;
+    builder.eq = (column: string, value: unknown) => {
+      if (
+        table === "pages" && column === "token_status" && value === "active"
+      ) {
+        return {
+          not: () => Promise.resolve(finalResult),
+        } as unknown as MockQueryBuilder;
+      }
+      if (table === "pages" && column === "page_id") {
+        return {
+          single: () => Promise.resolve(finalResult),
+        } as MockQueryBuilder;
+      }
+      // Return builder for chaining, but don't recurse
+      return builder;
     };
+    builder.not = (_column: string, _operator: string, _value: unknown) => {
+      return Promise.resolve(finalResult);
+    };
+    builder.limit = (_n: number) => Promise.resolve(finalResult);
+    builder.single = () => Promise.resolve(finalResult);
+    builder.lt = (_column: string, _value: string) =>
+      Promise.resolve(finalResult);
     return builder;
   };
 
-  const mockClient: any = {
+  const mockClient = {
     from: (table: string) => {
       // Handle failure cases first
       if (shouldFail && failOperation === "upsert") {
         return {
-          upsert: () => Promise.resolve({
-            error: { message: "Database error" },
-          }),
+          upsert: () =>
+            Promise.resolve({
+              error: { message: "Database error" },
+            }),
         };
       }
 
       if (shouldFail && failOperation === "select") {
         return {
-          select: () => createQueryBuilder(table, {
-            data: null,
-            error: { message: "Query failed" },
-          }),
+          select: () =>
+            createQueryBuilder(table, {
+              data: null,
+              error: { message: "Query failed" },
+            }),
         };
       }
 
       if (shouldFail && failOperation === "update") {
         return {
           update: () => ({
-            eq: () => Promise.resolve({
-              error: { message: "Update failed" },
-            }),
+            eq: () =>
+              Promise.resolve({
+                error: { message: "Update failed" },
+              }),
           }),
         };
       }
 
       if (shouldFail && failOperation === "delete") {
         return {
-          select: (columns: string, options?: any) => {
+          select: (_columns: string, options?: MockSelectOptions) => {
             // First handle the count query
             if (options?.count === "exact" && options?.head === true) {
               return {
-                lt: () => Promise.resolve({
-                  count: 5,
-                  error: null,
-                }),
+                lt: () =>
+                  Promise.resolve({
+                    count: 5,
+                    error: null,
+                  }),
               };
             }
             // Then the delete will fail
@@ -105,22 +139,24 @@ function createSupabaseClientMock(options?: {
             });
           },
           delete: () => ({
-            lt: () => Promise.resolve({
-              error: { message: "Delete failed" },
-            }),
+            lt: () =>
+              Promise.resolve({
+                error: { message: "Delete failed" },
+              }),
           }),
         };
       }
 
       if (shouldFail && failOperation === "count") {
         return {
-          select: (columns: string, options?: any) => {
+          select: (_columns: string, options?: MockSelectOptions) => {
             if (options?.count === "exact" && options?.head === true) {
               return {
-                lt: () => Promise.resolve({
-                  count: null,
-                  error: { message: "Count failed" },
-                }),
+                lt: () =>
+                  Promise.resolve({
+                    count: null,
+                    error: { message: "Count failed" },
+                  }),
               };
             }
             return createQueryBuilder(table, {
@@ -133,17 +169,18 @@ function createSupabaseClientMock(options?: {
 
       // Success cases
       return {
-        upsert: (data: any, options?: any) => {
+        upsert: (_data: unknown, _options?: Record<string, unknown>) => {
           return Promise.resolve({ error: null });
         },
-        select: (columns?: string, options?: any) => {
+        select: (_columns?: string, options?: MockSelectOptions) => {
           // Special handling for count queries
           if (options?.count === "exact" && options?.head === true) {
             return {
-              lt: () => Promise.resolve({
-                count,
-                error: null,
-              }),
+              lt: () =>
+                Promise.resolve({
+                  count,
+                  error: null,
+                }),
             };
           }
 
@@ -160,18 +197,21 @@ function createSupabaseClientMock(options?: {
             error: null,
           });
         },
-        update: (data: any) => ({
-          eq: (column: string, value: any) => Promise.resolve({
-            error: null,
-          }),
+        update: (_data: unknown) => ({
+          eq: (_column: string, _value: unknown) =>
+            Promise.resolve({
+              error: null,
+            }),
         }),
         delete: () => ({
-          eq: (column: string, value: any) => Promise.resolve({
-            error: null,
-          }),
-          lt: (column: string, value: string) => Promise.resolve({
-            error: null,
-          }),
+          eq: (_column: string, _value: unknown) =>
+            Promise.resolve({
+              error: null,
+            }),
+          lt: (_column: string, _value: string) =>
+            Promise.resolve({
+              error: null,
+            }),
         }),
       };
     },
@@ -181,24 +221,29 @@ function createSupabaseClientMock(options?: {
   const originalFrom = mockClient.from;
   mockClient.from = (table: string) => {
     const result = originalFrom(table);
-    
+
     // Special handling for checkTokenExpiry
     if (table === "pages" && result.select) {
       const originalSelect = result.select;
       result.select = (columns?: string) => {
-        const builder = originalSelect(columns);
+        const builder = originalSelect(columns || "") as MockQueryBuilder;
         if (builder.eq) {
           const originalEq = builder.eq;
-          builder.eq = (column: string, value: any) => {
+          builder.eq = (column: string, value: unknown) => {
             if (column === "page_id") {
               return {
-                single: () => Promise.resolve({
-                  data: tokenExpiry !== undefined
-                    ? (tokenExpiry !== null ? { token_expiry: tokenExpiry } : null)
-                    : null,
-                  error: tokenExpiry === undefined ? { message: "Not found" } : null,
-                }),
-              };
+                single: () =>
+                  Promise.resolve({
+                    data: tokenExpiry !== undefined
+                      ? (tokenExpiry !== null
+                        ? { token_expiry: tokenExpiry }
+                        : null)
+                      : null,
+                    error: tokenExpiry === undefined
+                      ? { message: "Not found" }
+                      : null,
+                  }),
+              } as unknown as MockQueryBuilder;
             }
             return originalEq(column, value);
           };
@@ -206,7 +251,7 @@ function createSupabaseClientMock(options?: {
         return builder;
       };
     }
-    
+
     return result;
   };
 
@@ -215,7 +260,8 @@ function createSupabaseClientMock(options?: {
 
 Deno.test("savePage saves page successfully", async () => {
   const supabase = createSupabaseClientMock();
-  await savePage(supabase, "123", "Test Page");
+  // deno-lint-ignore no-explicit-any
+  await savePage(supabase as any, "123", "Test Page");
   // If no error is thrown, test passes
 });
 
@@ -226,7 +272,8 @@ Deno.test("savePage throws error on database failure", async () => {
   });
   await assertRejects(
     async () => {
-      await savePage(supabase, "123", "Test Page");
+      // deno-lint-ignore no-explicit-any
+      await savePage(supabase as any, "123", "Test Page");
     },
     Error,
     "Failed to save page in Supabase",
@@ -235,10 +282,15 @@ Deno.test("savePage throws error on database failure", async () => {
 
 Deno.test("saveEvent saves event successfully", async () => {
   const supabase = createSupabaseClientMock();
-  await saveEvent(supabase, {
+  // deno-lint-ignore no-explicit-any
+  await saveEvent(supabase as any, {
     page_id: 123,
     event_id: "event1",
-    event_data: { id: "event1", name: "Test Event", start_time: new Date().toISOString() },
+    event_data: {
+      id: "event1",
+      name: "Test Event",
+      start_time: new Date().toISOString(),
+    },
   });
   // If no error is thrown, test passes
 });
@@ -250,10 +302,15 @@ Deno.test("saveEvent throws error on database failure", async () => {
   });
   await assertRejects(
     async () => {
-      await saveEvent(supabase, {
+      // deno-lint-ignore no-explicit-any
+      await saveEvent(supabase as any, {
         page_id: 123,
         event_id: "event1",
-        event_data: { id: "event1", name: "Test Event", start_time: new Date().toISOString() },
+        event_data: {
+          id: "event1",
+          name: "Test Event",
+          start_time: new Date().toISOString(),
+        },
       });
     },
     Error,
@@ -263,7 +320,8 @@ Deno.test("saveEvent throws error on database failure", async () => {
 
 Deno.test("batchWriteEvents returns 0 for empty array", async () => {
   const supabase = createSupabaseClientMock();
-  const result = await batchWriteEvents(supabase, []);
+  // deno-lint-ignore no-explicit-any
+  const result = await batchWriteEvents(supabase as any, []);
   assertEquals(result, 0);
 });
 
@@ -273,15 +331,24 @@ Deno.test("batchWriteEvents writes events successfully", async () => {
     {
       page_id: 123,
       event_id: "event1",
-      event_data: { id: "event1", name: "Event 1", start_time: new Date().toISOString() },
+      event_data: {
+        id: "event1",
+        name: "Event 1",
+        start_time: new Date().toISOString(),
+      },
     },
     {
       page_id: 123,
       event_id: "event2",
-      event_data: { id: "event2", name: "Event 2", start_time: new Date().toISOString() },
+      event_data: {
+        id: "event2",
+        name: "Event 2",
+        start_time: new Date().toISOString(),
+      },
     },
   ];
-  const result = await batchWriteEvents(supabase, events);
+  // deno-lint-ignore no-explicit-any
+  const result = await batchWriteEvents(supabase as any, events);
   assertEquals(result, 2);
 });
 
@@ -294,12 +361,17 @@ Deno.test("batchWriteEvents throws error on database failure", async () => {
     {
       page_id: 123,
       event_id: "event1",
-      event_data: { id: "event1", name: "Event 1", start_time: new Date().toISOString() },
+      event_data: {
+        id: "event1",
+        name: "Event 1",
+        start_time: new Date().toISOString(),
+      },
     },
   ];
   await assertRejects(
     async () => {
-      await batchWriteEvents(supabase, events);
+      // deno-lint-ignore no-explicit-any
+      await batchWriteEvents(supabase as any, events);
     },
     Error,
     "Failed to batch write events to Supabase",
@@ -308,21 +380,26 @@ Deno.test("batchWriteEvents throws error on database failure", async () => {
 
 Deno.test("getActivePages returns empty array when no pages", async () => {
   const supabase = createSupabaseClientMock({ pages: [] });
-  const result = await getActivePages(supabase);
+  // deno-lint-ignore no-explicit-any
+  const result = await getActivePages(supabase as any);
   assertEquals(result, []);
 });
 
 Deno.test("getActivePages returns pages successfully", async () => {
-  const mockPages = [
+  const mockPages: DatabasePage[] = [
     {
       page_id: 123,
       page_name: "Test Page",
       token_status: "active",
-      page_access_token_id: 1,
+      page_access_token_id: "1",
+      token_expiry: null as unknown as string,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     },
   ];
   const supabase = createSupabaseClientMock({ pages: mockPages });
-  const result = await getActivePages(supabase);
+  // deno-lint-ignore no-explicit-any
+  const result = await getActivePages(supabase as any);
   assertEquals(result.length, 1);
   assertEquals(result[0].page_id, 123);
 });
@@ -332,13 +409,15 @@ Deno.test("getActivePages returns empty array on query error", async () => {
     shouldFail: true,
     failOperation: "select",
   });
-  const result = await getActivePages(supabase);
+  // deno-lint-ignore no-explicit-any
+  const result = await getActivePages(supabase as any);
   assertEquals(result, []);
 });
 
 Deno.test("checkTokenExpiry returns expiring when token expiry is null", async () => {
   const supabase = createSupabaseClientMock({ tokenExpiry: null });
-  const result = await checkTokenExpiry(supabase, "123");
+  // deno-lint-ignore no-explicit-any
+  const result = await checkTokenExpiry(supabase as any, "123");
   assertEquals(result.isExpiring, true);
   assertEquals(result.daysUntilExpiry, 0);
   assertEquals(result.expiresAt, null);
@@ -349,6 +428,7 @@ Deno.test("checkTokenExpiry handles invalid date string", async () => {
     tokenExpiry: "invalid-date",
   });
 
+  // deno-lint-ignore no-explicit-any
   const result = await checkTokenExpiry(supabase as any, "123", 7);
   // Should handle invalid date gracefully
   assertEquals(typeof result.isExpiring, "boolean");
@@ -363,6 +443,7 @@ Deno.test("checkTokenExpiry handles custom warningDays", async () => {
     tokenExpiry: futureDate.toISOString(),
   });
 
+  // deno-lint-ignore no-explicit-any
   const result = await checkTokenExpiry(supabase as any, "123", 5);
   assertEquals(typeof result.isExpiring, "boolean");
   assertEquals(typeof result.daysUntilExpiry, "number");
@@ -376,6 +457,7 @@ Deno.test("checkTokenExpiry handles token expiring within warning days", async (
     tokenExpiry: expiringDate.toISOString(),
   });
 
+  // deno-lint-ignore no-explicit-any
   const result = await checkTokenExpiry(supabase as any, "123", 7);
   assertEquals(result.isExpiring, true);
 });
@@ -388,6 +470,7 @@ Deno.test("checkTokenExpiry handles token not expiring", async () => {
     tokenExpiry: futureDate.toISOString(),
   });
 
+  // deno-lint-ignore no-explicit-any
   const result = await checkTokenExpiry(supabase as any, "123", 7);
   assertEquals(result.isExpiring, false);
 });
@@ -400,6 +483,7 @@ Deno.test("checkTokenExpiry handles already expired token", async () => {
     tokenExpiry: pastDate.toISOString(),
   });
 
+  // deno-lint-ignore no-explicit-any
   const result = await checkTokenExpiry(supabase as any, "123", 7);
   assertEquals(result.isExpiring, true);
   assertEquals(result.daysUntilExpiry <= 0, true);
@@ -408,13 +492,14 @@ Deno.test("checkTokenExpiry handles already expired token", async () => {
 Deno.test("deleteOldEvents handles count error", async () => {
   const errorSupabase = {
     from: () => ({
-      select: (columns: string, options?: any) => {
+      select: (_columns: string, options?: MockSelectOptions) => {
         if (options?.count === "exact" && options?.head === true) {
           return {
-            lt: () => Promise.resolve({
-              count: null,
-              error: { message: "Count failed" },
-            }),
+            lt: () =>
+              Promise.resolve({
+                count: null,
+                error: { message: "Count failed" },
+              }),
           };
         }
         return {
@@ -424,6 +509,7 @@ Deno.test("deleteOldEvents handles count error", async () => {
     }),
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await deleteOldEvents(errorSupabase as any, new Date(), false);
   assertEquals(result, 0);
 });
@@ -431,20 +517,22 @@ Deno.test("deleteOldEvents handles count error", async () => {
 Deno.test("deleteOldEvents handles delete error", async () => {
   const errorSupabase = {
     from: () => ({
-      select: (columns: string, options?: any) => {
+      select: (_columns: string, options?: MockSelectOptions) => {
         if (options?.count === "exact" && options?.head === true) {
           return {
-            lt: () => Promise.resolve({
-              count: 5,
-              error: null,
-            }),
+            lt: () =>
+              Promise.resolve({
+                count: 5,
+                error: null,
+              }),
           };
         }
         return {
           delete: () => ({
-            lt: () => Promise.resolve({
-              error: { message: "Delete failed" },
-            }),
+            lt: () =>
+              Promise.resolve({
+                error: { message: "Delete failed" },
+              }),
           }),
         };
       },
@@ -452,6 +540,7 @@ Deno.test("deleteOldEvents handles delete error", async () => {
   };
 
   try {
+    // deno-lint-ignore no-explicit-any
     await deleteOldEvents(errorSupabase as any, new Date(), false);
     assertEquals(false, true, "Should have thrown an error");
   } catch (error) {
@@ -465,7 +554,8 @@ Deno.test("checkTokenExpiry returns expiring when query fails", async () => {
     failOperation: "select",
     tokenExpiry: undefined,
   });
-  const result = await checkTokenExpiry(supabase, "123");
+  // deno-lint-ignore no-explicit-any
+  const result = await checkTokenExpiry(supabase as any, "123");
   assertEquals(result.isExpiring, true);
   assertEquals(result.daysUntilExpiry, 0);
   assertEquals(result.expiresAt, null);
@@ -477,7 +567,8 @@ Deno.test("checkTokenExpiry calculates expiry correctly", async () => {
   const supabase = createSupabaseClientMock({
     tokenExpiry: futureDate.toISOString(),
   });
-  const result = await checkTokenExpiry(supabase, "123");
+  // deno-lint-ignore no-explicit-any
+  const result = await checkTokenExpiry(supabase as any, "123");
   assertEquals(result.isExpiring, false);
   assertEquals(result.daysUntilExpiry > 0, true);
   assertExists(result.expiresAt);
@@ -485,7 +576,8 @@ Deno.test("checkTokenExpiry calculates expiry correctly", async () => {
 
 Deno.test("markTokenExpired marks token as expired successfully", async () => {
   const supabase = createSupabaseClientMock();
-  await markTokenExpired(supabase, "123");
+  // deno-lint-ignore no-explicit-any
+  await markTokenExpired(supabase as any, "123");
   // If no error is thrown, test passes
 });
 
@@ -496,7 +588,8 @@ Deno.test("markTokenExpired throws error on database failure", async () => {
   });
   await assertRejects(
     async () => {
-      await markTokenExpired(supabase, "123");
+      // deno-lint-ignore no-explicit-any
+      await markTokenExpired(supabase as any, "123");
     },
     Error,
     "Failed to mark token as expired in Supabase",
@@ -507,7 +600,8 @@ Deno.test("deleteOldEvents returns 0 for dry run with no events", async () => {
   const supabase = createSupabaseClientMock({ count: 0 });
   const beforeDate = new Date();
   beforeDate.setDate(beforeDate.getDate() - 90);
-  const result = await deleteOldEvents(supabase, beforeDate, true);
+  // deno-lint-ignore no-explicit-any
+  const result = await deleteOldEvents(supabase as any, beforeDate, true);
   assertEquals(result, 0);
 });
 
@@ -515,7 +609,8 @@ Deno.test("deleteOldEvents returns count for dry run", async () => {
   const supabase = createSupabaseClientMock({ count: 5 });
   const beforeDate = new Date();
   beforeDate.setDate(beforeDate.getDate() - 90);
-  const result = await deleteOldEvents(supabase, beforeDate, true);
+  // deno-lint-ignore no-explicit-any
+  const result = await deleteOldEvents(supabase as any, beforeDate, true);
   assertEquals(result, 5);
 });
 
@@ -523,7 +618,8 @@ Deno.test("deleteOldEvents deletes events when not dry run", async () => {
   const supabase = createSupabaseClientMock({ count: 3 });
   const beforeDate = new Date();
   beforeDate.setDate(beforeDate.getDate() - 90);
-  const result = await deleteOldEvents(supabase, beforeDate, false);
+  // deno-lint-ignore no-explicit-any
+  const result = await deleteOldEvents(supabase as any, beforeDate, false);
   assertEquals(result, 3);
 });
 
@@ -534,7 +630,8 @@ Deno.test("deleteOldEvents returns 0 when count query fails", async () => {
   });
   const beforeDate = new Date();
   beforeDate.setDate(beforeDate.getDate() - 90);
-  const result = await deleteOldEvents(supabase, beforeDate, false);
+  // deno-lint-ignore no-explicit-any
+  const result = await deleteOldEvents(supabase as any, beforeDate, false);
   assertEquals(result, 0);
 });
 
@@ -546,8 +643,8 @@ Deno.test("deleteOldEvents throws error when delete fails", async () => {
   });
   const beforeDate = new Date();
   beforeDate.setDate(beforeDate.getDate() - 90);
-  const result = await deleteOldEvents(supabase, beforeDate, false);
+  // deno-lint-ignore no-explicit-any
+  const result = await deleteOldEvents(supabase as any, beforeDate, false);
   // Should return 0 on error
   assertEquals(result, 0);
 });
-

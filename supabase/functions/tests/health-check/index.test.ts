@@ -3,15 +3,20 @@ import {
   assertExists,
   assertObjectMatch,
 } from "std/assert/mod.ts";
-import { handleHealthCheck, performHealthCheck } from "../../health-check/index.ts";
+import {
+  handleHealthCheck,
+  performHealthCheck,
+} from "../../health-check/index.ts";
 import type { HealthCheckResponse } from "../../health-check/schema.ts";
-import * as supabaseJs from "@supabase/supabase-js";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
 function createSupabaseClientMock(options?: {
   shouldFail?: boolean;
   pages?: Array<
-    { page_id: number; token_expiry?: string; token_status: string }
+    {
+      page_id: number;
+      token_expiry?: string | null | undefined;
+      token_status: string;
+    }
   >;
 }) {
   const { shouldFail = false, pages = [] } = options || {};
@@ -288,14 +293,16 @@ Deno.test("performHealthCheck handles query errors in monitorTokens", async () =
           select: (columns?: string) => {
             if (columns === "id") {
               return {
-                limit: () => Promise.resolve({ data: [{ id: 1 }], error: null }),
+                limit: () =>
+                  Promise.resolve({ data: [{ id: 1 }], error: null }),
               };
             }
             return {
-              eq: () => Promise.resolve({
-                data: null,
-                error: { message: "Query failed" },
-              }),
+              eq: () =>
+                Promise.resolve({
+                  data: null,
+                  error: { message: "Query failed" },
+                }),
             };
           },
         };
@@ -308,7 +315,7 @@ Deno.test("performHealthCheck handles query errors in monitorTokens", async () =
     },
   };
 
-  const result = await performHealthCheck(errorSupabase as any);
+  const result = await performHealthCheck(errorSupabase as unknown);
   assertEquals(result.tokens.totalPages, 0);
   assertEquals(Array.isArray(result.tokens.healthy), true);
 });
@@ -341,7 +348,10 @@ Deno.test("performHealthCheck determines warning status correctly", async () => 
 
   const result = await performHealthCheck(supabase);
   // Should be warning if tokens are expiring soon
-  assertEquals(["healthy", "warning", "critical"].includes(result.overall.status), true);
+  assertEquals(
+    ["healthy", "warning", "critical"].includes(result.overall.status),
+    true,
+  );
 });
 
 Deno.test("performHealthCheck determines critical status correctly", async () => {
@@ -360,7 +370,10 @@ Deno.test("performHealthCheck determines critical status correctly", async () =>
 
   const result = await performHealthCheck(supabase);
   // Should be critical if tokens are expired
-  assertEquals(result.overall.status === "critical" || result.overall.status === "warning", true);
+  assertEquals(
+    result.overall.status === "critical" || result.overall.status === "warning",
+    true,
+  );
 });
 
 Deno.test({
@@ -431,20 +444,22 @@ Deno.test("monitorTokens handles pageError in try-catch", async () => {
           select: (columns?: string) => {
             if (columns === "id") {
               return {
-                limit: () => Promise.resolve({ data: [{ id: 1 }], error: null }),
+                limit: () =>
+                  Promise.resolve({ data: [{ id: 1 }], error: null }),
               };
             }
             return {
-              eq: () => Promise.resolve({
-                data: [
-                  {
-                    page_id: 123,
-                    token_expiry: "invalid-date-that-will-cause-error",
-                    token_status: "active",
-                  },
-                ],
-                error: null,
-              }),
+              eq: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      page_id: 123,
+                      token_expiry: "invalid-date-that-will-cause-error",
+                      token_status: "active",
+                    },
+                  ],
+                  error: null,
+                }),
             };
           },
         };
@@ -457,7 +472,7 @@ Deno.test("monitorTokens handles pageError in try-catch", async () => {
     },
   };
 
-  const result = await performHealthCheck(errorSupabase as any);
+  const result = await performHealthCheck(errorSupabase as unknown);
   // Should handle page errors gracefully
   assertEquals(result.tokens.totalPages >= 0, true);
 });

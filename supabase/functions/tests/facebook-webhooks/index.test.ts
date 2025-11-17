@@ -1,5 +1,13 @@
-import { assertEquals, assertObjectMatch, assertRejects } from "std/assert/mod.ts";
-import { handleWebhook, handleWebhookGet, handleWebhookPost } from "../../facebook-webhooks/index.ts";
+import {
+  assertEquals,
+  assertObjectMatch,
+  assertRejects,
+} from "std/assert/mod.ts";
+import {
+  handleWebhook,
+  handleWebhookGet,
+  handleWebhookPost,
+} from "../../facebook-webhooks/index.ts";
 import { WEBHOOK } from "@event-aggregator/shared/runtime/deno.js";
 import { computeHmacSignature } from "@event-aggregator/shared/validation/index.js";
 
@@ -119,8 +127,12 @@ Deno.test("handleWebhookPost returns 400 for invalid JSON", async () => {
     // Create a valid signature for the body to pass signature check
     // Then JSON parsing will fail
     const body = "invalid json";
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
-    
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
+
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -147,8 +159,12 @@ Deno.test("handleWebhookPost returns 400 for invalid payload structure", async (
     const supabase = createSupabaseClientMock();
     const body = JSON.stringify({ invalid: "payload" });
     // Create a valid signature for the body
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
-    
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
+
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -174,7 +190,7 @@ Deno.test("handleWebhookPost returns 401 for invalid signature", async () => {
   try {
     const supabase = createSupabaseClientMock();
     const body = JSON.stringify({ object: "page", entry: [] });
-    
+
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -195,7 +211,7 @@ Deno.test("handleWebhookPost returns 413 for oversized body", async () => {
   try {
     const supabase = createSupabaseClientMock();
     const body = JSON.stringify({ object: "page", entry: [] });
-    
+
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -233,8 +249,12 @@ Deno.test("handleWebhookPost processes valid webhook payload", async () => {
         },
       ],
     });
-    
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -257,7 +277,7 @@ Deno.test("handleWebhookPost handles missing FACEBOOK_APP_SECRET", async () => {
     if (key === "FACEBOOK_APP_SECRET") return undefined;
     return originalEnv(key);
   };
-  
+
   try {
     const supabase = createSupabaseClientMock();
     const body = JSON.stringify({ object: "page", entry: [] });
@@ -294,9 +314,13 @@ Deno.test("handleWebhookPost handles rate limited webhooks", async () => {
         },
       ],
     });
-    
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
-    
+
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
+
     // First request should succeed (or fail gracefully)
     const request1 = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
@@ -305,10 +329,10 @@ Deno.test("handleWebhookPost handles rate limited webhooks", async () => {
       },
       body: body,
     });
-    
+
     const response1 = await handleWebhookPost(request1, supabase);
     assertEquals([200, 500].includes(response1.status), true);
-    
+
     // Second request immediately after should be rate limited
     const request2 = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
@@ -317,7 +341,7 @@ Deno.test("handleWebhookPost handles rate limited webhooks", async () => {
       },
       body: body,
     });
-    
+
     const response2 = await handleWebhookPost(request2, supabase);
     // Rate limiting returns 429 or processes with warning
     assertEquals([200, 429, 500].includes(response2.status), true);
@@ -339,8 +363,12 @@ Deno.test("handleWebhookPost handles entry without changes", async () => {
         },
       ],
     });
-    
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -390,8 +418,12 @@ Deno.test("handleWebhookPost handles multiple entries", async () => {
         },
       ],
     });
-    
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -420,8 +452,12 @@ Deno.test("handleWebhookPost handles entry processing errors", async () => {
         },
       ],
     });
-    
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -469,7 +505,7 @@ Deno.test("handleWebhook returns 405 for unsupported methods", async () => {
 Deno.test("handleWebhook returns 500 when Supabase config is missing for POST", async () => {
   const originalEnv = Deno.env.get;
   Deno.env.get = () => undefined;
-  
+
   try {
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
@@ -491,8 +527,12 @@ Deno.test("handleWebhookPost handles body size validation", async () => {
     const supabase = createSupabaseClientMock();
     // Create a body that's too large
     const largeBody = "x".repeat(10 * 1024 * 1024); // 10MB
-    
-    const signature = await computeHmacSignature(largeBody, "test-app-secret", "sha256=hex");
+
+    const signature = await computeHmacSignature(
+      largeBody,
+      "test-app-secret",
+      "sha256=hex",
+    );
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -514,8 +554,12 @@ Deno.test("handleWebhookPost handles invalid JSON body", async () => {
   try {
     const supabase = createSupabaseClientMock();
     const invalidJson = "{ invalid json }";
-    
-    const signature = await computeHmacSignature(invalidJson, "test-app-secret", "sha256=hex");
+
+    const signature = await computeHmacSignature(
+      invalidJson,
+      "test-app-secret",
+      "sha256=hex",
+    );
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -553,8 +597,12 @@ Deno.test("handleWebhookPost handles entry processing errors gracefully", async 
         },
       ],
     });
-    
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -571,14 +619,18 @@ Deno.test("handleWebhookPost handles entry processing errors gracefully", async 
   }
 });
 
-Deno.test("handleWebhookGet handles invalid verify token", async () => {
-  const url = new URL("https://example.com/webhook?hub.mode=subscribe&hub.challenge=test&hub.verify_token=wrong-token");
+Deno.test("handleWebhookGet handles invalid verify token", () => {
+  const url = new URL(
+    "https://example.com/webhook?hub.mode=subscribe&hub.challenge=test&hub.verify_token=wrong-token",
+  );
   const response = handleWebhookGet(url);
   assertEquals(response.status, 403);
 });
 
-Deno.test("handleWebhookGet handles missing challenge", async () => {
-  const url = new URL("https://example.com/webhook?hub.mode=subscribe&hub.verify_token=test-verify-token");
+Deno.test("handleWebhookGet handles missing challenge", () => {
+  const url = new URL(
+    "https://example.com/webhook?hub.mode=subscribe&hub.verify_token=test-verify-token",
+  );
   const response = handleWebhookGet(url);
   assertEquals(response.status, 400);
 });
@@ -591,8 +643,12 @@ Deno.test("handleWebhookPost handles content-length header validation", async ()
       object: "page",
       entry: [],
     });
-    
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -618,7 +674,7 @@ Deno.test("handleWebhookPost handles missing signature header", async () => {
       object: "page",
       entry: [],
     });
-    
+
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       // No signature header
@@ -640,7 +696,7 @@ Deno.test("handleWebhookPost handles invalid signature", async () => {
       object: "page",
       entry: [],
     });
-    
+
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -664,8 +720,12 @@ Deno.test("handleWebhookPost handles invalid content-length header (NaN)", async
       object: "page",
       entry: [],
     });
-    
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -724,7 +784,7 @@ Deno.test("handleWebhookPost handles entry processing with non-Error exceptions"
         throw "String error in RPC";
       },
     };
-    
+
     const body = JSON.stringify({
       object: "page",
       entry: [
@@ -742,8 +802,12 @@ Deno.test("handleWebhookPost handles entry processing with non-Error exceptions"
         },
       ],
     });
-    
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -769,8 +833,12 @@ Deno.test("handleWebhookPost handles validation error without error message", as
       object: "page",
       entry: null, // Invalid entry
     });
-    
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -790,7 +858,7 @@ Deno.test("handleWebhookGet handles validation error without error message", () 
   const url = new URL("https://example.com/facebook-webhooks");
   // Missing required parameters
   const response = handleWebhookGet(url);
-  
+
   assertEquals(response.status, 400);
 });
 
@@ -820,8 +888,12 @@ Deno.test("handleWebhookPost handles entries with mixed success and failure", as
         },
       ],
     });
-    
-    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+
+    const signature = await computeHmacSignature(
+      body,
+      "test-app-secret",
+      "sha256=hex",
+    );
     const request = new Request("https://example.com/facebook-webhooks", {
       method: "POST",
       headers: {
@@ -837,4 +909,3 @@ Deno.test("handleWebhookPost handles entries with mixed success and failure", as
     restoreEnv();
   }
 });
-

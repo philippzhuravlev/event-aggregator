@@ -129,8 +129,14 @@ Deno.test("normalizeWebhookChange handles unknown verb", () => {
   assertEquals(result.eventType, "events");
 });
 
+// Flexible mock type for Supabase client - allows various mock structures
+type MockSupabaseClient = {
+  from: (table: string) => Record<string, unknown>;
+  rpc?: () => Promise<{ data: unknown; error: unknown }>;
+} & Record<string, unknown>;
+
 Deno.test("processWebhookChanges processes deleted events", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -175,7 +181,7 @@ Deno.test("processWebhookChanges processes deleted events", async () => {
 });
 
 Deno.test("processWebhookChanges skips unprocessed event types", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -222,7 +228,7 @@ Deno.test("processWebhookChanges skips unprocessed event types", async () => {
 });
 
 Deno.test("processWebhookChanges handles missing event ID", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -267,7 +273,7 @@ Deno.test("processWebhookChanges handles missing event ID", async () => {
 });
 
 Deno.test("processWebhookChanges handles delete errors", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -314,7 +320,7 @@ Deno.test("processWebhookChanges handles delete errors", async () => {
 });
 
 Deno.test("processWebhookChanges handles processing errors", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -439,8 +445,7 @@ Deno.test("normalizeWebhookChange handles non-events field", () => {
 });
 
 Deno.test("processWebhookChanges processes create events", async () => {
-  let batchWriteCalled = false;
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -464,8 +469,8 @@ Deno.test("processWebhookChanges processes create events", async () => {
   };
 
   // Mock getEventDetails and batchWriteEvents
-  const originalGetEventDetails = await import("../../_shared/services/facebook-service.ts").then(m => m.getEventDetails);
-  const originalBatchWriteEvents = await import("../../_shared/services/supabase-service.ts").then(m => m.batchWriteEvents);
+  const _originalGetEventDetails = await import("../../_shared/services/facebook-service.ts").then(m => m.getEventDetails);
+  const _originalBatchWriteEvents = await import("../../_shared/services/supabase-service.ts").then(m => m.batchWriteEvents);
   
   // We can't easily mock these without refactoring, so we'll test what we can
   // The function will fail when trying to fetch event details, which is expected
@@ -486,7 +491,7 @@ Deno.test("processWebhookChanges processes create events", async () => {
 });
 
 Deno.test("processWebhookChanges handles missing access token", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -525,7 +530,7 @@ Deno.test("processWebhookChanges handles missing access token", async () => {
 });
 
 Deno.test("processWebhookChanges handles batch write errors", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -549,7 +554,7 @@ Deno.test("processWebhookChanges handles batch write errors", async () => {
   };
 
   // Mock batchWriteEvents to throw an error
-  const originalBatchWriteEvents = await import("../../_shared/services/supabase-service.ts").then(m => m.batchWriteEvents);
+  const _originalBatchWriteEvents = await import("../../_shared/services/supabase-service.ts").then(m => m.batchWriteEvents);
   
   const changes = [
     {
@@ -662,7 +667,7 @@ Deno.test("normalizeWebhookChange handles empty string event ID", () => {
 });
 
 Deno.test("processWebhookChanges handles multiple changes", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -717,7 +722,7 @@ Deno.test("processWebhookChanges handles multiple changes", async () => {
 });
 
 Deno.test("processWebhookChanges handles empty changes array", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: () => ({}),
     rpc: () => Promise.resolve({ data: null, error: null }),
   };
@@ -728,7 +733,7 @@ Deno.test("processWebhookChanges handles empty changes array", async () => {
 });
 
 Deno.test("processWebhookChanges handles change with null value", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -754,7 +759,7 @@ Deno.test("processWebhookChanges handles change with null value", async () => {
   const changes = [
     {
       field: "events",
-      value: null as any,
+      value: null as unknown as Record<string, unknown>,
     },
   ];
 
@@ -792,7 +797,7 @@ Deno.test("resolveEventId prefers id over other fields", () => {
 });
 
 Deno.test("processWebhookChanges handles delete operation with error", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -847,7 +852,7 @@ Deno.test("processWebhookChanges handles delete operation with error", async () 
 });
 
 Deno.test("processWebhookChanges handles event details fetch error", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -887,7 +892,7 @@ Deno.test("processWebhookChanges handles event details fetch error", async () =>
 });
 
 Deno.test("processWebhookChanges handles null event details", async () => {
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {
@@ -928,7 +933,7 @@ Deno.test("processWebhookChanges handles null event details", async () => {
 Deno.test("normalizeWebhookChange handles missing value field", () => {
   const result = normalizeWebhookChange("123", {
     field: "events",
-    value: undefined as any,
+    value: undefined as unknown as Record<string, unknown>,
   });
 
   assertEquals(result.pageId, "123");
@@ -1014,7 +1019,7 @@ Deno.test("normalizeWebhookChange uses field name when verb not in map", () => {
 
 Deno.test("processWebhookChanges caches access token", async () => {
   let tokenCallCount = 0;
-  const mockSupabase: any = {
+  const mockSupabase: MockSupabaseClient = {
     from: (table: string) => {
       if (table === "vault.decrypted_secrets") {
         return {

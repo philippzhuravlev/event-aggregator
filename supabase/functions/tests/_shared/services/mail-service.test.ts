@@ -32,10 +32,10 @@ let mockFetchCalls: Request[] = [];
 function setupMockFetch(response: Response) {
   mockFetchResponse = response;
   mockFetchCalls = [];
-  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);
     mockFetchCalls.push(request);
-    return mockFetchResponse!;
+    return Promise.resolve(mockFetchResponse!);
   };
 }
 
@@ -182,8 +182,8 @@ Deno.test("sendEmail handles network errors", async () => {
     MAIL_FROM: "noreply@example.com",
   });
   try {
-    globalThis.fetch = async () => {
-      throw new Error("Network error");
+    globalThis.fetch = () => {
+      return Promise.reject(new Error("Network error"));
     };
 
     const result = await sendEmail({
@@ -467,7 +467,7 @@ Deno.test("sendAlertEmail handles unknown alert type", async () => {
     const result = await sendAlertEmail({
       to: "admin@example.com",
       subject: "Test Alert",
-      alertType: "unknown_type" as any,
+      alertType: "unknown_type" as "token_refresh_failed" | "token_expiry_warning" | "event_sync_failed",
       text: "Test message",
     });
 

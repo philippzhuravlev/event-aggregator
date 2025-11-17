@@ -30,15 +30,24 @@ function setEnvVars(vars: Record<string, string>) {
   };
 }
 
-function createGetEventsSupabaseMock(rows: any[]) {
-  const builder: any = {
-    order: () => builder,
-    limit: () => builder,
-    eq: () => builder,
-    gte: () => builder,
-    or: () => builder,
-    returns: () => Promise.resolve({ data: rows, error: null }),
+type MockEventRow = Record<string, unknown>;
+
+function createGetEventsSupabaseMock(rows: MockEventRow[]) {
+  type MockBuilder = {
+    order: () => MockBuilder;
+    limit: () => MockBuilder;
+    eq: () => MockBuilder;
+    gte: () => MockBuilder;
+    or: () => MockBuilder;
+    returns: () => Promise<{ data: MockEventRow[]; error: null }>;
   };
+  const builder = {} as MockBuilder;
+  builder.order = () => builder;
+  builder.limit = () => builder;
+  builder.eq = () => builder;
+  builder.gte = () => builder;
+  builder.or = () => builder;
+  builder.returns = () => Promise.resolve({ data: rows, error: null });
 
   return {
     from: () => ({
@@ -118,6 +127,7 @@ Deno.test("integration: handleGetEvents returns transformed rows", async () => {
     SUPABASE_URL: "https://test.supabase.local",
     SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
   });
+  // deno-lint-ignore no-explicit-any
   setSupabaseClientFactory(() => mockClient as any);
 
   try {
@@ -146,6 +156,7 @@ Deno.test("integration: handleCleanupEvents honors dryRun parameter", async () =
     SUPABASE_URL: "https://test.supabase.local",
     SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
   });
+  // deno-lint-ignore no-explicit-any
   setSupabaseClientFactory(() => mockClient as any);
 
   try {
@@ -178,6 +189,7 @@ Deno.test("integration: handleHealthCheck reports healthy status", async () => {
     SUPABASE_URL: "https://test.supabase.local",
     SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
   });
+  // deno-lint-ignore no-explicit-any
   setSupabaseClientFactory(() => mockClient as any);
 
   try {

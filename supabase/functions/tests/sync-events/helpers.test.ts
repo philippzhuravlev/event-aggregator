@@ -5,6 +5,7 @@ import {
   syncSinglePage,
 } from "../../sync-events/helpers.ts";
 import type {
+  DatabasePage,
   FacebookEvent,
   NormalizedEvent,
 } from "@event-aggregator/shared/types.ts";
@@ -12,22 +13,25 @@ import type { ExpiringToken } from "../../sync-events/types.ts";
 
 type SyncOverride = Parameters<typeof setSyncSinglePageDeps>[0];
 
-const basePage = {
+const basePage: Partial<DatabasePage> = {
   page_id: 123,
   page_name: "Test Page",
   token_status: "active",
-  page_access_token_id: 999,
+  page_access_token_id: "999",
 } as const;
 
+const mockSupabase = {} as unknown;
+
 const defaultDeps: Required<SyncOverride> = {
-  checkTokenExpiry: async () => ({
-    isExpiring: false,
-    daysUntilExpiry: 30,
-    expiresAt: new Date("2030-01-01T00:00:00.000Z"),
-  }),
-  getPageToken: async () => "mock-token",
-  getAllRelevantEvents: async () => [] as FacebookEvent[],
-  markTokenExpired: async () => {},
+  checkTokenExpiry: () =>
+    Promise.resolve({
+      isExpiring: false,
+      daysUntilExpiry: 30,
+      expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+    }),
+  getPageToken: () => Promise.resolve("mock-token"),
+  getAllRelevantEvents: () => Promise.resolve([] as FacebookEvent[]),
+  markTokenExpired: () => Promise.resolve(),
   normalizeEvent: (event: FacebookEvent, pageId: string): NormalizedEvent => ({
     event_id: event.id,
     page_id: Number(pageId),
@@ -47,18 +51,18 @@ function installDeps(overrides: SyncOverride = {}) {
 Deno.test("syncSinglePage returns empty events when vault has no token", async () => {
   let facebookCalled = false;
   installDeps({
-    getPageToken: async () => null,
-    getAllRelevantEvents: async () => {
+    getPageToken: () => Promise.resolve(null),
+    getAllRelevantEvents: () => {
       facebookCalled = true;
-      return [] as FacebookEvent[];
+      return Promise.resolve([] as FacebookEvent[]);
     },
   });
 
   try {
     const expiringTokens: ExpiringToken[] = [];
     const result = await syncSinglePage(
-      basePage as any,
-      {} as any,
+      basePage as DatabasePage,
+      mockSupabase,
       expiringTokens,
     );
     assertEquals(result.events.length, 0);
@@ -71,18 +75,19 @@ Deno.test("syncSinglePage returns empty events when vault has no token", async (
 Deno.test("syncSinglePage collects expiring token metadata", async () => {
   const expiresAt = new Date("2025-02-01T10:00:00.000Z");
   installDeps({
-    checkTokenExpiry: async () => ({
-      isExpiring: true,
-      daysUntilExpiry: 3,
-      expiresAt,
-    }),
+    checkTokenExpiry: () =>
+      Promise.resolve({
+        isExpiring: true,
+        daysUntilExpiry: 3,
+        expiresAt,
+      }),
   });
 
   try {
     const expiringTokens: ExpiringToken[] = [];
     const result = await syncSinglePage(
-      basePage as any,
-      {} as any,
+      basePage as DatabasePage,
+      mockSupabase,
       expiringTokens,
     );
 
@@ -98,19 +103,20 @@ Deno.test("syncSinglePage collects expiring token metadata", async () => {
 Deno.test("syncSinglePage marks tokens expired on Facebook 190 errors", async () => {
   let markCalls = 0;
   installDeps({
-    getAllRelevantEvents: async () => {
-      throw new Error("190: Invalid OAuth 2.0 Access Token");
+    getAllRelevantEvents: () => {
+      return Promise.reject(new Error("190: Invalid OAuth 2.0 Access Token"));
     },
-    markTokenExpired: async () => {
+    markTokenExpired: () => {
       markCalls += 1;
+      return Promise.resolve();
     },
   });
 
   try {
     const expiringTokens: ExpiringToken[] = [];
     const result = await syncSinglePage(
-      basePage as any,
-      {} as any,
+      basePage as DatabasePage,
+      mockSupabase,
       expiringTokens,
     );
     assertEquals(markCalls, 1);
@@ -125,19 +131,20 @@ Deno.test("syncSinglePage returns error for non-token Facebook failures", async 
   const error = new Error("Graph API unavailable");
   let markCalled = false;
   installDeps({
-    getAllRelevantEvents: async () => {
-      throw error;
+    getAllRelevantEvents: () => {
+      return Promise.reject(error);
     },
-    markTokenExpired: async () => {
+    markTokenExpired: () => {
       markCalled = true;
+      return Promise.resolve();
     },
   });
 
   try {
     const expiringTokens: ExpiringToken[] = [];
     const result = await syncSinglePage(
-      basePage as any,
-      {} as any,
+      basePage as DatabasePage,
+      mockSupabase,
       expiringTokens,
     );
     assertEquals(result.events.length, 0);
@@ -163,12 +170,13 @@ Deno.test("syncSinglePage normalizes events and forwards cover metadata", async 
   let capturedCover: string | null | undefined = undefined;
 
   installDeps({
-    getAllRelevantEvents: async () => [{
-      id: "evt-1",
-      name: "Party",
-      start_time: "2025-03-01T10:00:00.000Z",
-      cover: { source: coverUrl },
-    }] as FacebookEvent[],
+    getAllRelevantEvents: () =>
+      Promise.resolve([{
+        id: "evt-1",
+        name: "Party",
+        start_time: "2025-03-01T10:00:00.000Z",
+        cover: { source: coverUrl },
+      }] as FacebookEvent[]),
     normalizeEvent: (_event, _pageId, cover?: null) => {
       capturedCover = cover as unknown as string | null;
       return normalizedEvent;
@@ -178,8 +186,8 @@ Deno.test("syncSinglePage normalizes events and forwards cover metadata", async 
   try {
     const expiringTokens: ExpiringToken[] = [];
     const result = await syncSinglePage(
-      basePage as any,
-      {} as any,
+      basePage as DatabasePage,
+      mockSupabase,
       expiringTokens,
     );
     assertEquals(result.events, [normalizedEvent]);
@@ -191,16 +199,16 @@ Deno.test("syncSinglePage normalizes events and forwards cover metadata", async 
 
 Deno.test("syncSinglePage surfaces earlier errors (e.g., token expiry lookup)", async () => {
   installDeps({
-    checkTokenExpiry: async () => {
-      throw new Error("Supabase unavailable");
+    checkTokenExpiry: () => {
+      return Promise.reject(new Error("Supabase unavailable"));
     },
   });
 
   try {
     const expiringTokens: ExpiringToken[] = [];
     const result = await syncSinglePage(
-      basePage as any,
-      {} as any,
+      basePage as DatabasePage,
+      mockSupabase,
       expiringTokens,
     );
     assertEquals(result.events.length, 0);
@@ -224,11 +232,12 @@ Deno.test("syncSinglePage handles events without cover images", async () => {
   let capturedCover: string | null | undefined = undefined;
 
   installDeps({
-    getAllRelevantEvents: async () => [{
-      id: "evt-1",
-      name: "Party",
-      start_time: "2025-03-01T10:00:00.000Z",
-    }] as FacebookEvent[],
+    getAllRelevantEvents: () =>
+      Promise.resolve([{
+        id: "evt-1",
+        name: "Party",
+        start_time: "2025-03-01T10:00:00.000Z",
+      }] as FacebookEvent[]),
     normalizeEvent: (_event, _pageId, cover?: null) => {
       capturedCover = cover as unknown as string | null;
       return normalizedEvent;
@@ -238,8 +247,8 @@ Deno.test("syncSinglePage handles events without cover images", async () => {
   try {
     const expiringTokens: ExpiringToken[] = [];
     const result = await syncSinglePage(
-      basePage as any,
-      {} as any,
+      basePage as DatabasePage,
+      mockSupabase,
       expiringTokens,
     );
     assertEquals(result.events, [normalizedEvent]);
@@ -263,12 +272,13 @@ Deno.test("syncSinglePage handles events with cover but no source", async () => 
   let capturedCover: string | null | undefined = undefined;
 
   installDeps({
-    getAllRelevantEvents: async () => [{
-      id: "evt-1",
-      name: "Party",
-      start_time: "2025-03-01T10:00:00.000Z",
-      cover: {},
-    }] as FacebookEvent[],
+    getAllRelevantEvents: () =>
+      Promise.resolve([{
+        id: "evt-1",
+        name: "Party",
+        start_time: "2025-03-01T10:00:00.000Z",
+        cover: {},
+      }] as FacebookEvent[]),
     normalizeEvent: (_event, _pageId, cover?: null) => {
       capturedCover = cover as unknown as string | null;
       return normalizedEvent;
@@ -278,8 +288,8 @@ Deno.test("syncSinglePage handles events with cover but no source", async () => 
   try {
     const expiringTokens: ExpiringToken[] = [];
     const result = await syncSinglePage(
-      basePage as any,
-      {} as any,
+      basePage as DatabasePage,
+      mockSupabase,
       expiringTokens,
     );
     assertEquals(result.events, [normalizedEvent]);
@@ -291,18 +301,19 @@ Deno.test("syncSinglePage handles events with cover but no source", async () => 
 
 Deno.test("syncSinglePage handles token expiry with null expiresAt", async () => {
   installDeps({
-    checkTokenExpiry: async () => ({
-      isExpiring: true,
-      daysUntilExpiry: 3,
-      expiresAt: null,
-    }),
+    checkTokenExpiry: () =>
+      Promise.resolve({
+        isExpiring: true,
+        daysUntilExpiry: 3,
+        expiresAt: null,
+      }),
   });
 
   try {
     const expiringTokens: ExpiringToken[] = [];
     const result = await syncSinglePage(
-      basePage as any,
-      {} as any,
+      basePage as DatabasePage,
+      mockSupabase,
       expiringTokens,
     );
 
@@ -318,20 +329,20 @@ Deno.test("syncSinglePage handles token expiry with null expiresAt", async () =>
 Deno.test("syncSinglePage handles markTokenExpired errors gracefully", async () => {
   let markCalls = 0;
   installDeps({
-    getAllRelevantEvents: async () => {
-      throw new Error("190: Invalid OAuth 2.0 Access Token");
+    getAllRelevantEvents: () => {
+      return Promise.reject(new Error("190: Invalid OAuth 2.0 Access Token"));
     },
-    markTokenExpired: async () => {
+    markTokenExpired: () => {
       markCalls += 1;
-      throw new Error("Failed to mark token expired");
+      return Promise.reject(new Error("Failed to mark token expired"));
     },
   });
 
   try {
     const expiringTokens: ExpiringToken[] = [];
     const result = await syncSinglePage(
-      basePage as any,
-      {} as any,
+      basePage as DatabasePage,
+      mockSupabase,
       expiringTokens,
     );
     assertEquals(markCalls, 1);
@@ -347,19 +358,20 @@ Deno.test("syncSinglePage handles markTokenExpired errors gracefully", async () 
 Deno.test("syncSinglePage handles token error with 'token' in message", async () => {
   let markCalls = 0;
   installDeps({
-    getAllRelevantEvents: async () => {
-      throw new Error("Invalid token provided");
+    getAllRelevantEvents: () => {
+      return Promise.reject(new Error("Invalid token provided"));
     },
-    markTokenExpired: async () => {
+    markTokenExpired: () => {
       markCalls += 1;
+      return Promise.resolve();
     },
   });
 
   try {
     const expiringTokens: ExpiringToken[] = [];
     const result = await syncSinglePage(
-      basePage as any,
-      {} as any,
+      basePage as DatabasePage,
+      mockSupabase,
       expiringTokens,
     );
     assertEquals(markCalls, 1);
@@ -372,17 +384,17 @@ Deno.test("syncSinglePage handles token error with 'token' in message", async ()
 
 Deno.test("syncSinglePage handles non-Error exceptions from Facebook API", async () => {
   installDeps({
-    getAllRelevantEvents: async () => {
-      throw "String error";
+    getAllRelevantEvents: () => {
+      return Promise.reject("String error");
     },
-    markTokenExpired: async () => {},
+    markTokenExpired: () => Promise.resolve(),
   });
 
   try {
     const expiringTokens: ExpiringToken[] = [];
     const result = await syncSinglePage(
-      basePage as any,
-      {} as any,
+      basePage as DatabasePage,
+      mockSupabase,
       expiringTokens,
     );
     assertEquals(result.events.length, 0);

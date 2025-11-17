@@ -187,8 +187,7 @@ Deno.test("syncAllPageEvents aggregates multi-page results", async () => {
         error: page.page_id === 456 ? "failed" : null,
       }),
     batchWriteEvents: (
-      // deno-lint-ignore no-explicit-any
-      _supabase: any,
+      _supabase: unknown,
       events: NormalizedEvent[],
     ) => {
       capturedEvents.push(...events);
@@ -197,8 +196,7 @@ Deno.test("syncAllPageEvents aggregates multi-page results", async () => {
   });
 
   try {
-    // deno-lint-ignore no-explicit-any
-    const result = await syncAllPageEvents({} as any);
+    const result = await syncAllPageEvents({} as unknown);
     assertEquals(result.success, true);
     assertEquals(result.pagesProcessed, 2);
     assertEquals(result.eventsAdded, 2);
@@ -228,8 +226,7 @@ Deno.test("syncAllPageEvents skips batch writes when no events", async () => {
   });
 
   try {
-    // deno-lint-ignore no-explicit-any
-    const result = await syncAllPageEvents({} as any);
+    const result = await syncAllPageEvents({} as unknown);
     assertEquals(result.success, true);
     assertEquals(result.eventsAdded, 0);
     assertEquals(batchWriteCalled, false);
@@ -245,8 +242,7 @@ Deno.test("syncAllPageEvents returns early when no active pages", async () => {
   });
 
   try {
-    // deno-lint-ignore no-explicit-any
-    const result = await syncAllPageEvents({} as any);
+    const result = await syncAllPageEvents({} as unknown);
     assertEquals(result.pagesProcessed, 0);
     assertEquals(result.eventsAdded, 0);
     assertEquals(result.errors.length, 0);

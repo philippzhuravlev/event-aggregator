@@ -620,8 +620,7 @@ Deno.test("refreshExpiredTokens handles queryError", async () => {
   };
 
   try {
-    // deno-lint-ignore no-explicit-any
-    await refreshExpiredTokens(errorSupabase as any);
+    await refreshExpiredTokens(errorSupabase as unknown);
     assertEquals(false, true, "Should have thrown an error");
   } catch (error) {
     assertEquals(error instanceof Error, true);

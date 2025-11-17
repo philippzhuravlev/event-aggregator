@@ -1,17 +1,39 @@
-import { assertEquals, assertExists, assertObjectMatch } from "std/assert/mod.ts";
-import { handleGetEvents, getEvents } from "../../get-events/index.ts";
+import {
+  assertEquals,
+  assertExists,
+  assertObjectMatch,
+} from "std/assert/mod.ts";
+import { getEvents, handleGetEvents } from "../../get-events/index.ts";
 import type { GetEventsQuery } from "@event-aggregator/shared/types.ts";
 import { PAGINATION } from "@event-aggregator/shared/runtime/deno.js";
-import * as supabaseJs from "@supabase/supabase-js";
+
+type MockEvent = {
+  page_id: number;
+  event_id: string;
+  event_data: Record<string, unknown> | null;
+  created_at: string | Date | null;
+  updated_at: string | Date | null;
+};
+
+type MockQueryBuilder = {
+  order: () => MockQueryBuilder;
+  eq: () => MockQueryBuilder;
+  gte: () => MockQueryBuilder;
+  or: () => MockQueryBuilder;
+  limit: (value: number) => MockQueryBuilder;
+  returns: () => Promise<
+    { data: MockEvent[] | null; error: { message: string } | null }
+  >;
+};
 
 function createSupabaseClientMock(
-  events: any[] = [],
+  events: MockEvent[] = [],
   options: { queryError?: Error } = {},
 ) {
   const { queryError } = options;
-  const createQueryBuilder = () => {
+  const createQueryBuilder = (): MockQueryBuilder => {
     let currentLimit: number | undefined;
-    const builder: any = {};
+    const builder = {} as MockQueryBuilder;
     builder.order = () => builder;
     builder.eq = () => builder;
     builder.gte = () => builder;
@@ -93,7 +115,7 @@ Deno.test("handleGetEvents handles OPTIONS for CORS", async () => {
 Deno.test("handleGetEvents returns 500 when Supabase config is missing", async () => {
   const originalEnv = Deno.env.get;
   Deno.env.get = () => undefined;
-  
+
   try {
     const request = new Request("https://example.com/get-events", {
       method: "GET",
@@ -118,6 +140,7 @@ Deno.test("getEvents returns valid structure with empty results", async () => {
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
 
   assertExists(result.events);
@@ -152,6 +175,7 @@ Deno.test("getEvents handles events with valid data", async () => {
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
 
   assertEquals(result.events.length > 0, true);
@@ -177,6 +201,7 @@ Deno.test("getEvents respects limit parameter", async () => {
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
 
   // Should return limit + 1 to check for hasMore
@@ -186,7 +211,7 @@ Deno.test("getEvents respects limit parameter", async () => {
 Deno.test("getEvents handles pageToken parameter", async () => {
   const futureTime = Date.now() + 86400000;
   const pageToken = btoa(String(futureTime));
-  
+
   const mockEvents = [{
     page_id: 123,
     event_id: "event1",
@@ -206,6 +231,7 @@ Deno.test("getEvents handles pageToken parameter", async () => {
     pageToken,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length >= 0, true);
 });
@@ -218,6 +244,7 @@ Deno.test("getEvents handles invalid pageToken", async () => {
     pageToken: "invalid-token",
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length, 0);
 });
@@ -242,6 +269,7 @@ Deno.test("getEvents handles pageId filter", async () => {
     pageId: "123",
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length >= 0, true);
 });
@@ -266,6 +294,7 @@ Deno.test("getEvents handles search query", async () => {
     search: "Test",
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length >= 0, true);
 });
@@ -289,6 +318,7 @@ Deno.test("getEvents handles events without start_time", async () => {
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   // Events without start_time should be filtered out
   assertEquals(result.events.length, 0);
@@ -313,6 +343,7 @@ Deno.test("getEvents generates nextPageToken when hasMore is true", async () => 
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.hasMore, true);
   assertExists(result.nextPageToken);
@@ -324,7 +355,7 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     const restoreEnv = createMockEnv();
-    
+
     try {
       // Make multiple requests rapidly to trigger rate limit
       const request = new Request("https://example.com/get-events?limit=50", {
@@ -356,15 +387,22 @@ Deno.test({
   async fn() {
     const restoreEnv = createMockEnv();
     try {
-      const request = new Request("https://example.com/get-events?limit=invalid", {
-        method: "GET",
-      });
+      const request = new Request(
+        "https://example.com/get-events?limit=invalid",
+        {
+          method: "GET",
+        },
+      );
 
       const response = await handleGetEvents(request);
       // Should return an error status (400, 500, or 503) for invalid parameters or config/DB issues
       // The important thing is it doesn't crash and returns an error response
       const isErrorStatus = response.status >= 400 && response.status < 600;
-      assertEquals(isErrorStatus, true, `Expected error status, got ${response.status}`);
+      assertEquals(
+        isErrorStatus,
+        true,
+        `Expected error status, got ${response.status}`,
+      );
     } finally {
       restoreEnv();
     }
@@ -377,7 +415,7 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     const restoreEnv = createMockEnv();
-    
+
     try {
       const request = new Request("https://example.com/get-events?limit=50", {
         method: "GET",
@@ -387,7 +425,11 @@ Deno.test({
       // Should return an error status when database fails or configuration is missing
       // Accept any 4xx or 5xx status as valid error responses
       const isErrorStatus = response.status >= 400 && response.status < 600;
-      assertEquals(isErrorStatus, true, `Expected error status, got ${response.status}`);
+      assertEquals(
+        isErrorStatus,
+        true,
+        `Expected error status, got ${response.status}`,
+      );
     } finally {
       restoreEnv();
     }
@@ -414,10 +456,11 @@ Deno.test("getEvents handles events with end_time", async () => {
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length > 0, true);
   if (result.events.length > 0) {
-    assertExists(result.events[0].endTime);
+    assertExists((result.events[0] as { endTime?: unknown }).endTime);
   }
 });
 
@@ -443,10 +486,14 @@ Deno.test("getEvents handles events with cover images", async () => {
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length > 0, true);
   if (result.events.length > 0) {
-    assertEquals(result.events[0].coverImageUrl, "https://example.com/cover.jpg");
+    assertEquals(
+      (result.events[0] as { coverImageUrl?: string }).coverImageUrl,
+      "https://example.com/cover.jpg",
+    );
   }
 });
 
@@ -473,10 +520,11 @@ Deno.test("getEvents handles events with place data", async () => {
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length > 0, true);
   if (result.events.length > 0) {
-    assertExists(result.events[0].place);
+    assertExists((result.events[0] as { place?: unknown }).place);
   }
 });
 
@@ -500,6 +548,7 @@ Deno.test("getEvents handles upcoming=false", async () => {
     upcoming: false,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length >= 0, true);
 });
@@ -523,11 +572,12 @@ Deno.test("getEvents handles Date objects for created_at and updated_at", async 
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length > 0, true);
   if (result.events.length > 0) {
-    assertExists(result.events[0].createdAt);
-    assertExists(result.events[0].updatedAt);
+    assertExists((result.events[0] as { createdAt?: unknown }).createdAt);
+    assertExists((result.events[0] as { updatedAt?: unknown }).updatedAt);
   }
 });
 
@@ -550,11 +600,12 @@ Deno.test("getEvents handles invalid date strings for created_at", async () => {
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length > 0, true);
   // Should fall back to start_time for createdAt
   if (result.events.length > 0) {
-    assertExists(result.events[0].createdAt);
+    assertExists((result.events[0] as { createdAt?: unknown }).createdAt);
   }
 });
 
@@ -577,12 +628,13 @@ Deno.test("getEvents handles null created_at and updated_at", async () => {
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length > 0, true);
   // Should fall back to start_time
   if (result.events.length > 0) {
-    assertExists(result.events[0].createdAt);
-    assertExists(result.events[0].updatedAt);
+    assertExists((result.events[0] as { createdAt?: unknown }).createdAt);
+    assertExists((result.events[0] as { updatedAt?: unknown }).updatedAt);
   }
 });
 
@@ -594,6 +646,7 @@ Deno.test("getEvents handles pageToken with NaN timestamp", async () => {
     pageToken: btoa("not-a-number"),
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length >= 0, true);
 });
@@ -617,10 +670,14 @@ Deno.test("getEvents handles events without event_id in event_data", async () =>
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length > 0, true);
   if (result.events.length > 0) {
-    assertEquals(result.events[0].eventURL, undefined);
+    assertEquals(
+      (result.events[0] as { eventURL?: string | undefined }).eventURL,
+      undefined,
+    );
   }
 });
 
@@ -634,11 +691,15 @@ Deno.test("getEvents handles database query errors", async () => {
   };
 
   try {
+    // deno-lint-ignore no-explicit-any
     await getEvents(errorSupabase as any, queryParams);
     assertEquals(false, true, "Should have thrown an error");
   } catch (error) {
     assertEquals(error instanceof Error, true);
-    assertEquals((error as Error).message.includes("Failed to get events"), true);
+    assertEquals(
+      (error as Error).message.includes("Failed to get events"),
+      true,
+    );
   }
 });
 
@@ -662,6 +723,7 @@ Deno.test("getEvents handles search with special characters", async () => {
     search: "test%_event",
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length >= 0, true);
 });
@@ -686,6 +748,7 @@ Deno.test("getEvents handles search with commas", async () => {
     search: "test,event,party",
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length >= 0, true);
 });
@@ -693,7 +756,7 @@ Deno.test("getEvents handles search with commas", async () => {
 Deno.test("getEvents handles cursorIso with upcoming filter", async () => {
   const futureTime = Date.now() + 86400000;
   const pageToken = btoa(String(futureTime));
-  
+
   const mockEvents = [{
     page_id: 123,
     event_id: "event1",
@@ -713,6 +776,7 @@ Deno.test("getEvents handles cursorIso with upcoming filter", async () => {
     pageToken,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length >= 0, true);
 });
@@ -724,7 +788,9 @@ Deno.test("getEvents handles nextPageToken generation with invalid start_time", 
     event_data: {
       id: `event${i}`,
       name: `Event ${i}`,
-      start_time: i === 50 ? null : new Date(Date.now() + 86400000 * (i + 1)).toISOString(),
+      start_time: i === 50
+        ? null
+        : new Date(Date.now() + 86400000 * (i + 1)).toISOString(),
     },
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -736,11 +802,16 @@ Deno.test("getEvents handles nextPageToken generation with invalid start_time", 
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   // Should handle invalid start_time in next row gracefully
   assertEquals(result.hasMore, true);
   // nextPageToken may be undefined if next row has invalid start_time
-  assertEquals(typeof result.nextPageToken === "string" || result.nextPageToken === undefined, true);
+  assertEquals(
+    typeof result.nextPageToken === "string" ||
+      result.nextPageToken === undefined,
+    true,
+  );
 });
 
 Deno.test("handleGetEvents handles successful request with origin header", async () => {
@@ -779,7 +850,7 @@ Deno.test("handleGetEvents handles request without origin header", async () => {
 Deno.test("getEvents handles cursorIso being later than nowIso when upcoming=true", async () => {
   const futureTime = Date.now() + 86400000 * 2; // 2 days in future
   const pageToken = btoa(String(futureTime));
-  
+
   const mockEvents = [{
     page_id: 123,
     event_id: "event1",
@@ -799,6 +870,7 @@ Deno.test("getEvents handles cursorIso being later than nowIso when upcoming=tru
     pageToken,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length >= 0, true);
 });
@@ -806,7 +878,7 @@ Deno.test("getEvents handles cursorIso being later than nowIso when upcoming=tru
 Deno.test("getEvents handles cursorIso being earlier than nowIso when upcoming=true", async () => {
   const pastTime = Date.now() - 86400000; // 1 day ago
   const pageToken = btoa(String(pastTime));
-  
+
   const mockEvents = [{
     page_id: 123,
     event_id: "event1",
@@ -826,6 +898,7 @@ Deno.test("getEvents handles cursorIso being earlier than nowIso when upcoming=t
     pageToken,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length >= 0, true);
 });
@@ -838,6 +911,7 @@ Deno.test("getEvents handles search pattern with empty result after escaping", a
     search: "   ", // Only whitespace
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.events.length >= 0, true);
 });
@@ -861,6 +935,7 @@ Deno.test("getEvents handles limit exceeding MAX_LIMIT", async () => {
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   const cappedLimit = Math.min(queryParams.limit, PAGINATION.MAX_LIMIT);
   assertEquals(result.events.length <= cappedLimit + 1, true);
@@ -881,6 +956,7 @@ Deno.test("getEvents handles events with null event_data", async () => {
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   // Events with null event_data should be filtered out
   assertEquals(result.events.length, 0);
@@ -905,11 +981,16 @@ Deno.test("getEvents handles nextPageToken with missing nextRow", async () => {
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   // Should handle hasMore correctly
   assertEquals(result.hasMore, true);
   // nextPageToken may be undefined if next row is missing
-  assertEquals(typeof result.nextPageToken === "string" || result.nextPageToken === undefined, true);
+  assertEquals(
+    typeof result.nextPageToken === "string" ||
+      result.nextPageToken === undefined,
+    true,
+  );
 });
 
 Deno.test("getEvents handles nextPageToken with non-string start_time", async () => {
@@ -919,7 +1000,9 @@ Deno.test("getEvents handles nextPageToken with non-string start_time", async ()
     event_data: {
       id: `event${i}`,
       name: `Event ${i}`,
-      start_time: i === 50 ? 12345 : new Date(Date.now() + 86400000 * (i + 1)).toISOString(), // Non-string for last item
+      start_time: i === 50
+        ? 12345
+        : new Date(Date.now() + 86400000 * (i + 1)).toISOString(), // Non-string for last item
     },
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -931,9 +1014,13 @@ Deno.test("getEvents handles nextPageToken with non-string start_time", async ()
     upcoming: true,
   };
 
+  // deno-lint-ignore no-explicit-any
   const result = await getEvents(supabase as any, queryParams);
   assertEquals(result.hasMore, true);
   // nextPageToken may be undefined if start_time is not a string
-  assertEquals(typeof result.nextPageToken === "string" || result.nextPageToken === undefined, true);
+  assertEquals(
+    typeof result.nextPageToken === "string" ||
+      result.nextPageToken === undefined,
+    true,
+  );
 });
-
