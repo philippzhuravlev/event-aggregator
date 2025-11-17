@@ -1,5 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
-import { deleteOldEvents } from "../_shared/services/supabase-service.ts";
+import { deleteOldEvents, createSupabaseClient } from "../_shared/services/supabase-service.ts";
 import { logger } from "../_shared/services/logger-service.ts";
 import type { CleanupResult } from "@event-aggregator/shared/types.ts";
 import {
@@ -111,7 +110,7 @@ export async function handleCleanupEvents(req: Request): Promise<Response> {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createSupabaseClient(supabaseUrl, supabaseKey);
 
     logger.info("Cleanup requested", {
       daysToKeep,

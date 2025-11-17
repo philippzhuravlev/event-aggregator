@@ -1,6 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
 import { logger } from "../_shared/services/logger-service.ts";
 import { sendTokenExpiryWarning } from "../_shared/services/mail-service.ts";
+import { createSupabaseClient } from "../_shared/services/supabase-service.ts";
 import { calculateDaysUntilExpiry } from "@event-aggregator/shared/utils/token-expiry.js";
 import {
   createErrorResponse,
@@ -258,7 +258,7 @@ export async function handleHealthCheck(req: Request): Promise<Response> {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey, {
+    const supabase = createSupabaseClient(supabaseUrl, supabaseKey, {
       auth: { persistSession: false },
     });
 

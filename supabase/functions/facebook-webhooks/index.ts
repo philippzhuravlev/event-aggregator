@@ -1,6 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
 import { logger } from "../_shared/services/logger-service.ts";
 import { sendEventSyncFailedAlert } from "../_shared/services/mail-service.ts";
+import { createSupabaseClient } from "../_shared/services/supabase-service.ts";
 import {
   extractEventChanges,
   extractPageIdFromEntry,
@@ -257,7 +257,7 @@ export async function handleWebhook(req: Request): Promise<Response> {
       throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createSupabaseClient(supabaseUrl, supabaseKey);
     return await handleWebhookPost(req, supabase);
   }
 

@@ -1,6 +1,13 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
+import type {
+  SupabaseClient,
+  SupabaseClientOptions,
+} from "@supabase/supabase-js";
 import { logger } from "./logger-service.ts";
-import type { DatabasePage, NormalizedEvent } from "@event-aggregator/shared/types.ts";
+import type {
+  DatabasePage,
+  NormalizedEvent,
+} from "@event-aggregator/shared/types.ts";
 import {
   calculateDaysUntilExpiry,
   isTokenExpiring,
@@ -16,9 +23,31 @@ import { TOKEN_EXPIRY_CONFIG } from "@event-aggregator/shared/runtime/deno.js";
 // This file specifically handles Supabase interactions related to Facebook pages and events
 // For Vault operations (storing/retrieving encrypted secrets), see vault-service.ts
 
-// Re-export vault operations for backward compatibility
-// These are now in vault-service.ts - supabase-service.ts focuses on database operations
-// Export from vault-service instead to use the dedicated Vault service
+// Supabase client factory
+// This is a factory pattern to create a Supabase client. The factory pattern is a classic
+// programming design pattern (explained in book of the same name written by the "gang of four")
+// which is used to create objects in a flexible way. In this case, we use it to create a Supabase client
+// but it can have slightly different configurations, e.g. for testing and development. This is exactly
+// what we do here for better testing.
+type CreateClientFn = typeof createClient;
+
+let currentClientFactory: CreateClientFn = createClient;
+
+export function setSupabaseClientFactory(factory: CreateClientFn) {
+  currentClientFactory = factory;
+}
+
+export function resetSupabaseClientFactory() {
+  currentClientFactory = createClient;
+}
+
+export function createSupabaseClient(
+  supabaseUrl: string,
+  supabaseKey: string,
+  options?: SupabaseClientOptions<"public">,
+) {
+  return currentClientFactory(supabaseUrl, supabaseKey, options);
+}
 
 /**
  * Save or update a Facebook page in Supabase

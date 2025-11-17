@@ -1,5 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
-import { batchWriteEvents, getActivePages } from "../_shared/services/supabase-service.ts";
+import { batchWriteEvents, createSupabaseClient, getActivePages } from "../_shared/services/supabase-service.ts";
 import { logger } from "../_shared/services/logger-service.ts";
 import {
   createErrorResponse,
@@ -169,7 +168,7 @@ export async function handleSyncEvents(req: Request): Promise<Response> {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createSupabaseClient(supabaseUrl, supabaseKey);
 
     logger.info("Manual sync started");
     const result = await syncAllPageEvents(supabase);

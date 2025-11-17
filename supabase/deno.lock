@@ -111,6 +111,7 @@
     "https://deno.land/std@0.208.0/async/delay.ts": "a6142eb44cdd856b645086af2b811b1fcce08ec06bb7d50969e6a872ee9b8659",
     "https://deno.land/std@0.208.0/fmt/colors.ts": "34b3f77432925eb72cf0bfb351616949746768620b8e5ead66da532f93d10ba2",
     "https://deno.land/std@0.208.0/http/server.ts": "f3cde6672e631d3e00785743cfa96bfed275618c0352c5ae84abbe5a2e0e4afc",
+    "https://deno.land/std@0.208.0/testing/mock.ts": "3f23573411caf1eacd48d62c5f9a606970648a694ce55132c76b0d2365baa03d",
     "https://esm.sh/@supabase/auth-js@2.79.0/denonext/auth-js.mjs": "11da42b1cf159923104a5a458d1d4d1b59d1465a63a1c206a141de7e199de7b3",
     "https://esm.sh/@supabase/functions-js@2.79.0/denonext/functions-js.mjs": "0bef1756ba5ca788eb0cb32f68d323cf4995f0eec250d3ae32d1930bfce78a18",
     "https://esm.sh/@supabase/postgrest-js@2.79.0/denonext/postgrest-js.mjs": "6e96623f298c7e6a71fb64eef65892a30d0e44e7ba11859940d44a7dce9b2d35",

@@ -4,7 +4,10 @@
     "strict": true
   },
   "tasks": {
-    "test": "deno test --allow-env --allow-net --allow-read functions/tests/**/*.test.ts"
+    "test": "deno task test:unit && deno task test:integration",
+    "test:unit": "deno test --no-check --allow-env --allow-net --allow-read --ignore=functions/tests/integration functions/tests",
+    "test:integration": "deno test --allow-env --allow-net --allow-read functions/tests/integration",
+    "test:coverage": "deno test --no-check --allow-env --allow-net --allow-read --coverage=coverage functions/tests && deno coverage coverage"
   },
   "imports": {
     "std/": "https://deno.land/std@0.208.0/",

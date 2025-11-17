@@ -16,7 +16,7 @@
     "test:shared:watch": "vitest packages/shared/tests",
     "test:shared:coverage": "vitest run --coverage --coverage.include=packages/shared/src/**/*.ts packages/shared/tests",
     "test:supabase": "deno task -c supabase/deno.json test",
-    "test:supabase:coverage": "deno task -c supabase/deno.json test --coverage",
+    "test:supabase:coverage": "deno task -c supabase/deno.json test:coverage",
     "postinstall": "npm --prefix ./web ci",
     "build": "npm --prefix ./packages/shared run build && npm --prefix ./web run build",
     "ingest:facebook": "node ./tools/ingest-facebook.mjs"

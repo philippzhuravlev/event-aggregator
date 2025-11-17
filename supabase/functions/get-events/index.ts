@@ -1,6 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "../_shared/services/logger-service.ts";
+import { createSupabaseClient } from "../_shared/services/supabase-service.ts";
 import type { GetEventsQuery } from "@event-aggregator/shared/types.ts";
 import { GetEventsResponse } from "./types.ts";
 import {
@@ -336,7 +336,7 @@ export async function handleGetEvents(req: Request): Promise<Response> {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey, {
+    const supabase = createSupabaseClient(supabaseUrl, supabaseKey, {
       auth: { persistSession: false },
     });
 

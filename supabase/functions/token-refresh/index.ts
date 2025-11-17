@@ -1,7 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
 import { exchangeForLongLivedToken } from "../_shared/services/facebook-service.ts";
 import { logger } from "../_shared/services/logger-service.ts";
 import { sendTokenRefreshFailedAlert } from "../_shared/services/mail-service.ts";
+import { createSupabaseClient } from "../_shared/services/supabase-service.ts";
 import { calculateDaysUntilExpiry } from "@event-aggregator/shared/utils/token-expiry.js";
 import {
   createErrorResponse,
@@ -322,7 +322,7 @@ export async function handleTokenRefresh(
       throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createSupabaseClient(supabaseUrl, supabaseKey);
     const result = await refreshExpiredTokens(supabase);
 
     return createSuccessResponse({
