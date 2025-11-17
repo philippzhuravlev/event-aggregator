@@ -35,11 +35,20 @@ const defaultSyncEventsDeps: SyncEventsDeps = {
 
 let currentSyncEventsDeps: SyncEventsDeps = { ...defaultSyncEventsDeps };
 
-export function setSyncEventsDeps(overrides: Partial<SyncEventsDeps>) {
+/**
+ * Set sync events dependencies for testing
+ * @param overrides - Partial dependencies to override
+ */
+export function setSyncEventsDeps(
+  overrides: Partial<SyncEventsDeps>,
+): void {
   currentSyncEventsDeps = { ...currentSyncEventsDeps, ...overrides };
 }
 
-export function resetSyncEventsDeps() {
+/**
+ * Reset sync events dependencies to defaults
+ */
+export function resetSyncEventsDeps(): void {
   currentSyncEventsDeps = { ...defaultSyncEventsDeps };
 }
 

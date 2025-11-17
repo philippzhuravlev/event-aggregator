@@ -1,17 +1,15 @@
 import { logger } from "./logger-service.ts";
 import type { FacebookServiceLogger } from "@event-aggregator/shared/src/services/facebook-service.ts";
-// @deno-types="../../../../packages/shared/src/services/facebook-service.ts"
-import * as facebookService from "@event-aggregator/shared/services/index.js";
-
-const {
+// Import directly from source instead of compiled bundle
+import {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
   getAllRelevantEvents,
-  getPageEvents,
   getEventDetails,
+  getPageEvents,
   getUserPages,
   setFacebookServiceLogger,
-} = facebookService;
+} from "@event-aggregator/shared/src/services/facebook-service.ts";
 
 const supabaseLogger: FacebookServiceLogger = {
   info: (
@@ -39,8 +37,8 @@ export {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
   getAllRelevantEvents,
-  getPageEvents,
   getEventDetails,
+  getPageEvents,
   getUserPages,
   setFacebookServiceLogger,
 };

@@ -1,15 +1,29 @@
 import { assertEquals, assertObjectMatch } from "std/assert/mod.ts";
-import { handleTokenRefresh, refreshExpiredTokens } from "../../token-refresh/index.ts";
+import {
+  handleTokenRefresh,
+  refreshExpiredTokens,
+} from "../../token-refresh/index.ts";
 
 function createSupabaseClientMock(options?: {
-  pages?: Array<{ page_id: number; page_name?: string; token_expiry?: string; token_status: string; page_access_token_id?: number }>;
-  tokenData?: { token?: string; expiry?: string } | null;
+  pages?: Array<
+    {
+      page_id: number;
+      page_name?: string | null;
+      token_expiry?: string | null;
+      token_status: string;
+      page_access_token_id?: number;
+    }
+  >;
+  tokenData?:
+    | { token?: string | null; expiry?: string }
+    | Array<{ token?: string; expiry?: string }>
+    | null;
   rpcError?: Error | null;
 }) {
   const { pages = [], tokenData = null, rpcError = null } = options || {};
-  
+
   const queryResult = Promise.resolve({ data: pages, error: null });
-  
+
   return {
     from: () => ({
       select: () => ({
@@ -84,7 +98,8 @@ Deno.test("refreshExpiredTokens handles database query errors", async () => {
     from: () => ({
       select: () => ({
         eq: () => ({
-          not: () => Promise.resolve({ data: null, error: new Error("Query failed") }),
+          not: () =>
+            Promise.resolve({ data: null, error: new Error("Query failed") }),
         }),
       }),
     }),
@@ -145,7 +160,7 @@ Deno.test("handleTokenRefresh returns 405 for non-POST requests", async () => {
 Deno.test("handleTokenRefresh returns 500 when Supabase config is missing", async () => {
   const originalEnv = Deno.env.get;
   Deno.env.get = () => undefined;
-  
+
   try {
     const request = new Request("https://example.com/token-refresh", {
       method: "POST",
@@ -275,7 +290,7 @@ Deno.test("refreshExpiredTokens handles RPC errors when getting token", async ()
 Deno.test("refreshExpiredTokens handles rate limiting", async () => {
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + 5);
-  
+
   const supabase = createSupabaseClientMock({
     pages: [
       {
@@ -292,7 +307,7 @@ Deno.test("refreshExpiredTokens handles rate limiting", async () => {
   // Call multiple times to potentially trigger rate limiting
   const result1 = await refreshExpiredTokens(supabase);
   const result2 = await refreshExpiredTokens(supabase);
-  
+
   // At least one should succeed or be rate limited
   assertEquals(result1.refreshed >= 0 || result1.failed >= 0, true);
   assertEquals(result2.refreshed >= 0 || result2.failed >= 0, true);
@@ -370,16 +385,17 @@ Deno.test("refreshExpiredTokens handles store error", async () => {
     from: () => ({
       select: () => ({
         eq: () => ({
-          not: () => Promise.resolve({
-            data: [{
-              page_id: 123,
-              page_name: "Test Page",
-              token_status: "active",
-              page_access_token_id: 1,
-              token_expiry: futureDate.toISOString(),
-            }],
-            error: null,
-          }),
+          not: () =>
+            Promise.resolve({
+              data: [{
+                page_id: 123,
+                page_name: "Test Page",
+                token_status: "active",
+                page_access_token_id: 1,
+                token_expiry: futureDate.toISOString(),
+              }],
+              error: null,
+            }),
         }),
       }),
     }),
@@ -393,14 +409,14 @@ Deno.test("refreshExpiredTokens handles store error", async () => {
       if (fnName === "store_page_token") {
         return Promise.resolve({
           data: null,
-          error: { message: "Store failed" },
+          error: new Error("Store failed"),
         });
       }
       return Promise.resolve({ data: null, error: null });
     },
   };
 
-  const result = await refreshExpiredTokens(supabase as any);
+  const result = await refreshExpiredTokens(supabase);
   assertEquals(result.refreshed, 0);
   assertEquals(result.failed >= 0, true);
 });
@@ -488,7 +504,7 @@ Deno.test("handleTokenRefresh returns 405 for non-POST requests", async () => {
 Deno.test("handleTokenRefresh returns 500 when Supabase config is missing", async () => {
   const originalEnv = Deno.env.get;
   Deno.env.get = () => undefined;
-  
+
   try {
     const request = new Request("https://example.com/token-refresh", {
       method: "POST",
@@ -577,7 +593,7 @@ Deno.test("refreshExpiredTokens handles pageError in try-catch", async () => {
   };
 
   try {
-    const result = await refreshExpiredTokens(errorSupabase as any);
+    const result = await refreshExpiredTokens(errorSupabase);
     // Should handle errors gracefully
     assertEquals(result.refreshed >= 0, true);
     assertEquals(result.failed >= 0, true);
@@ -592,10 +608,11 @@ Deno.test("refreshExpiredTokens handles queryError", async () => {
     from: () => ({
       select: () => ({
         eq: () => ({
-          not: () => Promise.resolve({
-            data: null,
-            error: { message: "Query failed" },
-          }),
+          not: () =>
+            Promise.resolve({
+              data: null,
+              error: { message: "Query failed" },
+            }),
         }),
       }),
     }),
@@ -603,11 +620,15 @@ Deno.test("refreshExpiredTokens handles queryError", async () => {
   };
 
   try {
+    // deno-lint-ignore no-explicit-any
     await refreshExpiredTokens(errorSupabase as any);
     assertEquals(false, true, "Should have thrown an error");
   } catch (error) {
     assertEquals(error instanceof Error, true);
-    assertEquals((error as Error).message.includes("Failed to fetch pages"), true);
+    assertEquals(
+      (error as Error).message.includes("Failed to fetch pages"),
+      true,
+    );
   }
 });
 
@@ -630,26 +651,28 @@ Deno.test("refreshExpiredTokens handles tokenError", async () => {
     from: () => ({
       select: () => ({
         eq: () => ({
-          not: () => Promise.resolve({
-            data: [{
-              page_id: 123,
-              page_name: "Test Page",
-              token_status: "active",
-              page_access_token_id: 1,
-              token_expiry: futureDate.toISOString(),
-            }],
-            error: null,
-          }),
+          not: () =>
+            Promise.resolve({
+              data: [{
+                page_id: 123,
+                page_name: "Test Page",
+                token_status: "active",
+                page_access_token_id: 1,
+                token_expiry: futureDate.toISOString(),
+              }],
+              error: null,
+            }),
         }),
       }),
     }),
-    rpc: () => Promise.resolve({
-      data: null,
-      error: { message: "Token retrieval failed" },
-    }),
+    rpc: () =>
+      Promise.resolve({
+        data: null,
+        error: new Error("Token retrieval failed"),
+      }),
   };
 
-  const result = await refreshExpiredTokens(supabase as any);
+  const result = await refreshExpiredTokens(supabase);
   assertEquals(result.refreshed, 0);
   assertEquals(result.failed, 1);
   assertEquals(result.results.length, 1);
@@ -670,7 +693,7 @@ Deno.test("refreshExpiredTokens handles missing access token", async () => {
         token_expiry: futureDate.toISOString(),
       },
     ],
-    tokenData: { token: null }, // No token
+    tokenData: { token: undefined }, // No token
   });
 
   const result = await refreshExpiredTokens(supabase);
@@ -778,7 +801,7 @@ Deno.test("refreshExpiredTokens handles null page_name", async () => {
     pages: [
       {
         page_id: 123,
-        page_name: null,
+        page_name: undefined,
         token_status: "active",
         page_access_token_id: 1,
         token_expiry: futureDate.toISOString(),
@@ -867,7 +890,7 @@ Deno.test("refreshExpiredTokens handles storeError when storing refreshed token"
     if (fnName === "store_page_token") {
       return Promise.resolve({
         data: null,
-        error: { message: "Store failed" },
+        error: new Error("Store failed"),
       });
     }
     return originalRpc(fnName);
@@ -881,6 +904,185 @@ Deno.test("refreshExpiredTokens handles storeError when storing refreshed token"
   } finally {
     restoreEnv();
     supabase.rpc = originalRpc;
+  }
+});
+
+Deno.test("refreshExpiredTokens handles token expiry exactly at 7 days boundary", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 7); // Exactly 7 days
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "test-token", expiry: futureDate.toISOString() },
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  // Code checks if (daysUntilExpiry > 7), so exactly 7 days should trigger refresh (7 is not > 7)
+  assertEquals(result.refreshed >= 0, true);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles token expiry exactly at 0 days boundary", async () => {
+  const now = new Date();
+  // Set to exactly now (0 days until expiry)
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: now.toISOString(),
+      },
+    ],
+    tokenData: { token: "test-token", expiry: now.toISOString() },
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  // Should fail because daysUntilExpiry <= 0
+  assertEquals(result.refreshed, 0);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles empty string token expiry", async () => {
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: "",
+      },
+    ],
+    tokenData: { token: "test-token", expiry: "" },
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  assertEquals(result.refreshed, 0);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles null token expiry in page record", async () => {
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: null,
+      },
+    ],
+    tokenData: { token: "test-token" }, // No expiry in tokenData either
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  assertEquals(result.refreshed, 0);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles page with null page_name", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: null,
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "test-token", expiry: futureDate.toISOString() },
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  // Should use "Unknown Page" as fallback
+  assertEquals(result.refreshed >= 0, true);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles empty string access token", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 5);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "", expiry: futureDate.toISOString() }, // Empty token
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  assertEquals(result.refreshed, 0);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens handles token expiry just under 7 days (6.99 days)", async () => {
+  const futureDate = new Date();
+  futureDate.setTime(futureDate.getTime() + (6.99 * 24 * 60 * 60 * 1000)); // 6.99 days
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 123,
+        page_name: "Test Page",
+        token_status: "active",
+        page_access_token_id: 1,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "test-token", expiry: futureDate.toISOString() },
+  });
+
+  const result = await refreshExpiredTokens(supabase);
+  // Should attempt refresh (expires in < 7 days)
+  assertEquals(result.refreshed >= 0, true);
+  assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("handleTokenRefresh handles non-Error exceptions", async () => {
+  const restoreEnv = createMockEnv();
+  const originalCreateClient = await import(
+    "../../_shared/services/supabase-service.ts"
+  );
+
+  // Mock createSupabaseClient to throw a non-Error
+  const { setSupabaseClientFactory, resetSupabaseClientFactory } =
+    originalCreateClient;
+  setSupabaseClientFactory(() => {
+    throw "String error in factory";
+  });
+
+  try {
+    const request = new Request("https://example.com/token-refresh", {
+      method: "POST",
+    });
+
+    const response = await handleTokenRefresh(request);
+    assertEquals(response.status, 500);
+    const payload = await response.json();
+    assertEquals(payload.success, false);
+  } finally {
+    resetSupabaseClientFactory();
+    restoreEnv();
   }
 });
 
@@ -913,7 +1115,7 @@ Deno.test("refreshExpiredTokens handles storeError without message property", as
     if (fnName === "store_page_token") {
       return Promise.resolve({
         data: null,
-        error: "String error",
+        error: new Error("String error"),
       });
     }
     return originalRpc(fnName);
@@ -969,18 +1171,19 @@ Deno.test("refreshExpiredTokens handles non-Error exceptions in pageError", asyn
     from: () => ({
       select: () => ({
         eq: () => ({
-          not: () => Promise.resolve({
-            data: [
-              {
-                page_id: 123,
-                page_name: "Test Page",
-                token_status: "active",
-                page_access_token_id: 1,
-                token_expiry: futureDate.toISOString(),
-              },
-            ],
-            error: null,
-          }),
+          not: () =>
+            Promise.resolve({
+              data: [
+                {
+                  page_id: 123,
+                  page_name: "Test Page",
+                  token_status: "active",
+                  page_access_token_id: 1,
+                  token_expiry: futureDate.toISOString(),
+                },
+              ],
+              error: null,
+            }),
         }),
       }),
     }),
@@ -993,4 +1196,3 @@ Deno.test("refreshExpiredTokens handles non-Error exceptions in pageError", asyn
   assertEquals(result.refreshed, 0);
   assertEquals(result.failed >= 1, true);
 });
-

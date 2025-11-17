@@ -1,5 +1,8 @@
 import { assertEquals, assertObjectMatch } from "std/assert/mod.ts";
-import type { NormalizedEvent } from "@event-aggregator/shared/types.ts";
+import type {
+  DatabasePage,
+  NormalizedEvent,
+} from "@event-aggregator/shared/types.ts";
 import {
   handleSyncEvents,
   resetSyncEventsDeps,
@@ -48,11 +51,14 @@ const baseEnv = {
   SYNC_TOKEN: "sync-secret",
 };
 
-const basePage = {
+const basePage: DatabasePage = {
   page_id: 123,
   page_name: "Test Page",
   token_status: "active",
-  page_access_token_id: 1,
+  page_access_token_id: "1",
+  token_expiry: new Date().toISOString(),
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
 };
 
 Deno.test("handleSyncEvents returns 405 for non-POST requests", async () => {
@@ -131,15 +137,17 @@ Deno.test("handleSyncEvents returns success body when sync succeeds", async () =
   await withMockEnv(baseEnv, async () => {
     resetSyncEventsDeps();
     setSyncEventsDeps({
-      getActivePages: async () => [basePage] as any[],
-      syncSinglePage: async () => ({
-        events: [makeNormalizedEvent(basePage.page_id, "a")],
-        pageId: String(basePage.page_id),
-        error: null,
-      }),
-      batchWriteEvents: async () => 1,
+      getActivePages: () => Promise.resolve([basePage]),
+      syncSinglePage: () =>
+        Promise.resolve({
+          events: [makeNormalizedEvent(basePage.page_id, "a")],
+          pageId: String(basePage.page_id),
+          error: null,
+        }),
+      batchWriteEvents: () => Promise.resolve(1),
     });
 
+    // deno-lint-ignore no-explicit-any
     setSupabaseClientFactory(() => ({}) as any);
 
     try {
@@ -165,25 +173,31 @@ Deno.test("handleSyncEvents returns success body when sync succeeds", async () =
 Deno.test("syncAllPageEvents aggregates multi-page results", async () => {
   resetSyncEventsDeps();
   const capturedEvents: NormalizedEvent[] = [];
-  const pages = [
+  const pages: DatabasePage[] = [
     basePage,
     { ...basePage, page_id: 456, page_name: "Second Page" },
   ];
 
   setSyncEventsDeps({
-    getActivePages: async () => pages as any[],
-    syncSinglePage: async (page) => ({
-      events: [makeNormalizedEvent(Number(page.page_id), "evt")],
-      pageId: String(page.page_id),
-      error: page.page_id === 456 ? "failed" : null,
-    }),
-    batchWriteEvents: async (_supabase, events) => {
+    getActivePages: () => Promise.resolve(pages),
+    syncSinglePage: (page: DatabasePage) =>
+      Promise.resolve({
+        events: [makeNormalizedEvent(Number(page.page_id), "evt")],
+        pageId: String(page.page_id),
+        error: page.page_id === 456 ? "failed" : null,
+      }),
+    batchWriteEvents: (
+      // deno-lint-ignore no-explicit-any
+      _supabase: any,
+      events: NormalizedEvent[],
+    ) => {
       capturedEvents.push(...events);
-      return events.length;
+      return Promise.resolve(events.length);
     },
   });
 
   try {
+    // deno-lint-ignore no-explicit-any
     const result = await syncAllPageEvents({} as any);
     assertEquals(result.success, true);
     assertEquals(result.pagesProcessed, 2);
@@ -200,19 +214,21 @@ Deno.test("syncAllPageEvents skips batch writes when no events", async () => {
   let batchWriteCalled = false;
 
   setSyncEventsDeps({
-    getActivePages: async () => [basePage] as any[],
-    syncSinglePage: async () => ({
-      events: [],
-      pageId: "123",
-      error: null,
-    }),
-    batchWriteEvents: async () => {
+    getActivePages: () => Promise.resolve([basePage]),
+    syncSinglePage: () =>
+      Promise.resolve({
+        events: [],
+        pageId: "123",
+        error: null,
+      }),
+    batchWriteEvents: () => {
       batchWriteCalled = true;
-      return 0;
+      return Promise.resolve(0);
     },
   });
 
   try {
+    // deno-lint-ignore no-explicit-any
     const result = await syncAllPageEvents({} as any);
     assertEquals(result.success, true);
     assertEquals(result.eventsAdded, 0);
@@ -225,10 +241,11 @@ Deno.test("syncAllPageEvents skips batch writes when no events", async () => {
 Deno.test("syncAllPageEvents returns early when no active pages", async () => {
   resetSyncEventsDeps();
   setSyncEventsDeps({
-    getActivePages: async () => [],
+    getActivePages: () => Promise.resolve([]),
   });
 
   try {
+    // deno-lint-ignore no-explicit-any
     const result = await syncAllPageEvents({} as any);
     assertEquals(result.pagesProcessed, 0);
     assertEquals(result.eventsAdded, 0);
