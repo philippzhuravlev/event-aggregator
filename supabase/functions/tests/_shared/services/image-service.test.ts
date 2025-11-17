@@ -685,3 +685,515 @@ Deno.test("copyFile throws error when copy fails", async () => {
   );
 });
 
+Deno.test("uploadFile handles Blob content type", async () => {
+  const supabase = createSupabaseClientMock({
+    uploadData: { path: "events/2025/event-123.jpg" },
+    publicUrl: "https://test.supabase.co/storage/v1/object/public/bucket/events/2025/event-123.jpg",
+  });
+
+  const blob = new Blob(["test content"], { type: "image/jpeg" });
+  const result = await uploadFile(
+    supabase as unknown as SupabaseClient,
+    "bucket",
+    "events/2025/event-123.jpg",
+    blob,
+  );
+
+  assertEquals(result.fileName, "events/2025/event-123.jpg");
+  assertExists(result.url);
+});
+
+Deno.test("uploadFile handles string content type", async () => {
+  const supabase = createSupabaseClientMock({
+    uploadData: { path: "events/2025/event-123.jpg" },
+    publicUrl: "https://test.supabase.co/storage/v1/object/public/bucket/events/2025/event-123.jpg",
+  });
+
+  const result = await uploadFile(
+    supabase as unknown as SupabaseClient,
+    "bucket",
+    "events/2025/event-123.jpg",
+    "test content",
+  );
+
+  assertEquals(result.fileName, "events/2025/event-123.jpg");
+  assertExists(result.url);
+});
+
+Deno.test("uploadFile detects content type from extension", async () => {
+  const supabase = createSupabaseClientMock({
+    uploadData: { path: "events/2025/event-123.png" },
+    publicUrl: "https://test.supabase.co/storage/v1/object/public/bucket/events/2025/event-123.png",
+  });
+
+  const result = await uploadFile(
+    supabase as unknown as SupabaseClient,
+    "bucket",
+    "events/2025/event-123.png",
+    new Uint8Array([1, 2, 3]),
+  );
+
+  assertEquals(result.fileName, "events/2025/event-123.png");
+});
+
+Deno.test("uploadFile uses default content type for unknown extension", async () => {
+  const supabase = createSupabaseClientMock({
+    uploadData: { path: "events/2025/event-123.unknown" },
+    publicUrl: "https://test.supabase.co/storage/v1/object/public/bucket/events/2025/event-123.unknown",
+  });
+
+  const result = await uploadFile(
+    supabase as unknown as SupabaseClient,
+    "bucket",
+    "events/2025/event-123.unknown",
+    new Uint8Array([1, 2, 3]),
+  );
+
+  assertEquals(result.fileName, "events/2025/event-123.unknown");
+});
+
+Deno.test("uploadFile handles file without extension", async () => {
+  const supabase = createSupabaseClientMock({
+    uploadData: { path: "events/2025/event-123" },
+    publicUrl: "https://test.supabase.co/storage/v1/object/public/bucket/events/2025/event-123",
+  });
+
+  const result = await uploadFile(
+    supabase as unknown as SupabaseClient,
+    "bucket",
+    "events/2025/event-123",
+    new Uint8Array([1, 2, 3]),
+  );
+
+  assertEquals(result.fileName, "events/2025/event-123");
+});
+
+Deno.test("uploadFile handles upload options with cacheControl and upsert", async () => {
+  const supabase = createSupabaseClientMock({
+    uploadData: { path: "events/2025/event-123.jpg" },
+    publicUrl: "https://test.supabase.co/storage/v1/object/public/bucket/events/2025/event-123.jpg",
+  });
+
+  const result = await uploadFile(
+    supabase as unknown as SupabaseClient,
+    "bucket",
+    "events/2025/event-123.jpg",
+    new Uint8Array([1, 2, 3]),
+    { cacheControl: "7200", upsert: true },
+  );
+
+  assertEquals(result.fileName, "events/2025/event-123.jpg");
+});
+
+Deno.test("uploadFile handles non-Error exceptions", async () => {
+  const supabase = {
+    storage: {
+      from: () => ({
+        upload: () => {
+          throw "String error";
+        },
+        getPublicUrl: () => ({ data: null }),
+      }),
+    },
+  };
+
+  await assertRejects(
+    async () => {
+      await uploadFile(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "events/2025/event-123.jpg",
+        new Uint8Array([1, 2, 3]),
+      );
+    },
+    Error,
+    "Cannot upload file",
+  );
+});
+
+Deno.test("createSignedUrl adjusts expiry below minimum to 1", async () => {
+  const supabase = createSupabaseClientMock({
+    signedUrl: "https://test.supabase.co/storage/v1/object/sign/bucket/events/2025/event-123.jpg?token=abc123",
+  });
+
+  const result = await createSignedUrl(
+    supabase as unknown as SupabaseClient,
+    "bucket",
+    "events/2025/event-123.jpg",
+    0, // Should be adjusted to 1
+  );
+
+  assertEquals(result.expiresIn, 1);
+});
+
+Deno.test("createSignedUrl throws error when no signedUrl returned", async () => {
+  const supabase = createSupabaseClientMock({
+    signedUrl: null,
+  });
+
+  await assertRejects(
+    async () => {
+      await createSignedUrl(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "events/2025/event-123.jpg",
+        3600,
+      );
+    },
+    Error,
+    "Signed URL creation succeeded but no URL returned",
+  );
+});
+
+Deno.test("createSignedUrl handles non-Error exceptions", async () => {
+  const supabase = {
+    storage: {
+      from: () => ({
+        createSignedUrl: () => {
+          throw "String error";
+        },
+      }),
+    },
+  };
+
+  await assertRejects(
+    async () => {
+      await createSignedUrl(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "events/2025/event-123.jpg",
+        3600,
+      );
+    },
+    Error,
+    "Cannot create signed URL",
+  );
+});
+
+Deno.test("listFiles handles folder path", async () => {
+  const supabase = createSupabaseClientMock({
+    listData: [
+      {
+        name: "event-123.jpg",
+        metadata: { size: 1024, mimetype: "image/jpeg" },
+        created_at: new Date().toISOString(),
+      },
+    ],
+  });
+
+  const files = await listFiles(
+    supabase as unknown as SupabaseClient,
+    "bucket",
+    "events/2025",
+  );
+
+  assertEquals(files.length, 1);
+});
+
+Deno.test("listFiles filters out folders (items without metadata)", async () => {
+  const supabase = createSupabaseClientMock({
+    listData: [
+      {
+        name: "event-123.jpg",
+        metadata: { size: 1024, mimetype: "image/jpeg" },
+        created_at: new Date().toISOString(),
+      },
+      {
+        name: "subfolder",
+        // No metadata = folder
+      },
+    ],
+  });
+
+  const files = await listFiles(
+    supabase as unknown as SupabaseClient,
+    "bucket",
+  );
+
+  assertEquals(files.length, 1);
+  assertEquals(files[0].name, "event-123.jpg");
+});
+
+Deno.test("listFiles handles files with missing metadata fields", async () => {
+  const supabase = createSupabaseClientMock({
+    listData: [
+      {
+        name: "event-123.jpg",
+        metadata: {}, // Empty metadata
+        created_at: new Date().toISOString(),
+      },
+    ],
+  });
+
+  const files = await listFiles(
+    supabase as unknown as SupabaseClient,
+    "bucket",
+  );
+
+  assertEquals(files.length, 1);
+  assertEquals(files[0].size, 0);
+  assertEquals(files[0].contentType, "application/octet-stream");
+});
+
+Deno.test("listFiles handles files without created_at", async () => {
+  const supabase = createSupabaseClientMock({
+    listData: [
+      {
+        name: "event-123.jpg",
+        metadata: { size: 1024, mimetype: "image/jpeg" },
+        // No created_at
+      },
+    ],
+  });
+
+  const files = await listFiles(
+    supabase as unknown as SupabaseClient,
+    "bucket",
+  );
+
+  assertEquals(files.length, 1);
+  assertExists(files[0].createdAt);
+});
+
+Deno.test("listFiles handles options with limit and offset", async () => {
+  const supabase = createSupabaseClientMock({
+    listData: [
+      {
+        name: "event-123.jpg",
+        metadata: { size: 1024, mimetype: "image/jpeg" },
+        created_at: new Date().toISOString(),
+      },
+    ],
+  });
+
+  const files = await listFiles(
+    supabase as unknown as SupabaseClient,
+    "bucket",
+    undefined,
+    { limit: 50, offset: 10 },
+  );
+
+  assertEquals(files.length, 1);
+});
+
+Deno.test("listFiles handles non-Error exceptions", async () => {
+  const supabase = {
+    storage: {
+      from: () => ({
+        list: () => {
+          throw "String error";
+        },
+      }),
+    },
+  };
+
+  await assertRejects(
+    async () => {
+      await listFiles(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+      );
+    },
+    Error,
+    "Cannot list files",
+  );
+});
+
+Deno.test("moveFile throws error when fromPath is missing", async () => {
+  const supabase = createSupabaseClientMock();
+
+  await assertRejects(
+    async () => {
+      await moveFile(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "",
+        "events/2025/new-name.jpg",
+      );
+    },
+    Error,
+    "Bucket name, source path, and destination path are required",
+  );
+});
+
+Deno.test("moveFile throws error when toPath is missing", async () => {
+  const supabase = createSupabaseClientMock();
+
+  await assertRejects(
+    async () => {
+      await moveFile(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "events/2025/old-name.jpg",
+        "",
+      );
+    },
+    Error,
+    "Bucket name, source path, and destination path are required",
+  );
+});
+
+Deno.test("moveFile handles non-Error exceptions", async () => {
+  const supabase = {
+    storage: {
+      from: () => ({
+        move: () => {
+          throw "String error";
+        },
+      }),
+    },
+  };
+
+  await assertRejects(
+    async () => {
+      await moveFile(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "events/2025/old-name.jpg",
+        "events/2025/new-name.jpg",
+      );
+    },
+    Error,
+    "Cannot move file",
+  );
+});
+
+Deno.test("copyFile throws error when fromPath is missing", async () => {
+  const supabase = createSupabaseClientMock();
+
+  await assertRejects(
+    async () => {
+      await copyFile(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "",
+        "events/2025/copy.jpg",
+      );
+    },
+    Error,
+    "Bucket name, source path, and destination path are required",
+  );
+});
+
+Deno.test("copyFile throws error when toPath is missing", async () => {
+  const supabase = createSupabaseClientMock();
+
+  await assertRejects(
+    async () => {
+      await copyFile(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "events/2025/source.jpg",
+        "",
+      );
+    },
+    Error,
+    "Bucket name, source path, and destination path are required",
+  );
+});
+
+Deno.test("copyFile handles non-Error exceptions", async () => {
+  const supabase = {
+    storage: {
+      from: () => ({
+        copy: () => {
+          throw "String error";
+        },
+      }),
+    },
+  };
+
+  await assertRejects(
+    async () => {
+      await copyFile(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "events/2025/source.jpg",
+        "events/2025/copy.jpg",
+      );
+    },
+    Error,
+    "Cannot copy file",
+  );
+});
+
+Deno.test("downloadFile handles non-Error exceptions", async () => {
+  const supabase = {
+    storage: {
+      from: () => ({
+        download: () => {
+          throw "String error";
+        },
+      }),
+    },
+  };
+
+  await assertRejects(
+    async () => {
+      await downloadFile(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "events/2025/event-123.jpg",
+      );
+    },
+    Error,
+    "Cannot download file",
+  );
+});
+
+Deno.test("getPublicUrl handles non-Error exceptions", async () => {
+  const supabase = {
+    storage: {
+      from: () => ({
+        getPublicUrl: () => {
+          throw "String error";
+        },
+      }),
+    },
+  };
+
+  await assertRejects(
+    async () => {
+      getPublicUrl(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "events/2025/event-123.jpg",
+      );
+    },
+    Error,
+    "Cannot get public URL",
+  );
+});
+
+Deno.test("getPublicUrl throws error when filePath is missing", async () => {
+  const supabase = createSupabaseClientMock();
+
+  await assertRejects(
+    async () => {
+      getPublicUrl(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "",
+      );
+    },
+    Error,
+    "Bucket name and file path are required",
+  );
+});
+
+Deno.test("downloadFile throws error when filePath is missing", async () => {
+  const supabase = createSupabaseClientMock();
+
+  await assertRejects(
+    async () => {
+      await downloadFile(
+        supabase as unknown as SupabaseClient,
+        "bucket",
+        "",
+      );
+    },
+    Error,
+    "Bucket name and file path are required",
+  );
+});
+

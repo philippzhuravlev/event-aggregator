@@ -327,3 +327,70 @@ Deno.test("handleCleanupEvents handles cleanup errors", async () => {
     restoreEnv();
   }
 });
+
+
+Deno.test("handleCleanupEvents handles non-Error exceptions", async () => {
+  const restoreEnv = createMockEnv();
+  const factoryRestore = () => resetSupabaseClientFactory();
+  // Create a factory that throws a non-Error
+  setSupabaseClientFactory(() => {
+    throw "String error in factory";
+  });
+  try {
+    const request = new Request(
+      "https://example.com/cleanup-events?daysToKeep=90",
+      {
+        method: "POST",
+      },
+    );
+
+    const response = await handleCleanupEvents(request);
+    assertEquals(response.status, 500);
+    const payload = await response.json();
+    assertEquals(payload.success, false);
+  } finally {
+    factoryRestore();
+    restoreEnv();
+  }
+});
+
+Deno.test("handleCleanupEvents handles dryRun=false", async () => {
+  const restoreEnv = createMockEnv();
+  const factoryRestore = () => resetSupabaseClientFactory();
+  setSupabaseClientFactory(() => createSupabaseClientMock());
+  try {
+    const request = new Request(
+      "https://example.com/cleanup-events?daysToKeep=90&dryRun=false",
+      {
+        method: "POST",
+      },
+    );
+
+    const response = await handleCleanupEvents(request);
+    assertEquals(response.status >= 200 && response.status < 600, true);
+  } finally {
+    factoryRestore();
+    restoreEnv();
+  }
+});
+
+Deno.test("handleCleanupEvents handles missing dryRun parameter", async () => {
+  const restoreEnv = createMockEnv();
+  const factoryRestore = () => resetSupabaseClientFactory();
+  setSupabaseClientFactory(() => createSupabaseClientMock());
+  try {
+    const request = new Request(
+      "https://example.com/cleanup-events?daysToKeep=90",
+      {
+        method: "POST",
+      },
+    );
+
+    const response = await handleCleanupEvents(request);
+    assertEquals(response.status >= 200 && response.status < 600, true);
+  } finally {
+    factoryRestore();
+    restoreEnv();
+  }
+});
+

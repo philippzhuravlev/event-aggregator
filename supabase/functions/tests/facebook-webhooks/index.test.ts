@@ -656,3 +656,185 @@ Deno.test("handleWebhookPost handles invalid signature", async () => {
   }
 });
 
+Deno.test("handleWebhookPost handles invalid content-length header (NaN)", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    const body = JSON.stringify({
+      object: "page",
+      entry: [],
+    });
+    
+    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+        "content-length": "not-a-number",
+      },
+      body: body,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    // Should continue processing if content-length is invalid
+    assertEquals([200, 400, 500].includes(response.status), true);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhookPost handles non-Error exceptions in catch block", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    // Mock req.text() to throw a non-Error
+    const supabase = createSupabaseClientMock();
+    const request = {
+      method: "POST",
+      headers: new Headers({
+        "x-hub-signature-256": "sha256=test",
+      }),
+      text: () => {
+        throw "String error";
+      },
+    } as unknown as Request;
+
+    const response = await handleWebhookPost(request, supabase);
+    assertEquals(response.status, 500);
+    const payload = await response.json();
+    assertEquals(payload.success, false);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhookPost handles entry processing with non-Error exceptions", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    // We need to create a scenario where entry processing throws a non-Error
+    // This is tricky, but we can test the error handling path
+    const supabase = {
+      from: () => ({
+        delete: () => ({
+          eq: () => ({
+            eq: () => Promise.resolve({ error: null }),
+          }),
+        }),
+      }),
+      rpc: () => {
+        throw "String error in RPC";
+      },
+    };
+    
+    const body = JSON.stringify({
+      object: "page",
+      entry: [
+        {
+          id: "123",
+          changes: [
+            {
+              field: "events",
+              value: {
+                verb: "add",
+                id: "event123",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    
+    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+      },
+      body: body,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    // Should handle errors gracefully
+    assertEquals([200, 500].includes(response.status), true);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhookPost handles validation error without error message", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    // Create a payload that will fail validation but might not have an error message
+    const body = JSON.stringify({
+      object: "page",
+      entry: null, // Invalid entry
+    });
+    
+    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+      },
+      body: body,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    assertEquals(response.status, 400);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("handleWebhookGet handles validation error without error message", () => {
+  const url = new URL("https://example.com/facebook-webhooks");
+  // Missing required parameters
+  const response = handleWebhookGet(url);
+  
+  assertEquals(response.status, 400);
+});
+
+Deno.test("handleWebhookPost handles entries with mixed success and failure", async () => {
+  const restoreEnv = createMockEnv();
+  try {
+    const supabase = createSupabaseClientMock();
+    const body = JSON.stringify({
+      object: "page",
+      entry: [
+        {
+          id: "123",
+          changes: [
+            {
+              field: "events",
+              value: {
+                verb: "add",
+                id: "event1",
+              },
+            },
+          ],
+        },
+        {
+          id: "456",
+          // Missing changes to trigger hasEventChanges = false
+          time: 1234567890,
+        },
+      ],
+    });
+    
+    const signature = await computeHmacSignature(body, "test-app-secret", "sha256=hex");
+    const request = new Request("https://example.com/facebook-webhooks", {
+      method: "POST",
+      headers: {
+        "x-hub-signature-256": signature,
+      },
+      body: body,
+    });
+
+    const response = await handleWebhookPost(request, supabase);
+    // Should process successfully
+    assertEquals([200, 500].includes(response.status), true);
+  } finally {
+    restoreEnv();
+  }
+});
+

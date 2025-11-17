@@ -209,3 +209,186 @@ Deno.test("syncSinglePage surfaces earlier errors (e.g., token expiry lookup)", 
     resetSyncSinglePageDeps();
   }
 });
+
+Deno.test("syncSinglePage handles events without cover images", async () => {
+  const normalizedEvent: NormalizedEvent = {
+    event_id: "evt-1",
+    page_id: 123,
+    event_data: {
+      id: "evt-1",
+      name: "Party",
+      start_time: "2025-03-01T10:00:00.000Z",
+    },
+  };
+
+  let capturedCover: string | null | undefined = undefined;
+
+  installDeps({
+    getAllRelevantEvents: async () => [{
+      id: "evt-1",
+      name: "Party",
+      start_time: "2025-03-01T10:00:00.000Z",
+    }] as FacebookEvent[],
+    normalizeEvent: (_event, _pageId, cover?: null) => {
+      capturedCover = cover as unknown as string | null;
+      return normalizedEvent;
+    },
+  });
+
+  try {
+    const expiringTokens: ExpiringToken[] = [];
+    const result = await syncSinglePage(
+      basePage as any,
+      {} as any,
+      expiringTokens,
+    );
+    assertEquals(result.events, [normalizedEvent]);
+    assertEquals(capturedCover, null);
+  } finally {
+    resetSyncSinglePageDeps();
+  }
+});
+
+Deno.test("syncSinglePage handles events with cover but no source", async () => {
+  const normalizedEvent: NormalizedEvent = {
+    event_id: "evt-1",
+    page_id: 123,
+    event_data: {
+      id: "evt-1",
+      name: "Party",
+      start_time: "2025-03-01T10:00:00.000Z",
+    },
+  };
+
+  let capturedCover: string | null | undefined = undefined;
+
+  installDeps({
+    getAllRelevantEvents: async () => [{
+      id: "evt-1",
+      name: "Party",
+      start_time: "2025-03-01T10:00:00.000Z",
+      cover: {},
+    }] as FacebookEvent[],
+    normalizeEvent: (_event, _pageId, cover?: null) => {
+      capturedCover = cover as unknown as string | null;
+      return normalizedEvent;
+    },
+  });
+
+  try {
+    const expiringTokens: ExpiringToken[] = [];
+    const result = await syncSinglePage(
+      basePage as any,
+      {} as any,
+      expiringTokens,
+    );
+    assertEquals(result.events, [normalizedEvent]);
+    assertEquals(capturedCover, null);
+  } finally {
+    resetSyncSinglePageDeps();
+  }
+});
+
+Deno.test("syncSinglePage handles token expiry with null expiresAt", async () => {
+  installDeps({
+    checkTokenExpiry: async () => ({
+      isExpiring: true,
+      daysUntilExpiry: 3,
+      expiresAt: null,
+    }),
+  });
+
+  try {
+    const expiringTokens: ExpiringToken[] = [];
+    const result = await syncSinglePage(
+      basePage as any,
+      {} as any,
+      expiringTokens,
+    );
+
+    assertEquals(result.events.length, 0);
+    assertEquals(expiringTokens.length, 1);
+    assertEquals(expiringTokens[0].daysUntilExpiry, 3);
+    assertEquals(expiringTokens[0].expiresAt, null);
+  } finally {
+    resetSyncSinglePageDeps();
+  }
+});
+
+Deno.test("syncSinglePage handles markTokenExpired errors gracefully", async () => {
+  let markCalls = 0;
+  installDeps({
+    getAllRelevantEvents: async () => {
+      throw new Error("190: Invalid OAuth 2.0 Access Token");
+    },
+    markTokenExpired: async () => {
+      markCalls += 1;
+      throw new Error("Failed to mark token expired");
+    },
+  });
+
+  try {
+    const expiringTokens: ExpiringToken[] = [];
+    const result = await syncSinglePage(
+      basePage as any,
+      {} as any,
+      expiringTokens,
+    );
+    assertEquals(markCalls, 1);
+    // Should still return empty events even if markTokenExpired throws
+    assertEquals(result.events.length, 0);
+    // The error from markTokenExpired should be caught and returned
+    assertEquals(result.error !== null, true);
+  } finally {
+    resetSyncSinglePageDeps();
+  }
+});
+
+Deno.test("syncSinglePage handles token error with 'token' in message", async () => {
+  let markCalls = 0;
+  installDeps({
+    getAllRelevantEvents: async () => {
+      throw new Error("Invalid token provided");
+    },
+    markTokenExpired: async () => {
+      markCalls += 1;
+    },
+  });
+
+  try {
+    const expiringTokens: ExpiringToken[] = [];
+    const result = await syncSinglePage(
+      basePage as any,
+      {} as any,
+      expiringTokens,
+    );
+    assertEquals(markCalls, 1);
+    assertEquals(result.events.length, 0);
+    assertEquals(result.error, null);
+  } finally {
+    resetSyncSinglePageDeps();
+  }
+});
+
+Deno.test("syncSinglePage handles non-Error exceptions from Facebook API", async () => {
+  installDeps({
+    getAllRelevantEvents: async () => {
+      throw "String error";
+    },
+    markTokenExpired: async () => {},
+  });
+
+  try {
+    const expiringTokens: ExpiringToken[] = [];
+    const result = await syncSinglePage(
+      basePage as any,
+      {} as any,
+      expiringTokens,
+    );
+    assertEquals(result.events.length, 0);
+    // Should check if error message includes "token"
+    assertEquals(result.error !== null, true);
+  } finally {
+    resetSyncSinglePageDeps();
+  }
+});

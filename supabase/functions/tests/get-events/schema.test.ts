@@ -135,3 +135,37 @@ Deno.test("validateGetEventsQuery handles malformed URL gracefully", () => {
   assertEquals(result.success, true);
 });
 
+Deno.test("validateGetEventsQuery truncates search query that is too long", () => {
+  // MAX_SEARCH_LENGTH is 200, so 201 should be truncated
+  // Note: sanitizeSearchQuery truncates, so the check on line 54 is unreachable
+  // but we test that long queries are handled (truncated, not rejected)
+  const longSearch = "a".repeat(201);
+  const url = new URL(`https://example.com/get-events?search=${longSearch}`);
+  const result = validateGetEventsQuery(url);
+
+  // Should succeed but truncate to 200 characters
+  assertEquals(result.success, true);
+  assertExists(result.data);
+  assertExists(result.data!.search);
+  assertEquals(result.data!.search!.length, 200);
+});
+
+Deno.test("validateGetEventsQuery handles exceptions in try-catch", () => {
+  // Create a URL object that will cause an exception when accessing searchParams
+  const url = new URL("https://example.com/get-events");
+  
+  // Mock searchParams.get to throw an error
+  const originalGet = url.searchParams.get;
+  url.searchParams.get = () => {
+    throw new Error("Unexpected error");
+  };
+
+  const result = validateGetEventsQuery(url);
+  
+  // Restore original method
+  url.searchParams.get = originalGet;
+  
+  assertEquals(result.success, false);
+  assertEquals(result.error, "Invalid query parameters");
+});
+

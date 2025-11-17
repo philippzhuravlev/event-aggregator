@@ -311,3 +311,99 @@ Deno.test("deleteSecret throws error when RPC fails", async () => {
   );
 });
 
+Deno.test("getPageToken returns null when decrypted_secret is empty string", async () => {
+  const supabase = createSupabaseClientMock({
+    vaultData: { decrypted_secret: "" },
+  });
+
+  const token = await getPageToken(
+    supabase as unknown as SupabaseClient,
+    "123",
+  );
+
+  assertEquals(token, null);
+});
+
+Deno.test("getApiKey returns null when decrypted_secret is empty string", async () => {
+  const supabase = createSupabaseClientMock({
+    vaultData: { decrypted_secret: "" },
+  });
+
+  const apiKey = await getApiKey(supabase as unknown as SupabaseClient);
+
+  assertEquals(apiKey, null);
+});
+
+Deno.test("getWebhookVerifyToken returns null when decrypted_secret is empty string", async () => {
+  const supabase = createSupabaseClientMock({
+    vaultData: { decrypted_secret: "" },
+  });
+
+  const token = await getWebhookVerifyToken(
+    supabase as unknown as SupabaseClient,
+  );
+
+  assertEquals(token, null);
+});
+
+Deno.test("updateSecret handles non-Error exceptions", async () => {
+  const supabase = {
+    rpc: () => {
+      throw "String error";
+    },
+  };
+
+  await assertRejects(
+    async () => {
+      await updateSecret(
+        supabase as unknown as SupabaseClient,
+        "secret-uuid-123",
+        "new-secret",
+      );
+    },
+    Error,
+    "Cannot update secret",
+  );
+});
+
+Deno.test("deleteSecret handles non-Error exceptions", async () => {
+  const supabase = {
+    rpc: () => {
+      throw "String error";
+    },
+  };
+
+  await assertRejects(
+    async () => {
+      await deleteSecret(
+        supabase as unknown as SupabaseClient,
+        "secret-uuid-123",
+      );
+    },
+    Error,
+    "Cannot delete secret",
+  );
+});
+
+Deno.test("storePageToken handles non-Error exceptions in catch block", async () => {
+  const supabase = {
+    rpc: () => {
+      throw "String error in RPC";
+    },
+    from: () => ({}),
+  };
+
+  await assertRejects(
+    async () => {
+      await storePageToken(
+        supabase as unknown as SupabaseClient,
+        "123",
+        "test-token",
+        30,
+      );
+    },
+    Error,
+    "Cannot store token for 123",
+  );
+});
+
