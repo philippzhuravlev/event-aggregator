@@ -46,6 +46,88 @@ describe("runtime/browser createBrowserRuntimeConfig", () => {
     expect(config.isProduction).toBe(false);
     expect(config.tokenAlertEmail).toBe("");
   });
+
+  it("uses MODE when NODE_ENV is not provided", () => {
+    const config = createBrowserRuntimeConfig({
+      MODE: "development",
+    });
+
+    expect(config.nodeEnv).toBe("development");
+    expect(config.isDevelopment).toBe(true);
+    expect(config.isProduction).toBe(false);
+  });
+
+  it("uses NODE_ENV when both MODE and NODE_ENV are provided", () => {
+    const config = createBrowserRuntimeConfig({
+      MODE: "development",
+      NODE_ENV: "production",
+    });
+
+    expect(config.nodeEnv).toBe("production");
+    expect(config.isDevelopment).toBe(false);
+    expect(config.isProduction).toBe(true);
+  });
+
+  it("defaults to development when neither MODE nor NODE_ENV is provided", () => {
+    const config = createBrowserRuntimeConfig({});
+
+    expect(config.nodeEnv).toBe("development");
+    expect(config.isDevelopment).toBe(true);
+    expect(config.isProduction).toBe(false);
+  });
+
+  it("uses default backend URL when VITE_BACKEND_URL is not provided", () => {
+    const config = createBrowserRuntimeConfig({});
+
+    expect(config.backendUrl).toBe("/api");
+  });
+
+  it("uses fallback backend URL when VITE_BACKEND_URL is empty and fallback is provided", () => {
+    const config = createBrowserRuntimeConfig(
+      { VITE_BACKEND_URL: "" },
+      { fallbackBackendUrl: "https://custom-fallback.com" },
+    );
+
+    expect(config.backendUrl).toBe("https://custom-fallback.com");
+  });
+
+  it("handles VITE_USE_SUPABASE as boolean", () => {
+    const config1 = createBrowserRuntimeConfig({
+      VITE_USE_SUPABASE: false,
+    });
+    expect(config1.useSupabase).toBe(false);
+
+    const config2 = createBrowserRuntimeConfig({
+      VITE_USE_SUPABASE: true,
+    });
+    expect(config2.useSupabase).toBe(true);
+  });
+
+  it("handles VITE_USE_BACKEND_API as boolean", () => {
+    const config1 = createBrowserRuntimeConfig({
+      VITE_USE_BACKEND_API: false,
+    });
+    expect(config1.useBackendApi).toBe(false);
+
+    const config2 = createBrowserRuntimeConfig({
+      VITE_USE_BACKEND_API: true,
+    });
+    expect(config2.useBackendApi).toBe(true);
+  });
+
+  it("handles empty VITE_TOKEN_ALERT_EMAIL", () => {
+    const config = createBrowserRuntimeConfig({
+      VITE_TOKEN_ALERT_EMAIL: "",
+    });
+
+    expect(config.tokenAlertEmail).toBe("");
+  });
+
+  it("handles missing VITE_TOKEN_ALERT_EMAIL", () => {
+    const config = createBrowserRuntimeConfig({});
+
+    expect(config.tokenAlertEmail).toBe("");
+  });
 });
 
 

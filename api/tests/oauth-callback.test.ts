@@ -47,6 +47,18 @@ describe("buildRedirectUrl", () => {
     expect(redirectUrl.searchParams.get("code")).toBe("abc123");
     expect(redirectUrl.searchParams.get("status")).toBe("ok");
   });
+
+  it("returns null when URL parsing fails", () => {
+    // This tests the catch block in buildRedirectUrl
+    // An invalid URL format should cause URL parsing to fail
+    const result = buildRedirectUrl(
+      "not-a-valid-url",
+      allowedOrigins,
+      { code: "abc123" },
+    );
+
+    expect(result).toBeNull();
+  });
 });
 
 describe("handler", () => {

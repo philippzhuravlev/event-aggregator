@@ -1,11 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
@@ -340,6 +333,494 @@ describe("services/facebook-service", () => {
 
     vi.useRealTimers();
   });
+
+  it("retries on server errors (500-599) before succeeding", async () => {
+    vi.useFakeTimers();
+
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse(
+          { error: { message: "Internal server error" } },
+          { ok: false, status: 500 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          data: [{ id: "1", name: "Recovered Page" }],
+        }),
+      );
+
+    const promise = getUserPages("retry-token");
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const pages = await promise;
+
+    expect(pages).toEqual([{ id: "1", name: "Recovered Page" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Facebook API error - retrying with backoff",
+      expect.objectContaining({
+        status: 500,
+        attempt: 1,
+        maxRetries: 3,
+      }),
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("throws on non-retryable errors immediately", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        {
+          error: {
+            code: 100,
+            message: "Invalid parameter",
+            type: "OAuthException",
+          },
+        },
+        { ok: false, status: 400 },
+      ),
+    );
+
+    await expect(getUserPages("bad-token")).rejects.toThrow(
+      /Facebook API error: 400 - Invalid parameter/,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      "Facebook API responded with an error",
+      null,
+      expect.objectContaining({
+        status: 400,
+        message: "Invalid parameter",
+      }),
+    );
+  });
+
+  it("detects token expired error from 401 status", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        { error: { message: "Invalid token", code: 190 } },
+        { ok: false, status: 401 },
+      ),
+    );
+
+    await expect(getUserPages("expired-token")).rejects.toThrow(
+      /Facebook token invalid/,
+    );
+
+    expect(logger.error).toHaveBeenCalledWith(
+      "Facebook token expired or invalid",
+      null,
+      expect.objectContaining({
+        status: 401,
+      }),
+    );
+  });
+
+  it("exhausts retries and throws error", async () => {
+    vi.useFakeTimers();
+
+    fetchMock.mockResolvedValue(
+      createResponse(
+        { error: { message: "Rate limit" } },
+        { ok: false, status: 429 },
+      ),
+    );
+
+    const promise = getUserPages("token");
+
+    // Advance through all retries
+    await vi.advanceTimersByTimeAsync(1000); // First retry delay
+    await vi.advanceTimersByTimeAsync(2000); // Second retry delay
+    // On the third attempt (attempt === maxRetries), it will throw the actual error
+
+    await expect(promise).rejects.toThrow(
+      /Facebook API error: 429/,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(3); // 3 attempts (MAX_RETRIES = 3)
+
+    vi.useRealTimers();
+  });
+
+  it("handles network errors and retries", async () => {
+    vi.useFakeTimers();
+
+    fetchMock
+      .mockRejectedValueOnce(new Error("Network error"))
+      .mockResolvedValueOnce(
+        createResponse({
+          data: [{ id: "1", name: "Page" }],
+        }),
+      );
+
+    const promise = getUserPages("token");
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const pages = await promise;
+
+    expect(pages).toEqual([{ id: "1", name: "Page" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Facebook API request failed - retrying",
+      expect.objectContaining({
+        error: "Network error",
+        attempt: 1,
+      }),
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("does not retry on token errors in catch block", async () => {
+    fetchMock.mockRejectedValueOnce(
+      new Error("Facebook token invalid (190)"),
+    );
+
+    await expect(getUserPages("token")).rejects.toThrowError(
+      "Facebook token invalid",
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles pagination with URL already containing query params", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse({
+          data: [{ id: "1", name: "Page 1" }],
+          paging: {
+            next:
+              "https://graph.facebook.com/v23.0/me/accounts?access_token=token&after=cursor",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          data: [{ id: "2", name: "Page 2" }],
+        }),
+      );
+
+    const pages = await getUserPages("access-token");
+
+    expect(pages).toEqual([
+      { id: "1", name: "Page 1" },
+      { id: "2", name: "Page 2" },
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("handles empty data arrays in pagination", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse({
+        data: [],
+      }),
+    );
+
+    const pages = await getUserPages("access-token");
+
+    expect(pages).toEqual([]);
+    expect(logger.info).toHaveBeenCalledWith(
+      "Fetched Facebook user pages",
+      { count: 0 },
+    );
+  });
+
+  it("handles missing data field in pagination response", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse({
+        // No data field
+      } as { data?: unknown[] }),
+    );
+
+    const pages = await getUserPages("access-token");
+
+    expect(pages).toEqual([]);
+  });
+
+  it("handles getPageEvents with past time filter", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse({
+        data: [
+          {
+            id: "event-1",
+            name: "Past Event",
+            start_time: "2024-01-01T10:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    const events = await getPageEvents("page-1", "access-token", "past");
+
+    expect(events).toEqual([
+      {
+        id: "event-1",
+        name: "Past Event",
+        start_time: "2024-01-01T10:00:00Z",
+      },
+    ]);
+    expect(logger.info).toHaveBeenCalledWith(
+      "Fetched Facebook page events",
+      {
+        pageId: "page-1",
+        timeFilter: "past",
+        totalCount: 1,
+      },
+    );
+  });
+
+  it("handles getPageEvents pagination", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse({
+          data: [{ id: "event-1", name: "Event 1" }],
+          paging: { next: "https://next.example.com" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          data: [{ id: "event-2", name: "Event 2" }],
+        }),
+      );
+
+    const events = await getPageEvents("page-1", "access-token", "upcoming");
+
+    expect(events).toEqual([
+      { id: "event-1", name: "Event 1" },
+      { id: "event-2", name: "Event 2" },
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("handles getPageEvents errors and rethrows", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        { error: { message: "Error" } },
+        { ok: false, status: 400 },
+      ),
+    );
+
+    await expect(
+      getPageEvents("page-1", "access-token", "upcoming"),
+    ).rejects.toThrow(/Facebook API error: 400 - Error/);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      "Error fetching Facebook page events",
+      expect.any(Error),
+      { pageId: "page-1", timeFilter: "upcoming" },
+    );
+  });
+
+  it("filters out events without start_time in getAllRelevantEvents", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-06-01T00:00:00Z"));
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("time_filter=upcoming")) {
+        return Promise.resolve(
+          createResponse({
+            data: [
+              {
+                id: "event-upcoming",
+                name: "Upcoming",
+                start_time: "2024-06-05T10:00:00Z",
+              },
+            ],
+          }),
+        );
+      }
+      if (url.includes("time_filter=past")) {
+        return Promise.resolve(
+          createResponse({
+            data: [
+              {
+                id: "event-no-time",
+                name: "No Time",
+                // No start_time
+              },
+              {
+                id: "event-recent",
+                name: "Recent",
+                start_time: "2024-05-25T10:00:00Z",
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+
+    const events = await getAllRelevantEvents("page-1", "access-token", 14);
+
+    expect(events).toEqual([
+      {
+        id: "event-upcoming",
+        name: "Upcoming",
+        start_time: "2024-06-05T10:00:00Z",
+      },
+      {
+        id: "event-recent",
+        name: "Recent",
+        start_time: "2024-05-25T10:00:00Z",
+      },
+    ]);
+
+    vi.useRealTimers();
+  });
+
+  it("filters out old past events beyond daysBack in getAllRelevantEvents", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-06-01T00:00:00Z"));
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("time_filter=upcoming")) {
+        return Promise.resolve(createResponse({ data: [] }));
+      }
+      if (url.includes("time_filter=past")) {
+        return Promise.resolve(
+          createResponse({
+            data: [
+              {
+                id: "event-recent",
+                name: "Recent",
+                start_time: "2024-05-25T10:00:00Z", // 7 days ago
+              },
+              {
+                id: "event-old",
+                name: "Old",
+                start_time: "2024-01-01T10:00:00Z", // Way too old
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+
+    const events = await getAllRelevantEvents("page-1", "access-token", 14);
+
+    expect(events).toEqual([
+      {
+        id: "event-recent",
+        name: "Recent",
+        start_time: "2024-05-25T10:00:00Z",
+      },
+    ]);
+
+    vi.useRealTimers();
+  });
+
+  it("removes duplicate events in getAllRelevantEvents", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-06-01T00:00:00Z"));
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("time_filter=upcoming")) {
+        return Promise.resolve(
+          createResponse({
+            data: [
+              {
+                id: "event-1",
+                name: "Event 1",
+                start_time: "2024-06-05T10:00:00Z",
+              },
+            ],
+          }),
+        );
+      }
+      if (url.includes("time_filter=past")) {
+        return Promise.resolve(
+          createResponse({
+            data: [
+              {
+                id: "event-1", // Duplicate ID
+                name: "Event 1 Duplicate",
+                start_time: "2024-05-25T10:00:00Z",
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+
+    const events = await getAllRelevantEvents("page-1", "access-token", 14);
+
+    // Should only have one event with id "event-1"
+    expect(events).toHaveLength(1);
+    expect(events[0].id).toBe("event-1");
+
+    vi.useRealTimers();
+  });
+
+  it("throws when long-lived token exchange fails", async () => {
+    fetchMock.mockResolvedValueOnce(createResponse({}));
+
+    await expect(
+      exchangeForLongLivedToken("short-token", "app-id", "app-secret"),
+    ).rejects.toThrowError("No long-lived token received from Facebook");
+  });
+
+  it("handles getEventDetails with full event data", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse({
+        id: "event-1",
+        name: "Event 1",
+        description: "Description",
+        start_time: "2024-05-01T10:00:00Z",
+        end_time: "2024-05-01T12:00:00Z",
+        place: { name: "Venue" },
+        cover: { source: "https://example.com/cover.jpg" },
+      }),
+    );
+
+    const event = await getEventDetails("event-1", "access-token");
+
+    expect(event).toEqual({
+      id: "event-1",
+      name: "Event 1",
+      description: "Description",
+      start_time: "2024-05-01T10:00:00Z",
+      end_time: "2024-05-01T12:00:00Z",
+      place: { name: "Venue" },
+      cover: { source: "https://example.com/cover.jpg" },
+    });
+  });
+
+  it("sets and resets logger correctly", () => {
+    const customLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
+
+    setFacebookServiceLogger(customLogger);
+    // Logger should be set
+    expect(customLogger.info).toBeDefined();
+
+    setFacebookServiceLogger();
+    // Should reset to default
+    setFacebookServiceLogger(undefined);
+    // Should also reset to default
+  });
+
+  it("handles logger with partial methods", () => {
+    const partialLogger = {
+      info: vi.fn(),
+      // Missing other methods
+    };
+
+    setFacebookServiceLogger(partialLogger);
+    // Should not throw
+    expect(partialLogger.info).toBeDefined();
+  });
 });
-
-
