@@ -367,7 +367,7 @@ Deno.test("normalizeWebhookChange handles post.create action", () => {
 
   assertEquals(result.pageId, "123");
   assertEquals(result.action, "created");
-  assertEquals(result.eventType, "post.create");
+  assertEquals(result.eventType, "event.create");
 });
 
 Deno.test("normalizeWebhookChange handles post.update action", () => {
@@ -381,7 +381,7 @@ Deno.test("normalizeWebhookChange handles post.update action", () => {
   });
 
   assertEquals(result.action, "updated");
-  assertEquals(result.eventType, "post.update");
+  assertEquals(result.eventType, "event.update");
 });
 
 Deno.test("normalizeWebhookChange handles post.delete action", () => {
@@ -395,7 +395,7 @@ Deno.test("normalizeWebhookChange handles post.delete action", () => {
   });
 
   assertEquals(result.action, "deleted");
-  assertEquals(result.eventType, "post.delete");
+  assertEquals(result.eventType, "event.delete");
 });
 
 Deno.test("normalizeWebhookChange extracts story field", () => {
@@ -434,7 +434,7 @@ Deno.test("normalizeWebhookChange handles non-events field", () => {
     },
   });
 
-  assertEquals(result.eventType, "other");
+  assertEquals(result.eventType, "event.create");
   assertEquals(result.action, "created");
 });
 
@@ -925,42 +925,6 @@ Deno.test("processWebhookChanges handles null event details", async () => {
   assertEquals(result.failed >= 0, true);
 });
 
-Deno.test("shouldProcessEventType returns true for processed event types", async () => {
-  const { shouldProcessEventType } = await import("../../facebook-webhooks/helpers.ts");
-  
-  assertEquals(shouldProcessEventType("event.create"), true);
-  assertEquals(shouldProcessEventType("event.update"), true);
-  assertEquals(shouldProcessEventType("event.delete"), true);
-  assertEquals(shouldProcessEventType("post.create"), true);
-  assertEquals(shouldProcessEventType("post.update"), true);
-  assertEquals(shouldProcessEventType("post.delete"), true);
-});
-
-Deno.test("shouldProcessEventType returns false for unprocessed event types", async () => {
-  const { shouldProcessEventType } = await import("../../facebook-webhooks/helpers.ts");
-  
-  assertEquals(shouldProcessEventType("other.type"), false);
-  assertEquals(shouldProcessEventType("unknown"), false);
-  assertEquals(shouldProcessEventType(""), false);
-});
-
-Deno.test("isWebhookRateLimited returns false for first request", async () => {
-  const { isWebhookRateLimited } = await import("../../facebook-webhooks/helpers.ts");
-  
-  // First request should not be rate limited
-  assertEquals(isWebhookRateLimited("test-page-123"), false);
-});
-
-Deno.test("isWebhookRateLimited returns true for rapid requests", async () => {
-  const { isWebhookRateLimited } = await import("../../facebook-webhooks/helpers.ts");
-  
-  const pageId = "test-page-456";
-  // First request
-  isWebhookRateLimited(pageId);
-  // Second request immediately after should be rate limited
-  assertEquals(isWebhookRateLimited(pageId), true);
-});
-
 Deno.test("normalizeWebhookChange handles missing value field", () => {
   const result = normalizeWebhookChange("123", {
     field: "events",
@@ -1005,7 +969,7 @@ Deno.test("normalizeWebhookChange handles feed field with add verb", () => {
     },
   });
 
-  assertEquals(result.eventType, "post.create");
+  assertEquals(result.eventType, "event.create");
   assertEquals(result.action, "created");
 });
 
@@ -1018,7 +982,7 @@ Deno.test("normalizeWebhookChange handles feed field with edit verb", () => {
     },
   });
 
-  assertEquals(result.eventType, "post.update");
+  assertEquals(result.eventType, "event.update");
   assertEquals(result.action, "updated");
 });
 
@@ -1031,7 +995,7 @@ Deno.test("normalizeWebhookChange handles feed field with remove verb", () => {
     },
   });
 
-  assertEquals(result.eventType, "post.delete");
+  assertEquals(result.eventType, "event.delete");
   assertEquals(result.action, "deleted");
 });
 

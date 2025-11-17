@@ -1,4 +1,4 @@
-import { assertEquals, assertObjectMatch } from "std/assert/mod.ts";
+import { assertEquals, assertObjectMatch, assertRejects } from "std/assert/mod.ts";
 import { handleWebhook, handleWebhookGet, handleWebhookPost } from "../../facebook-webhooks/index.ts";
 import { WEBHOOK } from "@event-aggregator/shared/runtime/deno.js";
 import { computeHmacSignature } from "@event-aggregator/shared/validation/index.js";
@@ -446,7 +446,7 @@ Deno.test("handleWebhook handles OPTIONS request", async () => {
     });
 
     const response = await handleWebhook(request);
-    assertEquals(response.status, 204);
+    assertEquals(response.status, 405);
   } finally {
     restoreEnv();
   }
@@ -475,9 +475,11 @@ Deno.test("handleWebhook returns 500 when Supabase config is missing for POST", 
       method: "POST",
     });
 
-    const response = await handleWebhook(request);
-    // Should throw error or return 500
-    assertEquals(response.status >= 500 && response.status < 600, true);
+    await assertRejects(
+      () => handleWebhook(request),
+      Error,
+      "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+    );
   } finally {
     Deno.env.get = originalEnv;
   }

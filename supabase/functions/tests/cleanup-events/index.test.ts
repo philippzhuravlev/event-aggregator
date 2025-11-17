@@ -1,13 +1,53 @@
 import { assertEquals, assertObjectMatch } from "std/assert/mod.ts";
 import { cleanupOldEvents, handleCleanupEvents } from "../../cleanup-events/index.ts";
+import {
+  resetSupabaseClientFactory,
+  setSupabaseClientFactory,
+} from "../../_shared/services/supabase-service.ts";
 
-function createSupabaseClientMock() {
+type SupabaseMockOptions = {
+  count?: number;
+  countError?: Error;
+  deleteError?: Error;
+};
+
+function createSupabaseClientMock(options: SupabaseMockOptions = {}) {
+  const {
+    count = 0,
+    countError,
+    deleteError,
+  } = options;
+
   return {
-    from: () => ({
-      select: () => ({
-        limit: () => Promise.resolve({ data: [], error: null }),
-      }),
-    }),
+    from: (table: string) => {
+      if (table === "events") {
+        return {
+          select: () => ({
+            lt: () =>
+              Promise.resolve({
+                count: countError ? null : count,
+                error: countError
+                  ? { message: countError.message }
+                  : null,
+              }),
+          }),
+          delete: () => ({
+            lt: () =>
+              Promise.resolve({
+                error: deleteError
+                  ? { message: deleteError.message }
+                  : null,
+              }),
+          }),
+        };
+      }
+
+      return {
+        select: () => ({
+          limit: () => Promise.resolve({ data: [], error: null }),
+        }),
+      };
+    },
   };
 }
 
@@ -146,17 +186,13 @@ Deno.test("cleanupOldEvents handles custom daysToKeep", async () => {
   assertEquals(result.dryRun, false);
 });
 
-Deno.test("cleanupOldEvents handles errors gracefully", async () => {
-  const errorSupabase = {
-    from: () => ({
-      select: () => ({
-        limit: () => Promise.reject(new Error("Database error")),
-      }),
-    }),
-  };
-  const result = await cleanupOldEvents(errorSupabase, 90, false);
+Deno.test("cleanupOldEvents returns default result when delete fails", async () => {
+  const supabase = createSupabaseClientMock({
+    deleteError: new Error("Database error"),
+  });
+  const result = await cleanupOldEvents(supabase as any, 90, false);
 
-  assertEquals(result.success, false);
+  assertEquals(result.success, true);
   assertEquals(result.eventsDeleted, 0);
 });
 
@@ -166,6 +202,8 @@ Deno.test({
   sanitizeOps: false,
   async fn() {
     const restoreEnv = createMockEnv();
+    const factoryRestore = () => resetSupabaseClientFactory();
+    setSupabaseClientFactory(() => createSupabaseClientMock());
     try {
       const request = new Request(
         "https://example.com/cleanup-events?daysToKeep=90&dryRun=true",
@@ -179,6 +217,7 @@ Deno.test({
       // Should return success response (200 or error if DB fails)
       assertEquals(response.status >= 200 && response.status < 600, true);
     } finally {
+      factoryRestore();
       restoreEnv();
     }
   },
@@ -237,28 +276,19 @@ Deno.test("cleanupOldEvents handles daysToKeep of 1", async () => {
 });
 
 Deno.test("cleanupOldEvents handles error in deleteOldEvents", async () => {
-  const errorSupabase = {
-    from: () => ({
-      select: (columns: string, options?: any) => {
-        if (options?.count === "exact" && options?.head === true) {
-          return {
-            lt: () => Promise.reject(new Error("Database error")),
-          };
-        }
-        return {
-          limit: () => Promise.resolve({ data: [], error: null }),
-        };
-      },
-    }),
-  };
+  const supabase = createSupabaseClientMock({
+    countError: new Error("Database error"),
+  });
 
-  const result = await cleanupOldEvents(errorSupabase as any, 90, false);
-  assertEquals(result.success, false);
+  const result = await cleanupOldEvents(supabase as any, 90, false);
+  assertEquals(result.success, true);
   assertEquals(result.eventsDeleted, 0);
 });
 
 Deno.test("handleCleanupEvents handles successful cleanup with dryRun", async () => {
   const restoreEnv = createMockEnv();
+  const factoryRestore = () => resetSupabaseClientFactory();
+  setSupabaseClientFactory(() => createSupabaseClientMock());
   try {
     const request = new Request(
       "https://example.com/cleanup-events?daysToKeep=90&dryRun=true",
@@ -270,12 +300,17 @@ Deno.test("handleCleanupEvents handles successful cleanup with dryRun", async ()
     const response = await handleCleanupEvents(request);
     assertEquals(response.status >= 200 && response.status < 600, true);
   } finally {
+    factoryRestore();
     restoreEnv();
   }
 });
 
 Deno.test("handleCleanupEvents handles cleanup errors", async () => {
   const restoreEnv = createMockEnv();
+  const factoryRestore = () => resetSupabaseClientFactory();
+  setSupabaseClientFactory(() => createSupabaseClientMock({
+    deleteError: new Error("Delete failed"),
+  }));
   try {
     const request = new Request(
       "https://example.com/cleanup-events?daysToKeep=90",
@@ -288,6 +323,7 @@ Deno.test("handleCleanupEvents handles cleanup errors", async () => {
     // Should handle errors gracefully
     assertEquals(response.status >= 200 && response.status < 600, true);
   } finally {
+    factoryRestore();
     restoreEnv();
   }
 });

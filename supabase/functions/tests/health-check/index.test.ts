@@ -417,9 +417,6 @@ Deno.test("monitorTokens handles mail error when sending expiry warning", async 
     ],
   });
 
-  // Mock sendTokenExpiryWarning to fail
-  const originalSendTokenExpiryWarning = await import("../../../health-check/index.ts").then(m => m.performHealthCheck);
-  
   const result = await performHealthCheck(supabase);
   // Should handle mail errors gracefully
   assertEquals(result.tokens.totalPages, 1);

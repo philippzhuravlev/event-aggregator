@@ -1,7 +1,11 @@
-import { assertEquals, assertExists } from "std/assert/mod.ts";
+import { assertEquals, assertExists, assertRejects } from "std/assert/mod.ts";
 import { handleGetEvents } from "../../get-events/index.ts";
 import { handleCleanupEvents } from "../../cleanup-events/index.ts";
 import { handleHealthCheck } from "../../health-check/index.ts";
+import { handleSyncEvents } from "../../sync-events/index.ts";
+import { handleTokenRefresh } from "../../token-refresh/index.ts";
+import { handleWebhook } from "../../facebook-webhooks/index.ts";
+import { WEBHOOK } from "@event-aggregator/shared/runtime/deno.js";
 import {
   resetSupabaseClientFactory,
   setSupabaseClientFactory,
@@ -192,4 +196,103 @@ Deno.test("integration: handleHealthCheck reports healthy status", async () => {
     resetSupabaseClientFactory();
     restoreEnv();
   }
+});
+
+Deno.test("integration: handleSyncEvents returns 401 without auth", async () => {
+  const restoreEnv = setEnvVars({
+    SUPABASE_URL: "https://test.supabase.local",
+    SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+    SYNC_TOKEN: "expected-token",
+  });
+
+  try {
+    const request = new Request("https://example.com/sync-events", {
+      method: "POST",
+    });
+
+    const response = await handleSyncEvents(request);
+    assertEquals(response.status, 401);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("integration: handleSyncEvents returns 500 when Supabase config missing", async () => {
+  const restoreEnv = setEnvVars({
+    SYNC_TOKEN: "expected-token",
+  });
+
+  try {
+    const request = new Request("https://example.com/sync-events", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer expected-token",
+      },
+    });
+
+    const response = await handleSyncEvents(request);
+    assertEquals(response.status, 500);
+  } finally {
+    restoreEnv();
+  }
+});
+
+Deno.test("integration: handleTokenRefresh rejects non-POST methods", async () => {
+  const request = new Request("https://example.com/token-refresh", {
+    method: "GET",
+  });
+
+  const response = await handleTokenRefresh(request);
+  assertEquals(response.status, 405);
+});
+
+Deno.test("integration: handleTokenRefresh returns 500 when config missing", async () => {
+  const request = new Request("https://example.com/token-refresh", {
+    method: "POST",
+  });
+
+  const response = await handleTokenRefresh(request);
+  assertEquals(response.status, 500);
+});
+
+Deno.test("integration: handleFacebookWebhook rejects unsupported methods", async () => {
+  const request = new Request("https://example.com/facebook-webhook", {
+    method: "PUT",
+  });
+
+  const response = await handleWebhook(request);
+  assertEquals(response.status, 405);
+});
+
+Deno.test("integration: handleFacebookWebhook POST rejects when config missing", async () => {
+  const request = new Request("https://example.com/facebook-webhook", {
+    method: "POST",
+  });
+
+  await assertRejects(
+    () => handleWebhook(request),
+    Error,
+    "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+  );
+});
+
+Deno.test("integration: handleFacebookWebhook GET returns challenge when token valid", async () => {
+  const url =
+    `https://example.com/facebook-webhook?hub.mode=subscribe&hub.challenge=abc123&${WEBHOOK.VERIFY_TOKEN_PARAM}=${WEBHOOK.VERIFY_TOKEN}`;
+  const request = new Request(url, { method: "GET" });
+
+  const response = await handleWebhook(request);
+  assertEquals(response.status, 200);
+  const payload = await response.json();
+  assertEquals(payload.success, true);
+  assertEquals(payload.data.challenge, "abc123");
+});
+
+Deno.test("integration: handleFacebookWebhook GET rejects invalid token", async () => {
+  const url =
+    `https://example.com/facebook-webhook?hub.mode=subscribe&hub.challenge=abc123&${WEBHOOK.VERIFY_TOKEN_PARAM}=wrong`;
+  const request = new Request(url, { method: "GET" });
+
+  const response = await handleWebhook(request);
+  assertEquals(response.status, 403);
 });

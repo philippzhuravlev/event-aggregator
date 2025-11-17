@@ -1,21 +1,37 @@
 import { assertEquals, assertExists, assertObjectMatch } from "std/assert/mod.ts";
 import { handleGetEvents, getEvents } from "../../get-events/index.ts";
 import type { GetEventsQuery } from "@event-aggregator/shared/types.ts";
+import { PAGINATION } from "@event-aggregator/shared/runtime/deno.js";
 import * as supabaseJs from "@supabase/supabase-js";
 
-function createSupabaseClientMock(events: any[] = []) {
-  // Create a chainable query builder that returns itself for all methods
-  // This needs to support the full query chain: .order().order().limit() or .order().order().eq().gte().limit() etc.
-  // Note: .limit() should return the builder, not a Promise. Only .returns() returns the Promise.
+function createSupabaseClientMock(
+  events: any[] = [],
+  options: { queryError?: Error } = {},
+) {
+  const { queryError } = options;
   const createQueryBuilder = () => {
+    let currentLimit: number | undefined;
     const builder: any = {};
-    // All query builder methods return the builder for chaining
     builder.order = () => builder;
     builder.eq = () => builder;
     builder.gte = () => builder;
     builder.or = () => builder;
-    builder.limit = () => builder; // limit() returns builder, not Promise
-    builder.returns = () => Promise.resolve({ data: events, error: null }); // Only returns() executes
+    builder.limit = (value: number) => {
+      currentLimit = value;
+      return builder;
+    };
+    builder.returns = () => {
+      if (queryError) {
+        return Promise.resolve({
+          data: null,
+          error: { message: queryError.message },
+        });
+      }
+      const limited = typeof currentLimit === "number"
+        ? events.slice(0, currentLimit)
+        : events;
+      return Promise.resolve({ data: limited, error: null });
+    };
     return builder;
   };
 
@@ -609,23 +625,9 @@ Deno.test("getEvents handles events without event_id in event_data", async () =>
 });
 
 Deno.test("getEvents handles database query errors", async () => {
-  const errorSupabase = {
-    from: () => ({
-      select: () => ({
-        order: () => ({
-          order: () => ({
-            limit: () => ({
-              returns: () => Promise.resolve({
-                data: null,
-                error: { message: "Database error" },
-              }),
-            }),
-          }),
-        }),
-      }),
-    }),
-  };
-
+  const errorSupabase = createSupabaseClientMock([], {
+    queryError: new Error("Database error"),
+  });
   const queryParams: GetEventsQuery = {
     limit: 50,
     upcoming: true,
@@ -860,8 +862,8 @@ Deno.test("getEvents handles limit exceeding MAX_LIMIT", async () => {
   };
 
   const result = await getEvents(supabase as any, queryParams);
-  // Should cap at MAX_LIMIT + 1 for hasMore check
-  assertEquals(result.events.length <= 100, true);
+  const cappedLimit = Math.min(queryParams.limit, PAGINATION.MAX_LIMIT);
+  assertEquals(result.events.length <= cappedLimit + 1, true);
 });
 
 Deno.test("getEvents handles events with null event_data", async () => {
