@@ -430,16 +430,21 @@ describe("services/facebook-service", () => {
       ),
     );
 
+    // Create promise and immediately attach error handler to prevent unhandled rejection
     const promise = getUserPages("token");
+    // Attach a catch handler to prevent unhandled rejection warnings
+    promise.catch(() => {
+      // Error will be caught in the test below
+    });
 
-    // Advance through all retries
-    await vi.advanceTimersByTimeAsync(1000); // First retry delay
-    await vi.advanceTimersByTimeAsync(2000); // Second retry delay
-    // On the third attempt (attempt === maxRetries), it will throw the actual error
+    // Advance through all retries: attempt 1 delay (1000ms) + attempt 2 delay (2000ms)
+    // Attempt 3 throws immediately without delay
+    await vi.advanceTimersByTimeAsync(3000);
+    // Run all pending timers to ensure all async operations complete
+    await vi.runAllTimersAsync();
 
-    await expect(promise).rejects.toThrow(
-      /Facebook API error: 429/,
-    );
+    // Ensure promise rejection is properly caught
+    await expect(promise).rejects.toThrow(/Facebook API error: 429/);
 
     expect(fetchMock).toHaveBeenCalledTimes(3); // 3 attempts (MAX_RETRIES = 3)
 
@@ -822,5 +827,167 @@ describe("services/facebook-service", () => {
     setFacebookServiceLogger(partialLogger);
     // Should not throw
     expect(partialLogger.info).toBeDefined();
+  });
+
+  it("uses default logger when no custom logger is set", async () => {
+    setFacebookServiceLogger();
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    fetchMock.mockResolvedValueOnce(
+      createResponse({ access_token: "token" }),
+    );
+
+    await exchangeCodeForToken("code", "app-id", "secret", "redirect");
+
+    // Default logger should log
+    expect(consoleSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
+  it("default logger handles info with metadata", async () => {
+    setFacebookServiceLogger();
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    // Call a function that uses logInfo with metadata
+    fetchMock.mockResolvedValueOnce(
+      createResponse({ data: [{ id: "1", name: "Page" }] }),
+    );
+
+    await getUserPages("token");
+    expect(consoleSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
+  it("default logger handles warn with and without metadata", async () => {
+    setFacebookServiceLogger();
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(
+      () => {},
+    );
+
+    // This will trigger a retry which logs a warning
+    fetchMock.mockResolvedValue(
+      createResponse(
+        { error: { message: "Rate limit" } },
+        { ok: false, status: 429 },
+      ),
+    );
+
+    vi.useFakeTimers();
+    const promise = getUserPages("token").catch(() => {
+      // Silently catch to avoid unhandled rejection
+    });
+    // Advance timers to trigger retry (first delay is 1000ms)
+    await vi.advanceTimersByTimeAsync(1000);
+    // Run all pending timers to ensure all async operations complete
+    await vi.runAllTimersAsync();
+    await promise; // Wait for the promise to settle
+    expect(consoleWarnSpy).toHaveBeenCalled();
+    consoleWarnSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("default logger handles error", async () => {
+    setFacebookServiceLogger();
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(
+      () => {},
+    );
+
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        { error: { message: "Error" } },
+        { ok: false, status: 400 },
+      ),
+    );
+
+    await expect(getUserPages("token")).rejects.toThrow();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("default logger handles debug with and without metadata", async () => {
+    setFacebookServiceLogger();
+    const consoleDebugSpy = vi.spyOn(console, "debug").mockImplementation(
+      () => {},
+    );
+
+    fetchMock.mockResolvedValueOnce(
+      createResponse({
+        data: [{ id: "event-1", name: "Event" }],
+        paging: { next: null },
+      }),
+    );
+
+    await getPageEvents("page-1", "token", "upcoming");
+    expect(consoleDebugSpy).toHaveBeenCalled();
+    consoleDebugSpy.mockRestore();
+  });
+
+  it("detects token expired error from 401 status without error code", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        {}, // No error object, just 401 status
+        { ok: false, status: 401 },
+      ),
+    );
+
+    await expect(getUserPages("expired-token")).rejects.toThrow(
+      /Facebook token invalid/,
+    );
+  });
+
+  it("handles pagination with URL that already has query params", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse({
+          data: [{ id: "1", name: "Page 1" }],
+          paging: {
+            next:
+              "https://graph.facebook.com/v23.0/me/accounts?existing=param&access_token=token",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          data: [{ id: "2", name: "Page 2" }],
+          paging: { next: null },
+        }),
+      );
+
+    const pages = await getUserPages("token");
+
+    expect(pages).toHaveLength(2);
+    // Should use the URL as-is when it already has query params
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const secondCall = fetchMock.mock.calls[1][0];
+    expect(String(secondCall)).toContain("existing=param");
+  });
+
+  it("throws retry exhausted error when loop completes without returning", async () => {
+    vi.useFakeTimers();
+
+    // Mock fetch to always throw a non-retryable error that doesn't match token error
+    fetchMock.mockImplementation(() => {
+      throw new Error("Network error");
+    });
+
+    // Create promise and immediately attach error handler to prevent unhandled rejection
+    const promise = getUserPages("token");
+    // Attach a catch handler to prevent unhandled rejection warnings
+    promise.catch(() => {
+      // Error will be caught in the test below
+    });
+
+    // Advance timers through retries: attempt 1 delay (1000ms) + attempt 2 delay (2000ms)
+    // Attempt 3 throws "retry exhausted" after the loop completes
+    await vi.advanceTimersByTimeAsync(3000);
+    // Run all pending timers to ensure all async operations complete
+    await vi.runAllTimersAsync();
+
+    // Ensure promise rejection is properly caught
+    await expect(promise).rejects.toThrow(
+      "Facebook API retry attempts exhausted",
+    );
+
+    vi.useRealTimers();
   });
 });

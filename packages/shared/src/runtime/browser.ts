@@ -31,7 +31,7 @@ export const createBrowserRuntimeConfig = (
   env: BrowserEnvLike,
   options: { fallbackBackendUrl?: string } = {},
 ): BrowserRuntimeConfig => {
-  const nodeEnv = env.MODE ?? env.NODE_ENV ?? DEFAULT_ENVIRONMENT;
+  const nodeEnv = env.NODE_ENV ?? env.MODE ?? DEFAULT_ENVIRONMENT;
 
   const backendUrl =
     (typeof env.VITE_BACKEND_URL === "string" && env.VITE_BACKEND_URL.trim()) ||

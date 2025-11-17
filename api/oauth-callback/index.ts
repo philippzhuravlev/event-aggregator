@@ -39,7 +39,7 @@ import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer"
 
 type LogLevel = "info" | "warn" | "error" | "debug";
 
-function logEvent(
+export function logEvent(
   level: LogLevel,
   message: string,
   metadata: Record<string, unknown> = {},

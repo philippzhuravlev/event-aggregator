@@ -121,6 +121,10 @@ async function withRetry<T>(
     try {
       const response = await apiCall();
 
+      if (!response) {
+        throw new Error("No response received from Facebook API");
+      }
+
       if (!response.ok) {
         const data = await response.json() as FacebookErrorResponse;
 
@@ -132,6 +136,12 @@ async function withRetry<T>(
           });
           throw new Error(`Facebook token invalid (${errorCode})`);
         }
+
+        const apiError = new Error(
+          `Facebook API error: ${response.status} - ${
+            data?.error?.message ?? "Unknown error"
+          }`,
+        );
 
         if (isRetryableError(response.status) && attempt < maxRetries) {
           const delayMs = FACEBOOK_CONFIG.RETRY_DELAY_MS *
@@ -146,6 +156,7 @@ async function withRetry<T>(
           continue;
         }
 
+        // Non-retryable error or last attempt for retryable error - throw immediately
         logError(
           "Facebook API responded with an error",
           null,
@@ -154,19 +165,40 @@ async function withRetry<T>(
             message: data?.error?.message,
           },
         );
-        throw new Error(
-          `Facebook API error: ${response.status} - ${
-            data?.error?.message ?? "Unknown error"
-          }`,
-        );
+        throw apiError;
       }
 
       return await response.json() as T;
     } catch (error) {
-      if (
-        attempt < maxRetries &&
-        !(error instanceof Error && error.message.includes("token"))
-      ) {
+      const isTokenError = error instanceof Error &&
+        error.message.includes("token");
+      const isApiError = error instanceof Error &&
+        error.message.startsWith("Facebook API error:");
+
+      // Token errors should be thrown immediately
+      if (isTokenError) {
+        throw error;
+      }
+
+      // For API errors, check if they're retryable
+      if (isApiError && error instanceof Error) {
+        // Extract status code from error message: "Facebook API error: 400 - ..."
+        const statusMatch = error.message.match(/Facebook API error: (\d+)/);
+        if (statusMatch) {
+          const status = parseInt(statusMatch[1], 10);
+          // Non-retryable API errors should be thrown immediately
+          if (!isRetryableError(status)) {
+            throw error;
+          }
+          // Retryable API error on last attempt - throw the error
+          if (attempt === maxRetries) {
+            throw error;
+          }
+        }
+      }
+
+      // For network errors or other non-API errors, retry if we have attempts left
+      if (attempt < maxRetries) {
         const delayMs = FACEBOOK_CONFIG.RETRY_DELAY_MS *
           Math.pow(2, attempt - 1);
         logWarn("Facebook API request failed - retrying", {
@@ -177,11 +209,10 @@ async function withRetry<T>(
         await sleep(delayMs);
         continue;
       }
-
-      throw error;
     }
   }
 
+  // Only reach here if we've exhausted retries for network errors
   throw new Error("Facebook API retry attempts exhausted");
 }
 
