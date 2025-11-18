@@ -218,4 +218,98 @@ describe("event-normalizer-util", () => {
 
     expect(normalized.page_id).toBe(0);
   });
+
+  it("handles event with cover but no id", () => {
+    const event: FacebookEvent = {
+      ...baseEvent,
+      cover: {
+        source: "https://facebook.com/image.jpg",
+        offset_x: 0,
+        offset_y: 0,
+        // No id field
+      } as FacebookEvent["cover"],
+    };
+
+    const normalized = normalizeEvent(event, "42");
+
+    expect(normalized.event_data.cover).toEqual({
+      source: "https://facebook.com/image.jpg",
+      id: undefined,
+    });
+  });
+
+  it("handles event with coverImageUrl but no cover in event", () => {
+    const normalized = normalizeEvent(
+      baseEvent,
+      "42",
+      "https://cdn.example.com/processed.jpg",
+    );
+
+    expect(normalized.event_data.cover).toEqual({
+      source: "https://cdn.example.com/processed.jpg",
+      id: undefined,
+    });
+  });
+
+  it("handles event with coverImageUrl null and no cover in event", () => {
+    const normalized = normalizeEvent(baseEvent, "42", null);
+
+    expect(normalized.event_data.cover).toBeUndefined();
+  });
+
+  it("handles event with coverImageUrl null but cover exists in event", () => {
+    const event: FacebookEvent = {
+      ...baseEvent,
+      cover: {
+        id: "cover-1",
+        source: "https://facebook.com/image.jpg",
+        offset_x: 0,
+        offset_y: 0,
+      },
+    };
+
+    const normalized = normalizeEvent(event, "42", null);
+
+    expect(normalized.event_data.cover).toEqual({
+      source: "https://facebook.com/image.jpg",
+      id: "cover-1",
+    });
+  });
+
+  it("handles event with all fields including empty description", () => {
+    const event: FacebookEvent = {
+      ...baseEvent,
+      description: "",
+    };
+
+    const normalized = normalizeEvent(event, "42");
+
+    expect(normalized.event_data.description).toBe("");
+  });
+
+  it("handles event with all fields including empty end_time", () => {
+    const event: FacebookEvent = {
+      ...baseEvent,
+      end_time: "",
+    };
+
+    const normalized = normalizeEvent(event, "42");
+
+    expect(normalized.event_data.end_time).toBe("");
+  });
+
+  it("handles event with all fields including place with only name", () => {
+    const event: FacebookEvent = {
+      ...baseEvent,
+      place: {
+        name: "Venue",
+      },
+    };
+
+    const normalized = normalizeEvent(event, "42");
+
+    expect(normalized.event_data.place).toEqual({
+      name: "Venue",
+    });
+  });
 });

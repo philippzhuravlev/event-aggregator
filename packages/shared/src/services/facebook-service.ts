@@ -102,15 +102,15 @@ function isTokenExpiredError(
   status: number,
   data: FacebookErrorResponse,
 ): boolean {
-  if (data?.error) {
-    return data.error.code === ERROR_CODES.FACEBOOK_TOKEN_INVALID;
+  if (data?.error?.code === ERROR_CODES.FACEBOOK_TOKEN_INVALID) {
+    return true;
   }
   return status === 401;
 }
 
 function isRetryableError(status: number): boolean {
   return status === ERROR_CODES.FACEBOOK_RATE_LIMIT ||
-    (status >= SERVER_ERROR_RANGE.MIN && status < SERVER_ERROR_RANGE.MAX);
+    (status >= SERVER_ERROR_RANGE.MIN && status <= SERVER_ERROR_RANGE.MAX);
 }
 
 async function withRetry<T>(
@@ -126,7 +126,16 @@ async function withRetry<T>(
       }
 
       if (!response.ok) {
-        const data = await response.json() as FacebookErrorResponse;
+        let data: FacebookErrorResponse;
+        try {
+          data = await response.json() as FacebookErrorResponse;
+        } catch (jsonError) {
+          throw new Error(
+            `JSON parse error: ${
+              jsonError instanceof Error ? jsonError.message : String(jsonError)
+            }`,
+          );
+        }
 
         if (isTokenExpiredError(response.status, data)) {
           const errorCode = data?.error?.code ?? "unknown";
@@ -168,15 +177,37 @@ async function withRetry<T>(
         throw apiError;
       }
 
-      return await response.json() as T;
+      try {
+        return await response.json() as T;
+      } catch (jsonError) {
+        throw new Error(
+          `JSON parse error: ${
+            jsonError instanceof Error ? jsonError.message : String(jsonError)
+          }`,
+        );
+      }
     } catch (error) {
       const isTokenError = error instanceof Error &&
         error.message.includes("token");
       const isApiError = error instanceof Error &&
         error.message.startsWith("Facebook API error:");
+      const isNoResponseError = error instanceof Error &&
+        error.message === "No response received from Facebook API";
+      const isJsonParseError = error instanceof Error &&
+        error.message.startsWith("JSON parse error:");
 
       // Token errors should be thrown immediately
       if (isTokenError) {
+        throw error;
+      }
+
+      // No response errors should be thrown immediately (not retryable)
+      if (isNoResponseError) {
+        throw error;
+      }
+
+      // JSON parse errors should be thrown immediately (not retryable)
+      if (isJsonParseError) {
         throw error;
       }
 
@@ -195,6 +226,8 @@ async function withRetry<T>(
             throw error;
           }
         }
+        // API error without status code - treat as network error and retry
+        // (fall through to network error retry logic)
       }
 
       // For network errors or other non-API errors, retry if we have attempts left

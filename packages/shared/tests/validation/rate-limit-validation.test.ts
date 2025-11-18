@@ -527,5 +527,185 @@ describe("rate-limit-validation", () => {
 
       vi.useRealTimers();
     });
+
+    it("resets a key correctly", () => {
+      const limiter = new TokenBucketRateLimiter();
+      limiter.configure(2, 2 / 1000);
+
+      limiter.check("key1");
+      limiter.check("key1");
+      expect(limiter.check("key1")).toBe(false);
+
+      limiter.reset("key1");
+      // After reset, should have full capacity again
+      expect(limiter.check("key1")).toBe(true);
+    });
+
+    it("handles getStatus for non-existent key", () => {
+      const limiter = new TokenBucketRateLimiter();
+      limiter.configure(10, 10 / 1000);
+
+      const status = limiter.getStatus("nonexistent");
+      expect(status.tokens).toBe(10);
+      expect(status.capacity).toBe(10);
+    });
+  });
+
+  describe("BruteForceProtection edge cases", () => {
+    it("handles recordFailure for new key", () => {
+      const protection = new BruteForceProtection();
+      protection.configure({ maxAttempts: 3, lockoutMs: 1000 });
+
+      const entry = protection.recordFailure("new-key");
+      expect(entry.attempts).toBe(1);
+      expect(entry.lockedUntil).toBeUndefined();
+    });
+
+    it("handles isLocked for non-existent key", () => {
+      const protection = new BruteForceProtection();
+      expect(protection.isLocked("nonexistent")).toBe(false);
+    });
+
+    it("handles isLocked when entry exists but no lockedUntil", () => {
+      const protection = new BruteForceProtection();
+      protection.configure({ maxAttempts: 5, lockoutMs: 1000 });
+
+      protection.recordFailure("key1");
+      expect(protection.isLocked("key1")).toBe(false);
+    });
+
+    it("handles configure with only maxAttempts", () => {
+      const protection = new BruteForceProtection();
+      protection.configure({ maxAttempts: 3 });
+
+      // Should use default lockoutMs
+      protection.recordFailure("key1");
+      protection.recordFailure("key1");
+      protection.recordFailure("key1");
+      expect(protection.isLocked("key1")).toBe(true);
+    });
+
+    it("handles configure with only lockoutMs", () => {
+      const protection = new BruteForceProtection();
+      protection.configure({ lockoutMs: 5000 });
+
+      // Should use default maxAttempts (5)
+      for (let i = 0; i < 4; i++) {
+        protection.recordFailure("key1");
+        expect(protection.isLocked("key1")).toBe(false);
+      }
+      protection.recordFailure("key1");
+      expect(protection.isLocked("key1")).toBe(true);
+    });
+
+    it("handles configure with empty options", () => {
+      const protection = new BruteForceProtection();
+      protection.configure({});
+
+      // Should use defaults
+      for (let i = 0; i < 4; i++) {
+        protection.recordFailure("key1");
+        expect(protection.isLocked("key1")).toBe(false);
+      }
+      protection.recordFailure("key1");
+      expect(protection.isLocked("key1")).toBe(true);
+    });
+  });
+
+  describe("getClientIp edge cases", () => {
+    it("handles x-forwarded-for with multiple IPs (takes first)", () => {
+      const request = new Request("https://example.com", {
+        headers: { "x-forwarded-for": "192.168.1.1, 10.0.0.1, 172.16.0.1" },
+      });
+
+      expect(getClientIp(request)).toBe("192.168.1.1, 10.0.0.1, 172.16.0.1");
+    });
+
+    it("handles x-forwarded-for with whitespace", () => {
+      const request = new Request("https://example.com", {
+        headers: { "x-forwarded-for": "  192.168.1.1  " },
+      });
+
+      // Request API trims whitespace from header values
+      expect(getClientIp(request)).toBe("192.168.1.1");
+    });
+
+    it("handles cf-connecting-ip when x-forwarded-for is missing", () => {
+      const request = new Request("https://example.com", {
+        headers: { "cf-connecting-ip": "10.0.0.1" },
+      });
+
+      expect(getClientIp(request)).toBe("10.0.0.1");
+    });
+
+    it("handles x-real-ip when other headers are missing", () => {
+      const request = new Request("https://example.com", {
+        headers: { "x-real-ip": "172.16.0.1" },
+      });
+
+      expect(getClientIp(request)).toBe("172.16.0.1");
+    });
+  });
+
+  describe("getRateLimitHeaders edge cases", () => {
+    it("handles status with only limit", () => {
+      const status = { limit: 100 };
+      const headers = getRateLimitHeaders(status);
+
+      expect(headers["X-RateLimit-Limit"]).toBe("100");
+      expect(headers["Retry-After"]).toBe("60");
+    });
+
+    it("handles status with resetAt in the past", () => {
+      vi.useFakeTimers();
+      const resetAt = Date.now() - 1000; // 1 second ago
+
+      const headers = getRateLimitHeaders({ resetAt });
+
+      expect(parseInt(headers["Retry-After"])).toBeGreaterThanOrEqual(0);
+
+      vi.useRealTimers();
+    });
+
+    it("handles status with zero remaining", () => {
+      const status = {
+        limit: 100,
+        used: 100,
+        remaining: 0,
+        resetAt: Date.now() + 60000,
+      };
+
+      const headers = getRateLimitHeaders(status);
+
+      expect(headers["X-RateLimit-Remaining"]).toBe("0");
+    });
+  });
+
+  describe("getRateLimitExceededResponse edge cases", () => {
+    it("handles resetAt in the past", () => {
+      vi.useFakeTimers();
+      const resetAt = Date.now() - 1000; // 1 second ago
+
+      const response = getRateLimitExceededResponse(resetAt);
+
+      expect(response.status).toBe(429);
+      const retryAfter = parseInt(response.headers.get("Retry-After") || "0");
+      expect(retryAfter).toBeGreaterThanOrEqual(0);
+
+      vi.useRealTimers();
+    });
+
+    it("handles resetAt exactly at current time", () => {
+      vi.useFakeTimers();
+      const resetAt = Date.now();
+
+      const response = getRateLimitExceededResponse(resetAt);
+
+      expect(response.status).toBe(429);
+      const retryAfter = parseInt(response.headers.get("Retry-After") || "0");
+      expect(retryAfter).toBeGreaterThanOrEqual(0);
+
+      vi.useRealTimers();
+    });
   });
 });

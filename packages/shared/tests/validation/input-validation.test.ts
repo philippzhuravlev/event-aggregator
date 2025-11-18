@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   containsSqlKeywords,
   detectSuspiciousPatterns,
@@ -14,9 +14,23 @@ import {
 } from "../../src/validation/input-validation.ts";
 
 describe("input-validation", () => {
+  let originalStringReplace: typeof String.prototype.replace | undefined;
+
   beforeEach(() => {
     // Reset logger to default before each test
     setInputValidationLogger(null);
+    // Store original String.prototype.replace in case it gets modified
+    originalStringReplace = String.prototype.replace;
+  });
+
+  afterEach(() => {
+    // Ensure String.prototype.replace is always restored
+    if (
+      originalStringReplace &&
+      String.prototype.replace !== originalStringReplace
+    ) {
+      String.prototype.replace = originalStringReplace;
+    }
   });
 
   describe("sanitizeHtml", () => {
@@ -85,9 +99,35 @@ describe("input-validation", () => {
       const warnSpy = vi.fn();
       setInputValidationLogger({ warn: warnSpy });
 
-      // Create a scenario that might cause an error (malformed HTML)
-      const result = sanitizeHtml("<p>Test</p>");
-      expect(result).toBeDefined();
+      // Mock String.replace to throw an error to trigger the catch block
+      // Use a counter to throw only on the first call (in sanitizeHtml),
+      // then allow escapeHtml to work normally
+      const originalReplace = String.prototype.replace;
+      let callCount = 0;
+      try {
+        String.prototype.replace = vi.fn(
+          function (this: string, ...args: unknown[]) {
+            callCount++;
+            // Throw on first call to trigger error in sanitizeHtml
+            if (callCount === 1) {
+              throw new Error("Replace error");
+            }
+            // For subsequent calls (in escapeHtml), use original implementation
+            // Use type assertion to work around strict overload checking
+            return (originalReplace as (...args: unknown[]) => string).apply(
+              this,
+              args,
+            );
+          },
+        ) as typeof String.prototype.replace;
+
+        const result = sanitizeHtml("<p>Test</p>");
+        expect(result).toBeDefined();
+        expect(warnSpy).toHaveBeenCalled();
+      } finally {
+        // Always restore original replace, even if test fails
+        String.prototype.replace = originalReplace;
+      }
     });
   });
 
@@ -440,6 +480,12 @@ describe("input-validation", () => {
       // Should not throw
       sanitizeHtml("<p>test</p>");
     });
+
+    it("uses default logger when custom logger has no warn method", () => {
+      setInputValidationLogger({});
+      // Should not throw and should use default logger
+      sanitizeHtml("<p>test</p>");
+    });
   });
 
   describe("sanitizeHtml edge cases", () => {
@@ -668,6 +714,95 @@ describe("input-validation", () => {
 
     it("handles mixed case keywords", () => {
       expect(containsSqlKeywords("SeLeCt * FrOm users")).toBe(true);
+    });
+  });
+
+  describe("sanitizeHtml additional edge cases", () => {
+    it("handles tags with no attributes", () => {
+      const html = "<p>Test</p><div>Content</div>";
+      const sanitized = sanitizeHtml(html);
+      expect(sanitized).toContain("<p>");
+      expect(sanitized).toContain("<div>");
+    });
+
+    it("handles self-closing tags", () => {
+      const html = "<br/><hr/>";
+      const sanitized = sanitizeHtml(html);
+      // Should preserve safe self-closing tags
+      expect(sanitized).toBeDefined();
+    });
+
+    it("handles tags with only dangerous attributes", () => {
+      const html = '<div onclick="alert(1)">Content</div>';
+      const sanitized = sanitizeHtml(html);
+      expect(sanitized).not.toContain("onclick");
+      expect(sanitized).toContain("Content");
+    });
+
+    it("handles mixed case dangerous tags", () => {
+      const html = "<SCRIPT>alert('xss')</SCRIPT>";
+      const sanitized = sanitizeHtml(html);
+      expect(sanitized).not.toContain("<SCRIPT>");
+    });
+
+    it("handles tags with multiple dangerous attributes", () => {
+      const html =
+        '<div onclick="alert(1)" onload="alert(2)" onerror="alert(3)">Content</div>';
+      const sanitized = sanitizeHtml(html);
+      expect(sanitized).not.toContain("onclick");
+      expect(sanitized).not.toContain("onload");
+      expect(sanitized).not.toContain("onerror");
+    });
+
+    it("handles protocol removal from different attributes", () => {
+      const html =
+        '<a href="javascript:alert(1)">Link</a><img src="javascript:alert(2)">';
+      const sanitized = sanitizeHtml(html);
+      expect(sanitized).not.toContain("javascript:");
+    });
+  });
+
+  describe("sanitizeInput additional edge cases", () => {
+    it("handles whitespace-only input", () => {
+      expect(sanitizeInput("   ", "text")).toBe("");
+    });
+
+    it("handles input with only special characters for email", () => {
+      expect(sanitizeInput("!@#$%", "email")).toBe("@");
+    });
+
+    it("handles input with only special characters for url", () => {
+      // All characters in "!@#$%" are URL-safe according to the regex
+      // !, @, #, $, and % are all in the allowed character set
+      expect(sanitizeInput("!@#$%", "url")).toBe("!@#$%");
+    });
+
+    it("handles input with only special characters for number", () => {
+      expect(sanitizeInput("!@#$%", "number")).toBe("");
+    });
+
+    it("handles input with only special characters for alphanumeric", () => {
+      expect(sanitizeInput("!@#$%", "alphanumeric")).toBe("");
+    });
+  });
+
+  describe("validateInputComplexity additional edge cases", () => {
+    it("handles empty string with requirements", () => {
+      const result = validateInputComplexity("", 1, 1, 1, 1);
+      expect(result.valid).toBe(false);
+      expect(result.missing.length).toBe(4);
+    });
+
+    it("handles input with exactly minimum requirements", () => {
+      const result = validateInputComplexity("A1!", 1, 0, 1, 1);
+      expect(result.valid).toBe(true);
+    });
+
+    it("handles input exceeding all requirements", () => {
+      const result = validateInputComplexity("AAaa11!!", 1, 1, 1, 1);
+      expect(result.valid).toBe(true);
+      // Score is sum of character counts: 2 uppercase + 2 lowercase + 2 numbers + 2 special = 8
+      expect(result.score).toBeGreaterThanOrEqual(8);
     });
   });
 });

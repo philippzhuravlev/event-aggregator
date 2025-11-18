@@ -303,12 +303,19 @@ export class BruteForceProtection {
 }
 
 export function getClientIp(request: Request): string | null {
-  return (
-    request.headers.get("x-forwarded-for") ??
-      request.headers.get("cf-connecting-ip") ??
-      request.headers.get("x-real-ip") ??
-      null
-  );
+  const xForwardedFor = request.headers.get("x-forwarded-for");
+  if (xForwardedFor !== null) {
+    return xForwardedFor;
+  }
+  const cfConnectingIp = request.headers.get("cf-connecting-ip");
+  if (cfConnectingIp !== null) {
+    return cfConnectingIp;
+  }
+  const xRealIp = request.headers.get("x-real-ip");
+  if (xRealIp !== null) {
+    return xRealIp;
+  }
+  return null;
 }
 
 export function getRateLimitHeaders(
@@ -320,10 +327,11 @@ export function getRateLimitHeaders(
   },
   corsOrigin?: string,
 ): Record<string, string> {
+  const retryAfter = status.resetAt
+    ? Math.max(0, Math.ceil((status.resetAt - Date.now()) / 1000))
+    : 60;
   const headers: Record<string, string> = {
-    "Retry-After": status.resetAt
-      ? String(Math.ceil((status.resetAt - Date.now()) / 1000))
-      : "60",
+    "Retry-After": String(retryAfter),
     ...(corsOrigin ? createCorsHeaders(corsOrigin) : { ...BASE_CORS_HEADERS }),
   };
 
@@ -338,7 +346,7 @@ export function getRateLimitHeaders(
   }
   if (status.resetAt !== undefined) {
     headers["X-RateLimit-Reset"] = String(
-      Math.ceil((status.resetAt - Date.now()) / 1000),
+      Math.max(0, Math.ceil((status.resetAt - Date.now()) / 1000)),
     );
   }
 
@@ -349,7 +357,9 @@ export function getRateLimitExceededResponse(
   resetAt?: number,
   corsOrigin?: string,
 ): Response {
-  const retryAfter = resetAt ? Math.ceil((resetAt - Date.now()) / 1000) : 60;
+  const retryAfter = resetAt
+    ? Math.max(0, Math.ceil((resetAt - Date.now()) / 1000))
+    : 60;
 
   return new Response(
     JSON.stringify({

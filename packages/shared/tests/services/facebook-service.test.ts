@@ -990,4 +990,419 @@ describe("services/facebook-service", () => {
 
     vi.useRealTimers();
   });
+
+  it("handles null response from fetch", async () => {
+    fetchMock.mockResolvedValueOnce(null as unknown as Response);
+
+    await expect(getUserPages("token")).rejects.toThrow(
+      "No response received from Facebook API",
+    );
+  });
+
+  it("handles error response without error object", async () => {
+    // Mock responses for all retry attempts (MAX_RETRIES = 3)
+    // All attempts will fail with the same error, and on the last attempt it will throw
+    for (let i = 0; i < 3; i++) {
+      fetchMock.mockResolvedValueOnce(
+        createResponse(
+          {}, // No error object
+          { ok: false, status: 500 },
+        ),
+      );
+    }
+
+    await expect(getUserPages("token")).rejects.toThrow(
+      /Facebook API error: 500 - Unknown error/,
+    );
+  });
+
+  it("handles error response with error object but no code", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        {
+          error: {
+            message: "Some error",
+            // No code field
+          },
+        },
+        { ok: false, status: 400 },
+      ),
+    );
+
+    await expect(getUserPages("token")).rejects.toThrow(
+      /Facebook API error: 400 - Some error/,
+    );
+  });
+
+  it("handles token error with missing error code", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        {
+          error: {
+            // No code, but status is 401
+            message: "Token invalid",
+          },
+        },
+        { ok: false, status: 401 },
+      ),
+    );
+
+    await expect(getUserPages("token")).rejects.toThrow(
+      /Facebook token invalid \(unknown\)/,
+    );
+  });
+
+  it("handles retryable API error that becomes non-retryable in catch block", async () => {
+    vi.useFakeTimers();
+
+    // First attempt: retryable error (500)
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        { error: { message: "Server error" } },
+        { ok: false, status: 500 },
+      ),
+    );
+
+    // Second attempt: non-retryable error (400) - this should be thrown immediately
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        { error: { message: "Bad request" } },
+        { ok: false, status: 400 },
+      ),
+    );
+
+    // Create promise and immediately attach error handler to prevent unhandled rejection
+    const promise = getUserPages("token");
+    // Attach a catch handler to prevent unhandled rejection warnings
+    promise.catch(() => {
+      // Error will be caught in the test below
+    });
+
+    await vi.advanceTimersByTimeAsync(1000);
+    // Run all pending timers to ensure all async operations complete
+    await vi.runAllTimersAsync();
+
+    // Ensure promise rejection is properly caught
+    await expect(promise).rejects.toThrow(/Facebook API error: 400/);
+
+    vi.useRealTimers();
+  });
+
+  it("handles API error in catch block without status match", async () => {
+    vi.useFakeTimers();
+
+    // Create an error that looks like an API error but doesn't match the pattern
+    fetchMock.mockImplementationOnce(() => {
+      throw new Error("Facebook API error: invalid format");
+    });
+
+    // Should retry as network error - mock the successful response before retry
+    fetchMock.mockResolvedValueOnce(
+      createResponse({ data: [{ id: "1", name: "Page" }] }),
+    );
+
+    const promise = getUserPages("token");
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(1000);
+    const pages = await promise;
+
+    expect(pages).toEqual([{ id: "1", name: "Page" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it("handles retryable error on last attempt in catch block", async () => {
+    vi.useFakeTimers();
+
+    // Mock to throw a retryable API error (500) on all attempts
+    fetchMock.mockImplementation(() => {
+      throw new Error("Facebook API error: 500 - Server error");
+    });
+
+    const promise = getUserPages("token");
+    promise.catch(() => {}); // Prevent unhandled rejection
+
+    // Advance through all retries
+    await vi.advanceTimersByTimeAsync(3000);
+    await vi.runAllTimersAsync();
+
+    await expect(promise).rejects.toThrow(/Facebook API error: 500/);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    vi.useRealTimers();
+  });
+
+  it("handles getPageEvents with URL already containing query params", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse({
+          data: [{ id: "event-1", name: "Event 1" }],
+          paging: {
+            next:
+              "https://graph.facebook.com/v23.0/page-1/events?access_token=token&after=cursor",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          data: [{ id: "event-2", name: "Event 2" }],
+        }),
+      );
+
+    const events = await getPageEvents("page-1", "access-token", "upcoming");
+
+    expect(events).toEqual([
+      { id: "event-1", name: "Event 1" },
+      { id: "event-2", name: "Event 2" },
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("handles getUserPages with empty paging object", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse({
+        data: [{ id: "1", name: "Page 1" }],
+        paging: {}, // Empty paging object
+      }),
+    );
+
+    const pages = await getUserPages("access-token");
+
+    expect(pages).toEqual([{ id: "1", name: "Page 1" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles getPageEvents with empty paging object", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse({
+        data: [{ id: "event-1", name: "Event 1" }],
+        paging: {}, // Empty paging object
+      }),
+    );
+
+    const events = await getPageEvents("page-1", "access-token", "upcoming");
+
+    expect(events).toEqual([{ id: "event-1", name: "Event 1" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles getAllRelevantEvents with custom daysBack", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-06-01T00:00:00Z"));
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("time_filter=upcoming")) {
+        return Promise.resolve(createResponse({ data: [] }));
+      }
+      if (url.includes("time_filter=past")) {
+        return Promise.resolve(
+          createResponse({
+            data: [
+              {
+                id: "event-recent",
+                name: "Recent",
+                start_time: "2024-05-20T10:00:00Z", // 12 days ago
+              },
+              {
+                id: "event-old",
+                name: "Old",
+                start_time: "2024-04-01T10:00:00Z", // 61 days ago
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+
+    const events = await getAllRelevantEvents("page-1", "access-token", 30);
+
+    expect(events).toEqual([
+      {
+        id: "event-recent",
+        name: "Recent",
+        start_time: "2024-05-20T10:00:00Z",
+      },
+    ]);
+
+    vi.useRealTimers();
+  });
+
+  it("handles getAllRelevantEvents with zero daysBack", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-06-01T00:00:00Z"));
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("time_filter=upcoming")) {
+        return Promise.resolve(
+          createResponse({
+            data: [
+              {
+                id: "event-upcoming",
+                name: "Upcoming",
+                start_time: "2024-06-05T10:00:00Z",
+              },
+            ],
+          }),
+        );
+      }
+      if (url.includes("time_filter=past")) {
+        return Promise.resolve(
+          createResponse({
+            data: [
+              {
+                id: "event-past",
+                name: "Past",
+                start_time: "2024-05-31T23:59:59Z", // Just before cutoff
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+
+    const events = await getAllRelevantEvents("page-1", "access-token", 0);
+
+    // With 0 daysBack, only upcoming events should be included
+    expect(events).toEqual([
+      {
+        id: "event-upcoming",
+        name: "Upcoming",
+        start_time: "2024-06-05T10:00:00Z",
+      },
+    ]);
+
+    vi.useRealTimers();
+  });
+
+  it("handles response.json() throwing an error", async () => {
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      json: vi.fn().mockRejectedValue(new Error("JSON parse error")),
+    } as unknown as Response;
+
+    fetchMock.mockResolvedValueOnce(mockResponse);
+
+    await expect(getUserPages("token")).rejects.toThrow("JSON parse error");
+  });
+
+  it("handles response.json() throwing an error for error response", async () => {
+    const mockResponse = {
+      ok: false,
+      status: 500,
+      json: vi.fn().mockRejectedValue(new Error("JSON parse error")),
+    } as unknown as Response;
+
+    fetchMock.mockResolvedValueOnce(mockResponse);
+
+    await expect(getUserPages("token")).rejects.toThrow("JSON parse error");
+  });
+
+  it("handles isRetryableError with status at SERVER_ERROR_RANGE.MIN", async () => {
+    // Test that status 500 (SERVER_ERROR_RANGE.MIN) is retryable
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        { error: { message: "Server error" } },
+        { ok: false, status: 500 },
+      ),
+    );
+
+    // Should retry
+    fetchMock.mockResolvedValueOnce(
+      createResponse({ data: [{ id: "1", name: "Page" }] }),
+    );
+
+    vi.useFakeTimers();
+    const promise = getUserPages("token");
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const pages = await promise;
+    expect(pages).toEqual([{ id: "1", name: "Page" }]);
+
+    vi.useRealTimers();
+  });
+
+  it("handles isRetryableError with status just below SERVER_ERROR_RANGE.MAX", async () => {
+    // Test that status 599 (just below SERVER_ERROR_RANGE.MAX) is retryable
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        { error: { message: "Server error" } },
+        { ok: false, status: 599 },
+      ),
+    );
+
+    // Should retry
+    fetchMock.mockResolvedValueOnce(
+      createResponse({ data: [{ id: "1", name: "Page" }] }),
+    );
+
+    vi.useFakeTimers();
+    const promise = getUserPages("token");
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const pages = await promise;
+    expect(pages).toEqual([{ id: "1", name: "Page" }]);
+
+    vi.useRealTimers();
+  });
+
+  it("handles non-retryable error status 600", async () => {
+    // Status 600 is above SERVER_ERROR_RANGE.MAX, should not retry
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        { error: { message: "Error" } },
+        { ok: false, status: 600 },
+      ),
+    );
+
+    await expect(getUserPages("token")).rejects.toThrow(
+      /Facebook API error: 600/,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles default logger with metadata for error", async () => {
+    setFacebookServiceLogger();
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(
+      () => {},
+    );
+
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        { error: { message: "Error", code: 100 } },
+        { ok: false, status: 400 },
+      ),
+    );
+
+    await expect(getUserPages("token")).rejects.toThrow();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("handles default logger without metadata for error", async () => {
+    setFacebookServiceLogger();
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(
+      () => {},
+    );
+
+    // Create a scenario that logs error without metadata
+    fetchMock.mockResolvedValueOnce(
+      createResponse(
+        { error: { message: "Error" } },
+        { ok: false, status: 400 },
+      ),
+    );
+
+    await expect(getUserPages("token")).rejects.toThrow();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
 });
