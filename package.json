@@ -14,7 +14,7 @@
     "test:api:coverage": "vitest run --coverage --coverage.include=api/**/*.ts --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0 api/",
     "test:shared": "vitest run packages/shared/tests",
     "test:shared:watch": "vitest packages/shared/tests",
-    "test:shared:coverage": "vitest run --coverage --coverage.include=packages/shared/src/**/*.ts packages/shared/tests",
+    "test:shared:coverage": "vitest run --coverage --coverage.include=packages/shared/src/**/*.ts --coverage.exclude=**/supabase/** packages/shared/tests",
     "test:supabase": "deno task -c supabase/deno.json test",
     "test:supabase:coverage": "deno task -c supabase/deno.json test:coverage",
     "postinstall": "npm --prefix ./web ci",

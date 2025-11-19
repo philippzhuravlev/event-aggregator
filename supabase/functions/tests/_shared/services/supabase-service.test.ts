@@ -12,6 +12,7 @@ import type {
   DatabasePage,
   NormalizedEvent,
 } from "@event-aggregator/shared/types.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type MockQueryResult<T> = {
   data: T | null;
@@ -643,9 +644,13 @@ Deno.test("deleteOldEvents throws error when delete fails", async () => {
   });
   const beforeDate = new Date();
   beforeDate.setDate(beforeDate.getDate() - 90);
-  // deno-lint-ignore no-explicit-any
   await assertRejects(
-    async () => await deleteOldEvents(supabase as any, beforeDate, false),
+    async () =>
+      await deleteOldEvents(
+        supabase as unknown as SupabaseClient,
+        beforeDate,
+        false,
+      ),
     Error,
     "Failed to delete old events from Supabase",
   );

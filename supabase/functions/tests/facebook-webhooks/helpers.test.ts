@@ -1,15 +1,13 @@
+import { assertEquals, assertExists } from "std/assert/mod.ts";
 import {
-  assertEquals,
-  assertExists,
-} from "std/assert/mod.ts";
-import {
-  shouldProcessEventType,
   isWebhookRateLimited,
   normalizeWebhookChange,
   processWebhookChanges,
-  setWebhookHelperDeps,
   resetWebhookHelperDeps,
+  setWebhookHelperDeps,
+  shouldProcessEventType,
 } from "../../facebook-webhooks/helpers.ts";
+import type { FacebookEvent } from "@event-aggregator/shared/types.ts";
 
 function createBasicSupabaseMock() {
   return {
@@ -170,10 +168,11 @@ Deno.test("processWebhookChanges processes deleted events", async () => {
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: { decrypted_secret: "test-token" },
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: { decrypted_secret: "test-token" },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -215,10 +214,11 @@ Deno.test("processWebhookChanges skips unprocessed event types", async () => {
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: { decrypted_secret: "test-token" },
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: { decrypted_secret: "test-token" },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -262,10 +262,11 @@ Deno.test("processWebhookChanges handles missing event ID", async () => {
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: { decrypted_secret: "test-token" },
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: { decrypted_secret: "test-token" },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -307,10 +308,11 @@ Deno.test("processWebhookChanges handles delete errors", async () => {
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: { decrypted_secret: "test-token" },
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: { decrypted_secret: "test-token" },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -320,9 +322,10 @@ Deno.test("processWebhookChanges handles delete errors", async () => {
       return {
         delete: () => ({
           eq: () => ({
-            eq: () => Promise.resolve({
-              error: { message: "Delete failed" },
-            }),
+            eq: () =>
+              Promise.resolve({
+                error: { message: "Delete failed" },
+              }),
           }),
         }),
       };
@@ -354,10 +357,11 @@ Deno.test("processWebhookChanges handles processing errors", async () => {
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: { decrypted_secret: "test-token" },
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: { decrypted_secret: "test-token" },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -479,10 +483,11 @@ Deno.test("processWebhookChanges processes create events", async () => {
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: { decrypted_secret: "test-token" },
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: { decrypted_secret: "test-token" },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -495,9 +500,13 @@ Deno.test("processWebhookChanges processes create events", async () => {
   };
 
   // Mock getEventDetails and batchWriteEvents
-  const _originalGetEventDetails = await import("@event-aggregator/shared/src/services/facebook-service.ts").then((m) => m.getEventDetails);
-  const _originalBatchWriteEvents = await import("../../_shared/services/supabase-service.ts").then(m => m.batchWriteEvents);
-  
+  const _originalGetEventDetails = await import(
+    "@event-aggregator/shared/src/services/facebook-service.ts"
+  ).then((m) => m.getEventDetails);
+  const _originalBatchWriteEvents = await import(
+    "../../_shared/services/supabase-service.ts"
+  ).then((m) => m.batchWriteEvents);
+
   // We can't easily mock these without refactoring, so we'll test what we can
   // The function will fail when trying to fetch event details, which is expected
   const changes = [
@@ -525,10 +534,11 @@ Deno.test("processWebhookChanges handles missing access token", async () => {
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: null, // No token
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: null, // No token
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -564,10 +574,11 @@ Deno.test("processWebhookChanges handles batch write errors", async () => {
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: { decrypted_secret: "test-token" },
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: { decrypted_secret: "test-token" },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -580,8 +591,10 @@ Deno.test("processWebhookChanges handles batch write errors", async () => {
   };
 
   // Mock batchWriteEvents to throw an error
-  const _originalBatchWriteEvents = await import("../../_shared/services/supabase-service.ts").then(m => m.batchWriteEvents);
-  
+  const _originalBatchWriteEvents = await import(
+    "../../_shared/services/supabase-service.ts"
+  ).then((m) => m.batchWriteEvents);
+
   const changes = [
     {
       field: "events",
@@ -701,10 +714,11 @@ Deno.test("processWebhookChanges handles multiple changes", async () => {
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: { decrypted_secret: "test-token" },
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: { decrypted_secret: "test-token" },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -767,10 +781,11 @@ Deno.test("processWebhookChanges handles change with null value", async () => {
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: { decrypted_secret: "test-token" },
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: { decrypted_secret: "test-token" },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -805,7 +820,10 @@ Deno.test("resolveEventId returns undefined when no valid ID found", () => {
   });
 
   // Should handle missing ID gracefully
-  assertEquals(typeof result.eventId === "string" || result.eventId === undefined, true);
+  assertEquals(
+    typeof result.eventId === "string" || result.eventId === undefined,
+    true,
+  );
 });
 
 Deno.test("resolveEventId prefers id over other fields", () => {
@@ -831,10 +849,11 @@ Deno.test("processWebhookChanges handles delete operation with error", async () 
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: { decrypted_secret: "test-token" },
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: { decrypted_secret: "test-token" },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -845,9 +864,10 @@ Deno.test("processWebhookChanges handles delete operation with error", async () 
         return {
           delete: () => ({
             eq: () => ({
-              eq: () => Promise.resolve({
-                error: { message: "Delete failed" },
-              }),
+              eq: () =>
+                Promise.resolve({
+                  error: { message: "Delete failed" },
+                }),
             }),
           }),
         };
@@ -886,10 +906,11 @@ Deno.test("processWebhookChanges handles event details fetch error", async () =>
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: { decrypted_secret: "test-token" },
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: { decrypted_secret: "test-token" },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -926,10 +947,11 @@ Deno.test("processWebhookChanges handles null event details", async () => {
             eq: () => ({
               order: () => ({
                 limit: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: { decrypted_secret: "test-token" },
-                    error: null,
-                  }),
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: { decrypted_secret: "test-token" },
+                      error: null,
+                    }),
                 }),
               }),
             }),
@@ -1096,7 +1118,7 @@ Deno.test("processWebhookChanges caches access token", async () => {
 Deno.test("processWebhookChanges counts failure when change value missing", async () => {
   await withWebhookDeps(
     {
-      getPageToken: async () => "token-123",
+      getPageToken: () => Promise.resolve("token-123"),
     },
     async () => {
       const supabase = createBasicSupabaseMock();
@@ -1118,9 +1140,9 @@ Deno.test("processWebhookChanges counts failure when change value missing", asyn
 Deno.test("processWebhookChanges handles getEventDetails errors", async () => {
   await withWebhookDeps(
     {
-      getPageToken: async () => "token-123",
-      getEventDetails: async () => {
-        throw new Error("fetch failed");
+      getPageToken: () => Promise.resolve("token-123"),
+      getEventDetails: () => {
+        return Promise.reject(new Error("fetch failed"));
       },
     },
     async () => {
@@ -1143,8 +1165,8 @@ Deno.test("processWebhookChanges handles getEventDetails errors", async () => {
 Deno.test("processWebhookChanges handles missing event details response", async () => {
   await withWebhookDeps(
     {
-      getPageToken: async () => "token-123",
-      getEventDetails: async () => null,
+      getPageToken: () => Promise.resolve("token-123"),
+      getEventDetails: () => Promise.resolve(null as unknown as FacebookEvent),
     },
     async () => {
       const supabase = createBasicSupabaseMock();
@@ -1166,8 +1188,13 @@ Deno.test("processWebhookChanges handles missing event details response", async 
 Deno.test("processWebhookChanges handles normalizeEvent errors", async () => {
   await withWebhookDeps(
     {
-      getPageToken: async () => "token-123",
-      getEventDetails: async () => ({ id: "event-1" }),
+      getPageToken: () => Promise.resolve("token-123"),
+      getEventDetails: () =>
+        Promise.resolve({
+          id: "event-1",
+          name: "Test Event",
+          start_time: new Date().toISOString(),
+        }),
       normalizeEvent: () => {
         throw new Error("normalize boom");
       },
@@ -1192,8 +1219,13 @@ Deno.test("processWebhookChanges handles normalizeEvent errors", async () => {
 Deno.test("processWebhookChanges handles batch write errors", async () => {
   await withWebhookDeps(
     {
-      getPageToken: async () => "token-123",
-      getEventDetails: async () => ({ id: "event-1" }),
+      getPageToken: () => Promise.resolve("token-123"),
+      getEventDetails: () =>
+        Promise.resolve({
+          id: "event-1",
+          name: "Test Event",
+          start_time: new Date().toISOString(),
+        }),
       normalizeEvent: (_eventDetails, _pageId) => ({
         page_id: 1,
         event_id: "event-1",
@@ -1203,8 +1235,8 @@ Deno.test("processWebhookChanges handles batch write errors", async () => {
           start_time: new Date().toISOString(),
         },
       }),
-      batchWriteEvents: async () => {
-        throw new Error("write failed");
+      batchWriteEvents: () => {
+        return Promise.reject(new Error("write failed"));
       },
     },
     async () => {
@@ -1223,5 +1255,3 @@ Deno.test("processWebhookChanges handles batch write errors", async () => {
     },
   );
 });
-
-

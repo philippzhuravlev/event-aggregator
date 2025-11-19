@@ -1,8 +1,5 @@
-import {
-  assertEquals,
-  assertRejects,
-} from "std/assert/mod.ts";
-import { assertSpyCalls, spy, returnsNext, stub } from "std/testing/mock.ts";
+import { assertEquals, assertRejects } from "std/assert/mod.ts";
+import { assertSpyCalls, returnsNext, spy, stub } from "std/testing/mock.ts";
 import { FakeTime } from "std/testing/time.ts";
 import {
   exchangeCodeForToken,
@@ -14,7 +11,11 @@ import {
   setFacebookServiceLogger,
 } from "@event-aggregator/shared/src/services/facebook-service.ts";
 
-type FetchStub = ReturnType<typeof stub<typeof globalThis.fetch>>;
+// Helper function to infer the stub return type
+function createFetchStub() {
+  return stub(globalThis, "fetch", () => Promise.resolve(new Response()));
+}
+type FetchStub = ReturnType<typeof createFetchStub>;
 
 const noopLogger = {
   info: () => {},
@@ -165,7 +166,11 @@ Deno.test("facebook-service surfaces API errors from getPageEvents", async () =>
 
 Deno.test("facebook-service logs invalid token errors and throws immediately", async () => {
   const errorSpy = spy(
-    (_message: string, _error?: Error | null, _metadata?: Record<string, unknown>) => {},
+    (
+      _message: string,
+      _error?: Error | null,
+      _metadata?: Record<string, unknown>,
+    ) => {},
   );
   setFacebookServiceLogger({
     info: () => {},
@@ -208,7 +213,11 @@ Deno.test("facebook-service throws JSON parse error for successful responses", a
     json: () => Promise.reject("Malformed payload"),
   } as unknown as Response;
 
-  const fetchStub = stub(globalThis, "fetch", () => Promise.resolve(mockResponse));
+  const fetchStub = stub(
+    globalThis,
+    "fetch",
+    () => Promise.resolve(mockResponse),
+  );
   try {
     await assertRejects(
       () => getUserPages("token"),
@@ -230,7 +239,11 @@ Deno.test("facebook-service throws JSON parse error for error responses", async 
     json: () => Promise.reject(new Error("Broken JSON")),
   } as unknown as Response;
 
-  const fetchStub = stub(globalThis, "fetch", () => Promise.resolve(mockResponse));
+  const fetchStub = stub(
+    globalThis,
+    "fetch",
+    () => Promise.resolve(mockResponse),
+  );
   try {
     await assertRejects(
       () => getUserPages("token"),
@@ -336,7 +349,11 @@ Deno.test("facebook-service aggregates relevant events", async () => {
       }),
       createJsonResponse({
         data: [
-          { id: "recent", name: "Recent", start_time: new Date().toISOString() },
+          {
+            id: "recent",
+            name: "Recent",
+            start_time: new Date().toISOString(),
+          },
           { id: "old", name: "Old", start_time: "2000-01-01T00:00:00Z" },
         ],
         paging: { next: null },
@@ -431,7 +448,11 @@ Deno.test("facebook-service filters past events without start_time", async () =>
       createJsonResponse({
         data: [
           { id: "no-time", name: "No Time" },
-          { id: "recent", name: "Recent", start_time: new Date().toISOString() },
+          {
+            id: "recent",
+            name: "Recent",
+            start_time: new Date().toISOString(),
+          },
         ],
       }),
     ],
@@ -447,7 +468,7 @@ Deno.test("facebook-service filters past events without start_time", async () =>
 
 Deno.test("facebook-service uses default console logger when custom logger unset", async () => {
   setFacebookServiceLogger();
-  const consoleLog = spy(console, "log", () => {});
+  const consoleLog = stub(console, "log", () => {});
   try {
     await withFetchStub(
       [createJsonResponse({ access_token: "short" })],
@@ -474,7 +495,11 @@ Deno.test("facebook-service removes duplicate events by id", async () => {
     [
       createJsonResponse({
         data: [
-          { id: "event-1", name: "Upcoming", start_time: "2024-06-05T10:00:00Z" },
+          {
+            id: "event-1",
+            name: "Upcoming",
+            start_time: "2024-06-05T10:00:00Z",
+          },
         ],
       }),
       createJsonResponse({
@@ -496,4 +521,3 @@ Deno.test("facebook-service removes duplicate events by id", async () => {
 
   setFacebookServiceLogger();
 });
-

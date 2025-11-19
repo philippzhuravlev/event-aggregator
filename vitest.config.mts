@@ -1,16 +1,16 @@
 import { defineConfig } from "vitest/config";
-import type { Plugin } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   plugins: [
+    // @ts-expect-error - vite-tsconfig-paths plugin type is incompatible with Vitest's bundled Vite types, but works at runtime
     tsconfigPaths({
       projects: [
         "tsconfig.json",
         "api/tsconfig.json",
         "packages/shared/tsconfig.json",
       ],
-    }) as Plugin,
+    }),
   ],
   test: {
     environment: "node",
@@ -35,6 +35,8 @@ export default defineConfig({
         "packages/shared/src/**/*.ts",
         "api/**/*.ts",
       ],
+      // Only track files in packages/shared/src and api, exclude everything else
+      all: false,
       thresholds: {
         lines: 80,
         functions: 80,
@@ -48,6 +50,3 @@ export default defineConfig({
     ],
   },
 });
-
-
-

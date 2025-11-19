@@ -1,7 +1,11 @@
 import { assertEquals, assertThrows } from "std/assert/mod.ts";
-import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer.js";
+import { normalizeEvent } from "@event-aggregator/shared/src/utils/event-normalizer-util.ts";
+import type {
+  FacebookEvent,
+  NormalizedEvent,
+} from "@event-aggregator/shared/types.ts";
 
-const baseEvent = {
+const baseEvent: FacebookEvent = {
   id: "evt_1",
   name: "Sample Event",
   start_time: "2024-05-01T10:00:00Z",
@@ -20,15 +24,17 @@ Deno.test("normalizeEvent includes required identifiers and copies event data", 
 });
 
 Deno.test("normalizeEvent prefers processed cover images when provided", () => {
-  const event = {
+  const event: FacebookEvent = {
     ...baseEvent,
     cover: {
       id: "cover-1",
       source: "https://facebook.com/original.jpg",
+      offset_x: 0,
+      offset_y: 0,
     },
   };
 
-  const normalized = normalizeEvent(
+  const normalized: NormalizedEvent = normalizeEvent(
     event,
     "100",
     "https://cdn.example.com/processed.jpg",
@@ -41,15 +47,17 @@ Deno.test("normalizeEvent prefers processed cover images when provided", () => {
 });
 
 Deno.test("normalizeEvent falls back to facebook cover when processed url missing", () => {
-  const event = {
+  const event: FacebookEvent = {
     ...baseEvent,
     cover: {
       id: "cover-2",
       source: "https://facebook.com/fallback.jpg",
+      offset_x: 0,
+      offset_y: 0,
     },
   };
 
-  const normalized = normalizeEvent(event, "7");
+  const normalized: NormalizedEvent = normalizeEvent(event, "7");
   assertEquals(normalized.event_data.cover, {
     id: "cover-2",
     source: "https://facebook.com/fallback.jpg",
@@ -65,7 +73,7 @@ Deno.test("normalizeEvent throws when page id is not numeric", () => {
 });
 
 Deno.test("normalizeEvent includes optional fields when available", () => {
-  const event = {
+  const event: FacebookEvent = {
     ...baseEvent,
     description: "Extended description",
     end_time: "2024-05-01T12:00:00Z",
@@ -74,17 +82,20 @@ Deno.test("normalizeEvent includes optional fields when available", () => {
     },
   };
 
-  const normalized = normalizeEvent(event, "5");
+  const normalized: NormalizedEvent = normalizeEvent(event, "5");
   assertEquals(normalized.event_data.description, "Extended description");
   assertEquals(normalized.event_data.end_time, "2024-05-01T12:00:00Z");
   assertEquals(normalized.event_data.place, { name: "Venue" });
 });
 
 Deno.test("normalizeEvent omits cover when neither processed or event cover provided", () => {
-  const normalized = normalizeEvent(baseEvent, "12");
+  const normalized: NormalizedEvent = normalizeEvent(baseEvent, "12");
   assertEquals(normalized.event_data.cover, undefined);
 
-  const normalizedWithNullCover = normalizeEvent(baseEvent, "12", null);
+  const normalizedWithNullCover: NormalizedEvent = normalizeEvent(
+    baseEvent,
+    "12",
+    null,
+  );
   assertEquals(normalizedWithNullCover.event_data.cover, undefined);
 });
-

@@ -10,7 +10,7 @@ import {
   getConsoleServiceLogger,
   resolveServiceLogger,
   type ServiceLogger,
-} from "@event-aggregator/shared/services/logger-service.js";
+} from "@event-aggregator/shared/src/services/logger-service.ts";
 
 const FIXED_TIME = "2025-01-01T00:00:00.000Z";
 

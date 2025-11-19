@@ -9,7 +9,7 @@ import {
   TokenBucketRateLimiter,
 } from "@event-aggregator/shared/validation/rate-limit-validation.js";
 import { TokenBucketRateLimiter as ExportedBucket } from "@event-aggregator/shared/validation/index.js";
-import { assert, assertEquals } from "std/assert/mod.ts";
+import { assertEquals } from "std/assert/mod.ts";
 
 Deno.test("SlidingWindowRateLimiter enforces limits and reports status", () => {
   const limiter = new SlidingWindowRateLimiter();
@@ -232,7 +232,7 @@ Deno.test("TokenBucketRateLimiter getStatus returns correct values for new bucke
 
 Deno.test("TokenBucketRateLimiter getStatus returns correct values for existing bucket", () => {
   const originalNow = Date.now;
-  let now = 1000;
+  const now = 1000;
   Date.now = () => now;
 
   try {

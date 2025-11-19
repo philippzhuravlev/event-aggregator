@@ -156,7 +156,7 @@ Deno.test("createSuccessResponse handles missing origin", async () => {
   assertEquals(body.data.ok, true);
 });
 
-Deno.test("createSuccessResponse handles custom status code", async () => {
+Deno.test("createSuccessResponse handles custom status code", () => {
   const response = createSuccessResponse({ ok: true }, 201, "req-123");
   assertEquals(response.status, 201);
 });
@@ -185,7 +185,7 @@ Deno.test("createErrorResponse handles missing parameters", async () => {
   assertEquals(body.success, false);
 });
 
-Deno.test("createErrorResponse with origin includes CORS headers", async () => {
+Deno.test("createErrorResponse with origin includes CORS headers", () => {
   const response = createErrorResponse("Error", 400, "ERROR", "req-123", "https://app.example.com");
   assertEquals(response.headers.get("access-control-allow-origin"), "https://app.example.com");
 });
@@ -202,7 +202,7 @@ Deno.test("createValidationErrorResponse formats field errors", async () => {
   assertEquals(body.errors.field2, ["error3"]);
 });
 
-Deno.test("createTooManyRequestsResponse handles missing origin", async () => {
+Deno.test("createTooManyRequestsResponse handles missing origin", () => {
   const response = createTooManyRequestsResponse(60, "req-123");
   assertEquals(response.status, 429);
   assertEquals(response.headers.get("retry-after"), "60");
