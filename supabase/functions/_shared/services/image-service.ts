@@ -575,6 +575,94 @@ export async function copyFile(
 }
 
 /**
+ * Download an image from a URL and upload it to Supabase Storage
+ * This is useful for storing external images (e.g., from Facebook) in our own storage
+ * to avoid CORS and tracking protection issues
+ *
+ * @param supabase - Supabase client with service role key
+ * @param imageUrl - URL of the image to download
+ * @param bucket - Bucket name (e.g., 'event-images')
+ * @param filePath - File path including filename (e.g., 'events/2025/event-123.jpg')
+ * @param options - Upload options (contentType, cacheControl, upsert)
+ * @returns Object with fileName and URL if successful
+ * @throws Error if download or upload fails
+ */
+export async function downloadAndUploadImage(
+  supabase: SupabaseClient,
+  imageUrl: string,
+  bucket: string,
+  filePath: string,
+  options: UploadOptions = {},
+): Promise<{ fileName: string; url: string }> {
+  try {
+    if (!imageUrl || !bucket || !filePath) {
+      throw new Error("Image URL, bucket name, and file path are required");
+    }
+
+    logger.debug("Downloading image from URL", { imageUrl, bucket, filePath });
+
+    // Download the image from the URL
+    const response = await fetch(imageUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; EventAggregator/1.0)",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to download image: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    // Get the image as a blob
+    const imageBlob = await response.blob();
+
+    // Determine content type from response or file extension
+    let contentType = options.contentType;
+    if (!contentType) {
+      contentType = response.headers.get("content-type") || undefined;
+      if (!contentType) {
+        const ext = filePath.split(".").pop()?.toLowerCase();
+        contentType = getContentTypeFromExtension(ext || "");
+      }
+    }
+
+    // Upload to Supabase Storage
+    const uploadResult = await uploadFile(
+      supabase,
+      bucket,
+      filePath,
+      imageBlob,
+      {
+        ...options,
+        contentType,
+      },
+    );
+
+    logger.info("Downloaded and uploaded image to Supabase Storage", {
+      imageUrl,
+      bucket,
+      filePath,
+      size: imageBlob.size,
+      url: uploadResult.url,
+    });
+
+    return uploadResult;
+  } catch (error) {
+    logger.error(
+      "Failed to download and upload image",
+      error instanceof Error ? error : null,
+      { imageUrl, bucket, filePath },
+    );
+    throw new Error(
+      `Cannot download and upload image from ${imageUrl} to ${bucket}/${filePath}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
+/**
  * Helper function to determine content type from file extension
  * Used when content type is not explicitly provided
  *
