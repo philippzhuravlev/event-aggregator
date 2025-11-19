@@ -26,7 +26,7 @@ describe("logEvent", () => {
     expect(consoleDebugSpy).toHaveBeenCalledOnce();
     const callArg = consoleDebugSpy.mock.calls[0][0];
     const parsed = JSON.parse(callArg);
-    expect(parsed.level).toBe("debug");
+    expect(parsed.severity).toBe("DEBUG");
     expect(parsed.message).toBe("Test debug message");
     expect(parsed.key).toBe("value");
     expect(parsed.timestamp).toBeDefined();

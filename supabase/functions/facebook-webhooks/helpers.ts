@@ -5,7 +5,7 @@
 
 import { logger } from "../_shared/services/logger-service.ts";
 import { batchWriteEvents } from "../_shared/services/supabase-service.ts";
-import { getEventDetails } from "../_shared/services/facebook-service.ts";
+import { getEventDetails } from "@event-aggregator/shared/src/services/facebook-service.ts";
 import { getPageToken } from "../_shared/services/vault-service.ts";
 import { createSlidingWindowLimiter } from "@event-aggregator/shared/validation/rate-limit-validation.js";
 import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer.js";

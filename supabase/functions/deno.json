@@ -5,7 +5,7 @@
   },
   "tasks": {
     "test": "deno test --allow-env --allow-net --allow-read functions/tests/**/*.test.ts",
-    "test:coverage": "deno test --allow-env --allow-net --allow-read --coverage=coverage functions/tests/**/*.test.ts && deno coverage coverage --lcov --output=coverage/lcov.info --exclude=\"_shared/services/facebook-service\\.ts|_shared/services/index\\.ts|.*types\\.ts$|sync-events/schema\\.ts$\""
+    "test:coverage": "deno test --allow-env --allow-net --allow-read --coverage=coverage functions/tests/**/*.test.ts && deno coverage coverage --lcov --output=coverage/lcov.info --exclude=\"_shared/services/index\\.ts|.*types\\.ts$|sync-events/schema\\.ts$\""
   },
   "imports": {
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2",

@@ -25,7 +25,12 @@ import {
   exchangeForLongLivedToken,
   getAllRelevantEvents,
   getUserPages,
+  setFacebookServiceLogger,
 } from "@event-aggregator/shared/services/facebook-service";
+import {
+  createServiceLoggerFromStructuredLogger,
+  createStructuredLogger,
+} from "@event-aggregator/shared/services/logger-service";
 import type {
   FacebookEvent,
   NormalizedEvent,
@@ -39,35 +44,29 @@ import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer"
 
 type LogLevel = "info" | "warn" | "error" | "debug";
 
+const vercelLogger = createStructuredLogger({
+  shouldLogDebug: () => process.env.NODE_ENV !== "production",
+});
+
+setFacebookServiceLogger(createServiceLoggerFromStructuredLogger(vercelLogger));
+
 export function logEvent(
   level: LogLevel,
   message: string,
   metadata: Record<string, unknown> = {},
 ): void {
-  // Supabase (and Vercel) will happily ingest JSON strings, so we keep it mega simple.
-  // Edge functions log out to the dashboard, CLI (`supabase functions logs`) and whatever drain you configure.
-  // Their docs basically say: use console.* for quick debugging, format as JSON for structured goodness,
-  // and wire up a log drain (Logflare, Datadog, etc.) when you want the fancy dashboards. So… here we are.
-  const payload = {
-    level,
-    message,
-    timestamp: new Date().toISOString(),
-    ...metadata,
-  };
-
-  const text = JSON.stringify(payload);
   switch (level) {
     case "warn":
-      console.warn(text);
+      vercelLogger.warn(message, metadata);
       break;
     case "error":
-      console.error(text);
+      vercelLogger.error(message, null, metadata);
       break;
     case "debug":
-      console.debug(text);
+      vercelLogger.debug(message, metadata);
       break;
     default:
-      console.log(text);
+      vercelLogger.info(message, metadata);
   }
 }
 

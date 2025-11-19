@@ -469,7 +469,7 @@ Deno.test("processWebhookChanges processes create events", async () => {
   };
 
   // Mock getEventDetails and batchWriteEvents
-  const _originalGetEventDetails = await import("../../_shared/services/facebook-service.ts").then(m => m.getEventDetails);
+  const _originalGetEventDetails = await import("@event-aggregator/shared/src/services/facebook-service.ts").then((m) => m.getEventDetails);
   const _originalBatchWriteEvents = await import("../../_shared/services/supabase-service.ts").then(m => m.batchWriteEvents);
   
   // We can't easily mock these without refactoring, so we'll test what we can

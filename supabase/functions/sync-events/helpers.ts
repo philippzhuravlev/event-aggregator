@@ -2,7 +2,7 @@ import {
   checkTokenExpiry,
   markTokenExpired,
 } from "../_shared/services/supabase-service.ts";
-import { getAllRelevantEvents } from "../_shared/services/facebook-service.ts";
+import { getAllRelevantEvents } from "@event-aggregator/shared/src/services/facebook-service.ts";
 import { getPageToken } from "../_shared/services/vault-service.ts";
 import { logger } from "../_shared/services/logger-service.ts";
 import {
