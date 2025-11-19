@@ -152,19 +152,33 @@ export async function getEvents(options?: GetEventsOptions): Promise<Event[]> {
     // Map backend response to Event format - backend returns raw database format
     // that needs to be transformed to match our Event interface (e.g., page_id → pageId)
     const events = json.data?.events || [];
-    return events.map((e: Record<string, unknown>) => ({
-      id: e.id,
-      pageId: e.pageId || String(e.page_id || ""),
-      title: e.title || "Unnamed Event",
-      description: e.description,
-      startTime: e.startTime || e.start_time || "",
-      endTime: e.endTime || e.end_time,
-      place: e.place,
-      coverImageUrl: e.coverImageUrl || e.cover,
-      eventURL: e.eventURL || `https://facebook.com/events/${e.id}`,
-      createdAt: e.createdAt || e.created_at || "",
-      updatedAt: e.updatedAt || e.updated_at || "",
-    })) as Event[];
+    return events.map((e: Record<string, unknown>) => {
+      // Extract coverImageUrl - handle both string and object formats
+      let coverImageUrl: string | undefined;
+      if (typeof e.coverImageUrl === 'string') {
+        coverImageUrl = e.coverImageUrl;
+      } else if (e.cover) {
+        // Handle cover as object with source property
+        const cover = e.cover as Record<string, unknown>;
+        if (typeof cover.source === 'string') {
+          coverImageUrl = cover.source;
+        }
+      }
+
+      return {
+        id: e.id,
+        pageId: e.pageId || String(e.page_id || ""),
+        title: e.title || "Unnamed Event",
+        description: e.description,
+        startTime: e.startTime || e.start_time || "",
+        endTime: e.endTime || e.end_time,
+        place: e.place,
+        coverImageUrl,
+        eventURL: e.eventURL || `https://facebook.com/events/${e.id}`,
+        createdAt: e.createdAt || e.created_at || "",
+        updatedAt: e.updatedAt || e.updated_at || "",
+      };
+    }) as Event[];
   } catch {
     return getEventsFromSupabase(options);
   }
