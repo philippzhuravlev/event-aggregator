@@ -458,8 +458,10 @@ Deno.test("refreshExpiredTokens stores refreshed token when dependencies injecte
     },
   });
 
-  const exchangeSpy = spy(async () => "fresh-token");
-  const alertSpy = spy(async () => {});
+  const exchangeSpy = spy(() => Promise.resolve("fresh-token"));
+  const alertSpy = spy((_pageId: string, _error: string) =>
+    Promise.resolve({ success: true })
+  );
 
   setTokenRefreshDependencies({
     exchangeForLongLivedToken: exchangeSpy,
@@ -501,7 +503,8 @@ Deno.test("refreshExpiredTokens records rate limit result when limiter denies ch
     tokenRefreshLimiter: {
       check: () => false,
     },
-    sendTokenRefreshFailedAlert: async () => {},
+    sendTokenRefreshFailedAlert: (_pageId: string, _error: string) =>
+      Promise.resolve({ success: true }),
   });
 
   try {

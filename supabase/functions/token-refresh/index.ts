@@ -1,4 +1,4 @@
-import { exchangeForLongLivedToken } from "../_shared/services/facebook-service.ts";
+import { exchangeForLongLivedToken } from "@event-aggregator/shared/src/services/facebook-service.ts";
 import { logger } from "../_shared/services/logger-service.ts";
 import { sendTokenRefreshFailedAlert } from "../_shared/services/mail-service.ts";
 import { createSupabaseClient } from "../_shared/services/supabase-service.ts";
@@ -30,7 +30,10 @@ tokenRefreshLimiter.configure(
   RATE_LIMITS.TOKEN_REFRESH.refillRate,
 );
 
-type TokenRefreshLimiter = Pick<TokenBucketRateLimiter, "check">;
+type TokenRefreshLimiter = Pick<
+  InstanceType<typeof TokenBucketRateLimiter>,
+  "check"
+>;
 interface TokenRefreshDependencies {
   exchangeForLongLivedToken: typeof exchangeForLongLivedToken;
   sendTokenRefreshFailedAlert: typeof sendTokenRefreshFailedAlert;
@@ -260,10 +263,10 @@ export async function refreshExpiredTokens(
 
           const newToken = await activeTokenRefreshDependencies
             .exchangeForLongLivedToken(
-            accessToken,
-            appId,
-            appSecret,
-          );
+              accessToken,
+              appId,
+              appSecret,
+            );
 
           // Calculate new expiry (Facebook long-lived tokens expire in ~60 days)
           const sixtyDaysFromNow = new Date();
