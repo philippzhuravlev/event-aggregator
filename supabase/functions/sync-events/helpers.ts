@@ -12,6 +12,7 @@ import {
 import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer.js";
 import type { DatabasePage } from "@event-aggregator/shared/types.ts";
 import { ExpiringToken, PageSyncResult } from "./types.ts";
+import { downloadAndUploadImage } from "../_shared/services/image-service.ts";
 
 type SyncSinglePageDeps = {
   checkTokenExpiry: typeof checkTokenExpiry;
@@ -146,10 +147,11 @@ export async function syncSinglePage(
 
     // 5. Process all events for this page
     const pageEventData = [];
+    const EVENT_IMAGES_BUCKET = "event-images"; // Bucket name for storing event images
+    
     for (const event of events) {
-      // Extract cover image URL if available
-      // Note: For production, pass the Supabase client to this function to enable
-      // downloading and storing images in Supabase Storage instead of using Facebook URLs
+      // Extract cover image URL if available and download/store it in Supabase Storage
+      // This avoids CORS and tracking protection issues with Facebook CDN URLs
       let coverImageUrl: string | undefined;
 
       if (event.cover && event.cover.source) {
@@ -157,8 +159,47 @@ export async function syncSinglePage(
           eventId: event.id,
           coverUrl: event.cover.source,
         });
-        // Use Facebook's URL directly; to upload to Storage, pass supabase client as parameter
-        coverImageUrl = event.cover.source;
+        
+        try {
+          // Generate a file path for the image: events/{year}/{eventId}.jpg
+          const year = new Date().getFullYear();
+          // Extract file extension from URL, handling query parameters
+          const urlWithoutQuery = event.cover.source.split('?')[0];
+          const fileExtension = urlWithoutQuery.split('.').pop()?.toLowerCase() || 'jpg';
+          // Ensure we have a valid image extension
+          const validExtension = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension) 
+            ? fileExtension 
+            : 'jpg';
+          const filePath = `events/${year}/${event.id}.${validExtension}`;
+          
+          // Download from Facebook and upload to Supabase Storage
+          const uploadResult = await downloadAndUploadImage(
+            supabase,
+            event.cover.source,
+            EVENT_IMAGES_BUCKET,
+            filePath,
+            {
+              upsert: true, // Allow overwriting if image already exists
+              cacheControl: "31536000", // Cache for 1 year
+            }
+          );
+          
+          coverImageUrl = uploadResult.url;
+          logger.info("Downloaded and stored event cover image", {
+            eventId: event.id,
+            originalUrl: event.cover.source,
+            storedUrl: coverImageUrl,
+          });
+        } catch (error) {
+          // If image download/upload fails, log error but continue with event sync
+          // Fall back to Facebook URL (may not work due to tracking protection, but better than nothing)
+          logger.warn("Failed to download and store event cover image, using Facebook URL", {
+            eventId: event.id,
+            coverUrl: event.cover.source,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          coverImageUrl = event.cover.source;
+        }
       }
 
       const normalized = currentSyncDeps.normalizeEvent(

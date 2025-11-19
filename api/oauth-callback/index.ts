@@ -41,11 +41,15 @@ import { validateOAuthState } from "@event-aggregator/shared/validation";
 import { validateOAuthCallbackQuery } from "./schema";
 import { getAllowedOrigins } from "@event-aggregator/shared/runtime/node";
 import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer";
+import { randomUUID } from "node:crypto";
 
 type LogLevel = "info" | "warn" | "error" | "debug";
 
+// Enable debug logs in production if VERBOSE_LOGGING is set, otherwise only in non-production
 const vercelLogger = createStructuredLogger({
-  shouldLogDebug: () => process.env.NODE_ENV !== "production",
+  shouldLogDebug: () => 
+    process.env.VERBOSE_LOGGING === "true" || 
+    process.env.NODE_ENV !== "production",
 });
 
 setFacebookServiceLogger(createServiceLoggerFromStructuredLogger(vercelLogger));
@@ -99,6 +103,20 @@ export function buildRedirectUrl(
  * Main handler for OAuth callback requests
  */
 async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  // Generate a request ID for tracking this request through logs
+  const requestId = randomUUID();
+  const startTime = Date.now();
+
+  // Log incoming request
+  logEvent("info", "OAuth callback request received", {
+    requestId,
+    method: req.method,
+    url: req.url,
+    host: req.headers.host,
+    userAgent: req.headers["user-agent"],
+    origin: req.headers.origin,
+  });
+
   // Set CORS headers for all responses
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -106,12 +124,17 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
 
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
+    logEvent("debug", "CORS preflight request", { requestId });
     res.status(200).send("OK");
     return;
   }
 
   // Only accept GET requests (redirects from Facebook)
   if (req.method !== "GET") {
+    logEvent("warn", "OAuth callback received non-GET request", {
+      requestId,
+      method: req.method,
+    });
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
@@ -126,11 +149,19 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   try {
     const url = new URL(`${requestOrigin}${req.url}`);
 
+    logEvent("debug", "Processing OAuth callback", {
+      requestId,
+      requestOrigin,
+      queryParams: Object.fromEntries(url.searchParams.entries()),
+    });
+
     // Validate query parameters
     const validation = validateOAuthCallbackQuery(url);
     if (!validation.success) {
       logEvent("warn", "OAuth callback query validation failed", {
+        requestId,
         error: validation.error,
+        queryParams: Object.fromEntries(url.searchParams.entries()),
       });
       // If error param is present, it's from Facebook - redirect back to frontend with error
       const errorParam = url.searchParams.get("error");
@@ -157,7 +188,9 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     const stateValidation = validateOAuthState(state, allowedOrigins);
     if (!stateValidation.valid) {
       logEvent("warn", "OAuth callback state rejected", {
+        requestId,
         reason: stateValidation.error,
+        stateLength: state?.length ?? 0,
       });
       const redirectUrl = buildRedirectUrl(state, allowedOrigins, {
         error: stateValidation.error || "Invalid state",
@@ -186,14 +219,24 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!facebookAppId || !facebookAppSecret) {
+      logEvent("error", "Missing Facebook credentials", { requestId });
       throw new Error("Missing Facebook credentials");
     }
 
     if (!supabaseUrl || !supabaseServiceKey) {
+      logEvent("error", "Missing Supabase credentials", { requestId });
       throw new Error("Missing Supabase credentials");
     }
 
+    logEvent("debug", "Starting OAuth token exchange", {
+      requestId,
+      oauthCallbackUrl,
+      hasAppId: !!facebookAppId,
+      hasAppSecret: !!facebookAppSecret,
+    });
+
     // Step 1: Exchange code for short-lived token
+    logEvent("info", "Exchanging authorization code for token", { requestId });
     const shortLivedToken = await exchangeCodeForToken(
       code,
       facebookAppId,
@@ -202,6 +245,7 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     );
 
     // Step 2: Exchange for long-lived token (60 days)
+    logEvent("info", "Exchanging for long-lived token", { requestId });
     const longLivedToken = await exchangeForLongLivedToken(
       shortLivedToken,
       facebookAppId,
@@ -209,10 +253,16 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     );
 
     // Step 3: Get user's pages
+    logEvent("info", "Fetching user's Facebook pages", { requestId });
     const pages = await getUserPages(longLivedToken);
+    logEvent("debug", "Fetched Facebook pages", {
+      requestId,
+      pageCount: pages.length,
+    });
 
     if (pages.length === 0) {
       logEvent("info", "OAuth callback found no Facebook pages", {
+        requestId,
         facebookUserId: validation.data?.code ? "redacted" : undefined,
       });
       const redirectUrl = buildRedirectUrl(
@@ -238,6 +288,10 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     }
 
     // Step 4: Store pages and tokens in Supabase using Vault
+    logEvent("info", "Storing pages and tokens in Supabase", {
+      requestId,
+      pageCount: pages.length,
+    });
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     let pagesStored = 0;
@@ -246,6 +300,11 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     let eventSyncFailures = 0;
 
     for (const page of pages) {
+      logEvent("debug", "Processing page", {
+        requestId,
+        pageId: page.id,
+        pageName: page.name,
+      });
       try {
         // Store page and token using the store_page_token function
         // which handles both vault encryption and page table updates
@@ -268,7 +327,9 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
 
         if (storeError) {
           logEvent("error", "Failed to store page token in Supabase", {
+            requestId,
             pageId: page.id,
+            pageName: page.name,
             error: storeError?.message ?? storeError,
           });
           pagesFailed++;
@@ -276,10 +337,24 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
         }
 
         pagesStored++;
+        logEvent("debug", "Successfully stored page token", {
+          requestId,
+          pageId: page.id,
+          pageName: page.name,
+        });
 
         // Step 5: Sync events for this page
         try {
+          logEvent("debug", "Fetching events for page", {
+            requestId,
+            pageId: page.id,
+          });
           const events = await getAllRelevantEvents(page.id, pageToken);
+          logEvent("debug", "Fetched events for page", {
+            requestId,
+            pageId: page.id,
+            eventCount: events.length,
+          });
 
           if (events.length > 0) {
             // Normalize and store events in database using the correct schema
@@ -315,26 +390,37 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
 
             if (eventsError) {
               logEvent("error", "Failed to upsert events in Supabase", {
+                requestId,
                 pageId: page.id,
+                eventCount: events.length,
                 error: eventsError.message,
               });
               eventSyncFailures += events.length;
             } else {
               eventsAdded += events.length;
+              logEvent("debug", "Successfully upserted events", {
+                requestId,
+                pageId: page.id,
+                eventCount: events.length,
+              });
             }
           }
         } catch (eventError) {
           logEvent("error", "Error syncing events for page", {
+            requestId,
             pageId: page.id,
             error: eventError instanceof Error ? eventError.message : eventError,
+            stack: eventError instanceof Error ? eventError.stack : undefined,
           });
           eventSyncFailures++;
         }
       } catch (pageError) {
         pagesFailed++;
         logEvent("error", "Unhandled error processing page", {
+          requestId,
           pageId: page.id,
           error: pageError instanceof Error ? pageError.message : pageError,
+          stack: pageError instanceof Error ? pageError.stack : undefined,
         });
       }
     }
@@ -355,19 +441,26 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
     const successRedirectUrl = buildRedirectUrl(state, allowedOrigins, redirectParams) ??
       `${frontendOrigin}?success=true&pages=${pagesStored}&events=${eventsAdded}`;
 
+    const duration = Date.now() - startTime;
     logEvent("info", "OAuth callback completed", {
+      requestId,
       pagesStored,
       pagesFailed,
       eventsAdded,
       eventSyncFailures,
+      durationMs: duration,
     });
 
     res.redirect(successRedirectUrl);
   } catch (error) {
     // Log error for debugging (in Vercel, this goes to function logs)
+    const duration = Date.now() - startTime;
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
     logEvent("error", "OAuth callback failed", {
+      requestId,
       error: errorMsg,
+      stack: error instanceof Error ? error.stack : undefined,
+      durationMs: duration,
     });
 
     // Try to redirect to frontend with error if we have the URL

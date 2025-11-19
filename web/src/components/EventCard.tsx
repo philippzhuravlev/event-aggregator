@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Event } from '@/types/index.ts';
 import { formatEventStart, getEventUrl } from '@/utils/eventUtils.ts';
 
@@ -10,12 +10,31 @@ import { formatEventStart, getEventUrl } from '@/utils/eventUtils.ts';
 
 const DEFAULT_IMAGE = '/dtuevent-logo.png';
 
+// Helper function to check if a URL is valid and non-empty
+function isValidImageUrl(url: string | undefined): boolean {
+  return typeof url === 'string' && url.trim().length > 0;
+}
+
 export function EventCard({ event }: { event: Event }) {
-  const [imageSrc, setImageSrc] = useState<string>(
-    event.coverImageUrl || DEFAULT_IMAGE
-  );
+  // Initialize with the event's cover image if it's valid, otherwise use default
+  const [imageSrc, setImageSrc] = useState<string>(() => {
+    return isValidImageUrl(event.coverImageUrl) ? event.coverImageUrl! : DEFAULT_IMAGE;
+  });
   const [hasError, setHasError] = useState(false);
   const [showPlaceholder, setShowPlaceholder] = useState(false);
+
+  // Update image source when event changes
+  useEffect(() => {
+    if (isValidImageUrl(event.coverImageUrl)) {
+      setImageSrc(event.coverImageUrl!);
+      setHasError(false);
+      setShowPlaceholder(false);
+    } else {
+      setImageSrc(DEFAULT_IMAGE);
+      setHasError(false);
+      setShowPlaceholder(false);
+    }
+  }, [event.coverImageUrl]);
 
   const handleImageError = () => {
     if (imageSrc !== DEFAULT_IMAGE && !hasError) {
@@ -61,6 +80,7 @@ export function EventCard({ event }: { event: Event }) {
               alt={event.title} 
               className="w-28 h-16 object-cover rounded bg-gray-100" 
               onError={handleImageError}
+              loading="lazy"
             />
           )}
           {/* text column */}
