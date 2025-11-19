@@ -1270,6 +1270,19 @@ describe("services/facebook-service", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("handles getPageEvents when response has no data property", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse({
+        paging: { next: null },
+      }),
+    );
+
+    const events = await getPageEvents("page-1", "access-token", "upcoming");
+
+    expect(events).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("handles getAllRelevantEvents with custom daysBack", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-06-01T00:00:00Z"));
@@ -1362,6 +1375,60 @@ describe("services/facebook-service", () => {
     vi.useRealTimers();
   });
 
+  it("skips recent past events that are missing start_time", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-06-01T00:00:00Z"));
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("time_filter=upcoming")) {
+        return Promise.resolve(
+          createResponse({
+            data: [
+              {
+                id: "event-upcoming",
+                name: "Upcoming",
+                start_time: "2024-06-05T10:00:00Z",
+              },
+            ],
+          }),
+        );
+      }
+      if (url.includes("time_filter=past")) {
+        return Promise.resolve(
+          createResponse({
+            data: [
+              { id: "missing-start", name: "Missing start" },
+              {
+                id: "event-recent",
+                name: "Recent",
+                start_time: "2024-05-25T10:00:00Z",
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+
+    const events = await getAllRelevantEvents("page-1", "access-token", 14);
+
+    expect(events).toEqual([
+      {
+        id: "event-upcoming",
+        name: "Upcoming",
+        start_time: "2024-06-05T10:00:00Z",
+      },
+      {
+        id: "event-recent",
+        name: "Recent",
+        start_time: "2024-05-25T10:00:00Z",
+      },
+    ]);
+
+    vi.useRealTimers();
+  });
+
   it("handles response.json() throwing an error", async () => {
     const mockResponse = {
       ok: true,
@@ -1398,6 +1465,30 @@ describe("services/facebook-service", () => {
     await expect(getUserPages("token")).rejects.toThrow(
       "JSON parse error: Malformed payload",
     );
+  });
+
+  it("retries when a Facebook API error omits the status code", async () => {
+    vi.useFakeTimers();
+
+    fetchMock
+      .mockRejectedValueOnce(new Error("Facebook API error: temporary outage"))
+      .mockResolvedValueOnce(createResponse({ data: [] }));
+
+    const promise = getUserPages("token");
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const pages = await promise;
+    expect(pages).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Facebook API request failed - retrying",
+      expect.objectContaining({
+        error: "Facebook API error: temporary outage",
+        attempt: 1,
+        maxRetries: expect.any(Number),
+      }),
+    );
+
+    vi.useRealTimers();
   });
 
   it("handles isRetryableError with status at SERVER_ERROR_RANGE.MIN", async () => {

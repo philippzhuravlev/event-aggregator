@@ -300,12 +300,13 @@ export async function deleteOldEvents(
       .lt("created_at", beforeDate.toISOString());
 
     if (deleteError) {
-      logger.error("Failed to delete old events from Supabase", null, {
-        error: String(deleteError),
-      });
-      throw new Error(
+      const deleteErr = new Error(
         `Failed to delete old events from Supabase: ${deleteError.message}`,
       );
+      logger.error("Failed to delete old events from Supabase", deleteErr, {
+        error: String(deleteError),
+      });
+      throw deleteErr;
     }
 
     logger.info("Deleted old events from Supabase", {
@@ -317,6 +318,8 @@ export async function deleteOldEvents(
       "Error deleting old events from Supabase",
       error instanceof Error ? error : null,
     );
-    return 0;
+    throw error instanceof Error
+      ? error
+      : new Error("Error deleting old events from Supabase");
   }
 }

@@ -4,11 +4,11 @@
  */
 
 import { logger } from "../_shared/services/logger-service.ts";
-import { batchWriteEvents } from "../_shared/services/supabase-service.ts";
-import { getEventDetails } from "@event-aggregator/shared/src/services/facebook-service.ts";
-import { getPageToken } from "../_shared/services/vault-service.ts";
+import * as supabaseServices from "../_shared/services/supabase-service.ts";
+import * as facebookService from "@event-aggregator/shared/src/services/facebook-service.ts";
+import * as vaultService from "../_shared/services/vault-service.ts";
 import { createSlidingWindowLimiter } from "@event-aggregator/shared/validation/rate-limit-validation.js";
-import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer.js";
+import * as eventNormalizer from "@event-aggregator/shared/utils/event-normalizer.js";
 import type { NormalizedEvent } from "@event-aggregator/shared/types.ts";
 
 // this is one of many "helper", which are different from utils; 90% of the time,
@@ -21,6 +21,34 @@ import type { NormalizedEvent } from "@event-aggregator/shared/types.ts";
 // this helper is specifically for Facebook webhooks, which have their own signature
 // verification process and payload structure. So all webhook-related logic that
 // doesn't belong in the main handler goes here
+
+type WebhookHelperDeps = {
+  getEventDetails: typeof facebookService.getEventDetails;
+  batchWriteEvents: typeof supabaseServices.batchWriteEvents;
+  getPageToken: typeof vaultService.getPageToken;
+  normalizeEvent: typeof eventNormalizer.normalizeEvent;
+};
+
+const defaultWebhookHelperDeps: WebhookHelperDeps = {
+  getEventDetails: (...args) => facebookService.getEventDetails(...args),
+  batchWriteEvents: (...args) => supabaseServices.batchWriteEvents(...args),
+  getPageToken: (...args) => vaultService.getPageToken(...args),
+  normalizeEvent: (...args) => eventNormalizer.normalizeEvent(...args),
+};
+
+let currentWebhookHelperDeps: WebhookHelperDeps = {
+  ...defaultWebhookHelperDeps,
+};
+
+export function setWebhookHelperDeps(
+  overrides: Partial<WebhookHelperDeps>,
+): void {
+  currentWebhookHelperDeps = { ...currentWebhookHelperDeps, ...overrides };
+}
+
+export function resetWebhookHelperDeps(): void {
+  currentWebhookHelperDeps = { ...defaultWebhookHelperDeps };
+}
 
 // Rate limiter for webhooks (1 webhook per page per 1000ms)
 const webhookRateLimiter = createSlidingWindowLimiter({
@@ -172,7 +200,7 @@ export function normalizeWebhookChange(
  */
 export async function processWebhookChanges(
   pageId: string,
-  changes: Array<{ field: string; value: Record<string, unknown> }>,
+  changes: Array<{ field: string; value?: Record<string, unknown> | null }>,
   // deno-lint-ignore no-explicit-any
   supabase: any,
 ): Promise<{ processed: number; failed: number }> {
@@ -185,7 +213,10 @@ export async function processWebhookChanges(
     if (cachedAccessToken !== undefined) {
       return cachedAccessToken;
     }
-    cachedAccessToken = await getPageToken(supabase, pageId);
+    cachedAccessToken = await currentWebhookHelperDeps.getPageToken(
+      supabase,
+      pageId,
+    );
     if (!cachedAccessToken) {
       logger.warn("No access token found for page when processing webhook", {
         pageId,
@@ -196,7 +227,20 @@ export async function processWebhookChanges(
 
   for (const change of changes) {
     try {
-      const normalized = normalizeWebhookChange(pageId, change);
+      const changeValue = change.value;
+      if (!changeValue || typeof changeValue !== "object") {
+        logger.warn("Webhook change missing value", {
+          pageId,
+          field: change.field,
+        });
+        failed++;
+        continue;
+      }
+
+      const normalized = normalizeWebhookChange(pageId, {
+        ...change,
+        value: changeValue,
+      });
 
       if (
         normalized.eventType &&
@@ -209,7 +253,7 @@ export async function processWebhookChanges(
         continue;
       }
 
-      const eventId = resolveEventId(change.value, normalized.eventId);
+      const eventId = resolveEventId(changeValue, normalized.eventId);
       if (!eventId) {
         logger.warn("Webhook change missing event id", {
           pageId,
@@ -248,7 +292,10 @@ export async function processWebhookChanges(
 
       let eventDetails;
       try {
-        eventDetails = await getEventDetails(eventId, accessToken);
+        eventDetails = await currentWebhookHelperDeps.getEventDetails(
+          eventId,
+          accessToken,
+        );
       } catch (fetchError) {
         logger.error(
           "Failed to fetch event details for webhook change",
@@ -271,7 +318,9 @@ export async function processWebhookChanges(
         continue;
       }
 
-      eventsToUpsert.push(normalizeEvent(eventDetails, pageId));
+      eventsToUpsert.push(
+        currentWebhookHelperDeps.normalizeEvent(eventDetails, pageId),
+      );
     } catch (changeError) {
       logger.error(
         "Error processing webhook change",
@@ -286,7 +335,7 @@ export async function processWebhookChanges(
 
   if (eventsToUpsert.length > 0) {
     try {
-      await batchWriteEvents(supabase, eventsToUpsert);
+      await currentWebhookHelperDeps.batchWriteEvents(supabase, eventsToUpsert);
       processed += eventsToUpsert.length;
     } catch (storeError) {
       logger.error(

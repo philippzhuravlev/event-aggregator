@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createStructuredLogger } from "../../src/services/logger-service.ts";
+import {
+  createServiceLoggerFromStructuredLogger,
+  createStructuredLogger,
+  getConsoleServiceLogger,
+  resolveServiceLogger,
+} from "../../src/services/logger-service.ts";
+import type { ServiceLogger } from "../../src/services/logger-service.ts";
 
 const FIXED_TIME = "2024-01-01T00:00:00.000Z";
 
@@ -217,6 +223,72 @@ describe("services/logger-service createStructuredLogger", () => {
 
     // Restore
     JSON.stringify = originalStringify;
+  });
+
+  it("resolves to fallback logger when none is provided", () => {
+    const fallback: Required<ServiceLogger> = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
+
+    const resolved = resolveServiceLogger(undefined, fallback);
+    resolved.info("hello");
+    expect(fallback.info).toHaveBeenCalledWith("hello");
+  });
+
+  it("fills missing logger methods from the fallback implementation", () => {
+    const fallback: Required<ServiceLogger> = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
+    const partial: ServiceLogger = {
+      info: vi.fn(),
+      error: vi.fn(),
+    };
+
+    const resolved = resolveServiceLogger(partial, fallback);
+    resolved.info?.("info");
+    resolved.warn?.("warn");
+
+    expect(partial.info).toHaveBeenCalledWith("info");
+    expect(fallback.warn).toHaveBeenCalledWith("warn");
+  });
+
+  it("wraps a structured logger for service consumption", () => {
+    const baseLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
+
+    const serviceLogger = createServiceLoggerFromStructuredLogger(baseLogger);
+    serviceLogger.info("info", { count: 1 });
+    serviceLogger.error("error", undefined, { context: "test" });
+    serviceLogger.warn("warn", { level: "warn" });
+    serviceLogger.debug("debug", { verbose: true });
+
+    expect(baseLogger.info).toHaveBeenCalledWith("info", { count: 1 });
+    expect(baseLogger.error).toHaveBeenCalledWith(
+      "error",
+      null,
+      { context: "test" },
+    );
+    expect(baseLogger.warn).toHaveBeenCalledWith("warn", { level: "warn" });
+    expect(baseLogger.debug).toHaveBeenCalledWith("debug", { verbose: true });
+  });
+
+  it("exposes console-backed logger helpers", () => {
+    const logger = getConsoleServiceLogger();
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    logger.info("console info", { foo: "bar" });
+
+    expect(logSpy).toHaveBeenCalledWith("console info", { foo: "bar" });
   });
 });
 

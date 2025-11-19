@@ -7,6 +7,7 @@ import type { ServiceLogger } from "@event-aggregator/shared/src/services/logger
 import {
   createServiceLoggerFromStructuredLogger,
   createStructuredLogger,
+  getConsoleServiceLogger,
   resolveServiceLogger,
 } from "@event-aggregator/shared/src/services/logger-service.ts";
 
@@ -102,5 +103,167 @@ Deno.test("createServiceLoggerFromStructuredLogger proxies calls", () => {
     proxyError.restore();
     proxyDebug.restore();
   }
+});
+
+Deno.test("createStructuredLogger suppresses debug when predicate returns false", () => {
+  const debugStub = stub(console, "debug", () => {});
+  try {
+    const logger = createStructuredLogger({
+      shouldLogDebug: () => false,
+      now: () => FIXED_TIME,
+    });
+    logger.debug("hidden");
+    assertEquals(debugStub.calls.length, 0);
+  } finally {
+    debugStub.restore();
+  }
+});
+
+Deno.test("createStructuredLogger logs debug when predicate allows it", () => {
+  const debugStub = stub(console, "debug", () => {});
+  try {
+    const logger = createStructuredLogger({
+      shouldLogDebug: () => true,
+      now: () => FIXED_TIME,
+    });
+    logger.debug("verbose", { detail: 42 });
+    assertEquals(debugStub.calls.length, 1);
+    const payload = parsePayload(debugStub.calls[0].args);
+    assertEquals(payload.severity, "DEBUG");
+    assertEquals(payload.detail, 42);
+  } finally {
+    debugStub.restore();
+  }
+});
+
+Deno.test("createStructuredLogger logs critical severity with normalized error", () => {
+  const errorStub = stub(console, "error", () => {});
+  try {
+    const logger = createStructuredLogger({ now: () => FIXED_TIME });
+    const err = new Error("catastrophic");
+    logger.critical("critical issue", err, { subsystem: "facebook" });
+
+    assertEquals(errorStub.calls.length, 1);
+    const payload = parsePayload(errorStub.calls[0].args);
+    assertEquals(payload.severity, "CRITICAL");
+    assertEquals(payload.message, "critical issue");
+    assertEquals(payload.subsystem, "facebook");
+    assertEquals((payload.error as Record<string, unknown>).message, "catastrophic");
+  } finally {
+    errorStub.restore();
+  }
+});
+
+Deno.test("createStructuredLogger falls back when metadata serialization fails", () => {
+  const logStub = stub(console, "log", () => {});
+  try {
+    const logger = createStructuredLogger({ now: () => FIXED_TIME });
+    const circular: Record<string, unknown> & { self?: unknown } = {};
+    circular.self = circular;
+
+    logger.info("circular payload", circular);
+
+    assertEquals(logStub.calls.length, 1);
+    const payload = parsePayload(logStub.calls[0].args);
+    assertEquals(payload.message, "Failed to serialize log payload");
+    assertEquals(payload.originalMessage, "circular payload");
+  } finally {
+    logStub.restore();
+  }
+});
+
+Deno.test("createStructuredLogger error omits payload error when null provided", () => {
+  const errorStub = stub(console, "error", () => {});
+  try {
+    const logger = createStructuredLogger({ now: () => FIXED_TIME });
+    logger.error("no error object", null, { context: "test" });
+    assertEquals(errorStub.calls.length, 1);
+    const payload = parsePayload(errorStub.calls[0].args);
+    assertEquals(payload.severity, "ERROR");
+    assertEquals(payload.context, "test");
+    if ("error" in payload) {
+      throw new Error("Payload should not have an error field");
+    }
+  } finally {
+    errorStub.restore();
+  }
+});
+
+Deno.test("getConsoleServiceLogger proxies console methods", () => {
+  const logStub = stub(console, "log", () => {});
+  const warnStub = stub(console, "warn", () => {});
+  const errorStub = stub(console, "error", () => {});
+  const debugStub = stub(console, "debug", () => {});
+
+  try {
+    const logger = getConsoleServiceLogger();
+    logger.info("info", { meta: 1 });
+    logger.warn("warn", { meta: 2 });
+    logger.error("error", new Error("boom"), { meta: 3 });
+    logger.debug("debug", { meta: 4 });
+
+    assertEquals(logStub.calls.length, 1);
+    assertEquals(warnStub.calls.length, 1);
+    assertEquals(errorStub.calls.length, 1);
+    assertEquals(debugStub.calls.length, 1);
+  } finally {
+    logStub.restore();
+    warnStub.restore();
+    errorStub.restore();
+    debugStub.restore();
+  }
+});
+
+Deno.test("resolveServiceLogger returns fallback when logger is undefined", () => {
+  const fallback: Required<ServiceLogger> = {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  };
+
+  const resolved = resolveServiceLogger(undefined, fallback);
+  assertEquals(resolved, fallback);
+});
+
+Deno.test("getConsoleServiceLogger omits metadata when not provided", () => {
+  const warnStub = stub(console, "warn", () => {});
+  const debugStub = stub(console, "debug", () => {});
+
+  try {
+    const consoleLogger = getConsoleServiceLogger();
+    consoleLogger.warn("warning-without-metadata");
+    consoleLogger.debug("debug-without-metadata");
+
+    assertEquals(warnStub.calls.length, 1);
+    assertEquals(warnStub.calls[0].args, ["warning-without-metadata"]);
+    assertEquals(debugStub.calls.length, 1);
+    assertEquals(debugStub.calls[0].args, ["debug-without-metadata"]);
+  } finally {
+    warnStub.restore();
+    debugStub.restore();
+  }
+});
+
+Deno.test("resolveServiceLogger falls back for missing info method", () => {
+  let fallbackInfoCalls = 0;
+  const fallback: Required<ServiceLogger> = {
+    info: () => {
+      fallbackInfoCalls++;
+    },
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  };
+
+  const partialLogger: ServiceLogger = {
+    warn: () => {},
+  };
+
+  const resolved = resolveServiceLogger(partialLogger, fallback);
+  resolved.info("should use fallback");
+
+  assertEquals(fallbackInfoCalls, 1);
+  resolved.warn?.("still available");
 });
 

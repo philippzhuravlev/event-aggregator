@@ -644,7 +644,9 @@ Deno.test("deleteOldEvents throws error when delete fails", async () => {
   const beforeDate = new Date();
   beforeDate.setDate(beforeDate.getDate() - 90);
   // deno-lint-ignore no-explicit-any
-  const result = await deleteOldEvents(supabase as any, beforeDate, false);
-  // Should return 0 on error
-  assertEquals(result, 0);
+  await assertRejects(
+    async () => await deleteOldEvents(supabase as any, beforeDate, false),
+    Error,
+    "Failed to delete old events from Supabase",
+  );
 });

@@ -187,7 +187,7 @@ async function monitorTokens(
 /**
  * Perform comprehensive health check
  */
-export async function performHealthCheck(
+async function performHealthCheck(
   // deno-lint-ignore no-explicit-any
   supabase: any,
 ): Promise<HealthCheckResponse> {
@@ -292,3 +292,5 @@ export async function handleHealthCheck(req: Request): Promise<Response> {
 if (import.meta.main) {
   Deno.serve(handleHealthCheck);
 }
+
+export { performHealthCheck };

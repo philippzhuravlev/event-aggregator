@@ -32,3 +32,4 @@ Deno.test("calculateExpirationDate offsets from provided base date", () => {
   const expiresAt = calculateExpirationDate(10, now);
   assertEquals(expiresAt.toISOString(), "2024-02-20T12:00:00.000Z");
 });
+

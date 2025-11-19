@@ -7,7 +7,33 @@ import {
   isWebhookRateLimited,
   normalizeWebhookChange,
   processWebhookChanges,
+  setWebhookHelperDeps,
+  resetWebhookHelperDeps,
 } from "../../facebook-webhooks/helpers.ts";
+
+function createBasicSupabaseMock() {
+  return {
+    from: (_table: string) => ({
+      delete: () => ({
+        eq: () => ({
+          eq: () => Promise.resolve({ error: null }),
+        }),
+      }),
+    }),
+  };
+}
+
+async function withWebhookDeps(
+  overrides: Parameters<typeof setWebhookHelperDeps>[0],
+  testFn: () => Promise<void>,
+) {
+  setWebhookHelperDeps(overrides);
+  try {
+    await testFn();
+  } finally {
+    resetWebhookHelperDeps();
+  }
+}
 
 Deno.test("shouldProcessEventType returns true for processed event types", () => {
   assertEquals(shouldProcessEventType("event.create"), true);
@@ -1066,4 +1092,136 @@ Deno.test("processWebhookChanges caches access token", async () => {
   // Token should be cached, so should only be called once
   assertEquals(tokenCallCount >= 1, true);
 });
+
+Deno.test("processWebhookChanges counts failure when change value missing", async () => {
+  await withWebhookDeps(
+    {
+      getPageToken: async () => "token-123",
+    },
+    async () => {
+      const supabase = createBasicSupabaseMock();
+      const result = await processWebhookChanges(
+        "page-1",
+        [
+          {
+            field: "events",
+            value: (undefined as unknown) as Record<string, unknown>,
+          },
+        ],
+        supabase,
+      );
+      assertEquals(result.failed, 1);
+    },
+  );
+});
+
+Deno.test("processWebhookChanges handles getEventDetails errors", async () => {
+  await withWebhookDeps(
+    {
+      getPageToken: async () => "token-123",
+      getEventDetails: async () => {
+        throw new Error("fetch failed");
+      },
+    },
+    async () => {
+      const supabase = createBasicSupabaseMock();
+      const result = await processWebhookChanges(
+        "page-1",
+        [
+          {
+            field: "events",
+            value: { verb: "add", event: { id: "event-1" } },
+          },
+        ],
+        supabase,
+      );
+      assertEquals(result.failed, 1);
+    },
+  );
+});
+
+Deno.test("processWebhookChanges handles missing event details response", async () => {
+  await withWebhookDeps(
+    {
+      getPageToken: async () => "token-123",
+      getEventDetails: async () => null,
+    },
+    async () => {
+      const supabase = createBasicSupabaseMock();
+      const result = await processWebhookChanges(
+        "page-1",
+        [
+          {
+            field: "events",
+            value: { verb: "add", event: { id: "event-1" } },
+          },
+        ],
+        supabase,
+      );
+      assertEquals(result.failed, 1);
+    },
+  );
+});
+
+Deno.test("processWebhookChanges handles normalizeEvent errors", async () => {
+  await withWebhookDeps(
+    {
+      getPageToken: async () => "token-123",
+      getEventDetails: async () => ({ id: "event-1" }),
+      normalizeEvent: () => {
+        throw new Error("normalize boom");
+      },
+    },
+    async () => {
+      const supabase = createBasicSupabaseMock();
+      const result = await processWebhookChanges(
+        "page-1",
+        [
+          {
+            field: "events",
+            value: { verb: "add", event: { id: "event-1" } },
+          },
+        ],
+        supabase,
+      );
+      assertEquals(result.failed, 1);
+    },
+  );
+});
+
+Deno.test("processWebhookChanges handles batch write errors", async () => {
+  await withWebhookDeps(
+    {
+      getPageToken: async () => "token-123",
+      getEventDetails: async () => ({ id: "event-1" }),
+      normalizeEvent: (_eventDetails, _pageId) => ({
+        page_id: 1,
+        event_id: "event-1",
+        event_data: {
+          id: "event-1",
+          name: "Test Event",
+          start_time: new Date().toISOString(),
+        },
+      }),
+      batchWriteEvents: async () => {
+        throw new Error("write failed");
+      },
+    },
+    async () => {
+      const supabase = createBasicSupabaseMock();
+      const result = await processWebhookChanges(
+        "page-1",
+        [
+          {
+            field: "events",
+            value: { verb: "add", event: { id: "event-1" } },
+          },
+        ],
+        supabase,
+      );
+      assertEquals(result.failed, 1);
+    },
+  );
+});
+
 

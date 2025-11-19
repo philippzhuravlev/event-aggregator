@@ -2,12 +2,13 @@ import {
   assertEquals,
   assertRejects,
 } from "std/assert/mod.ts";
-import { returnsNext, stub } from "std/testing/mock.ts";
+import { assertSpyCalls, spy, returnsNext, stub } from "std/testing/mock.ts";
 import { FakeTime } from "std/testing/time.ts";
 import {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
   getAllRelevantEvents,
+  getEventDetails,
   getPageEvents,
   getUserPages,
   setFacebookServiceLogger,
@@ -162,6 +163,168 @@ Deno.test("facebook-service surfaces API errors from getPageEvents", async () =>
   setFacebookServiceLogger();
 });
 
+Deno.test("facebook-service logs invalid token errors and throws immediately", async () => {
+  const errorSpy = spy(
+    (_message: string, _error?: Error | null, _metadata?: Record<string, unknown>) => {},
+  );
+  setFacebookServiceLogger({
+    info: () => {},
+    warn: () => {},
+    error: errorSpy,
+    debug: () => {},
+  });
+
+  await withFetchStub(
+    [
+      createJsonResponse(
+        {
+          error: {
+            code: 190,
+            message: "Invalid OAuth token",
+          },
+        },
+        { status: 400 },
+      ),
+    ],
+    async () => {
+      await assertRejects(
+        () => getUserPages("bad-token"),
+        Error,
+        "Facebook token invalid (190)",
+      );
+    },
+  );
+
+  assertSpyCalls(errorSpy, 1);
+  setFacebookServiceLogger();
+});
+
+Deno.test("facebook-service throws JSON parse error for successful responses", async () => {
+  setFacebookServiceLogger(noopLogger);
+
+  const mockResponse = {
+    ok: true,
+    status: 200,
+    json: () => Promise.reject("Malformed payload"),
+  } as unknown as Response;
+
+  const fetchStub = stub(globalThis, "fetch", () => Promise.resolve(mockResponse));
+  try {
+    await assertRejects(
+      () => getUserPages("token"),
+      Error,
+      "JSON parse error: Malformed payload",
+    );
+  } finally {
+    fetchStub.restore();
+    setFacebookServiceLogger();
+  }
+});
+
+Deno.test("facebook-service throws JSON parse error for error responses", async () => {
+  setFacebookServiceLogger(noopLogger);
+
+  const mockResponse = {
+    ok: false,
+    status: 500,
+    json: () => Promise.reject(new Error("Broken JSON")),
+  } as unknown as Response;
+
+  const fetchStub = stub(globalThis, "fetch", () => Promise.resolve(mockResponse));
+  try {
+    await assertRejects(
+      () => getUserPages("token"),
+      Error,
+      "JSON parse error: Broken JSON",
+    );
+  } finally {
+    fetchStub.restore();
+    setFacebookServiceLogger();
+  }
+});
+
+Deno.test(
+  "facebook-service does not retry non-retryable API errors thrown in catch block",
+  async () => {
+    setFacebookServiceLogger(noopLogger);
+
+    let callCount = 0;
+    const fetchStub = stub(globalThis, "fetch", () => {
+      callCount++;
+      return Promise.reject(
+        new Error("Facebook API error: 400 - Invalid parameter"),
+      );
+    });
+
+    try {
+      await assertRejects(
+        () => getUserPages("token"),
+        Error,
+        "Facebook API error: 400 - Invalid parameter",
+      );
+      assertEquals(callCount, 1);
+    } finally {
+      fetchStub.restore();
+      setFacebookServiceLogger();
+    }
+  },
+);
+
+Deno.test("facebook-service retries string-based network errors then succeeds", async () => {
+  const warnSpy = spy(
+    (_message: string, _metadata?: Record<string, unknown>) => {},
+  );
+  setFacebookServiceLogger({
+    info: () => {},
+    warn: warnSpy,
+    error: () => {},
+    debug: () => {},
+  });
+
+  const fakeTime = new FakeTime();
+  let call = 0;
+  const fetchStub = stub(globalThis, "fetch", () => {
+    if (call === 0) {
+      call++;
+      return Promise.reject("Network outage");
+    }
+    return Promise.resolve(
+      createJsonResponse({ data: [{ id: "1", name: "Recovered Page" }] }),
+    );
+  });
+
+  try {
+    const pagesPromise = getUserPages("token");
+    await fakeTime.tickAsync(1000);
+    const pages = await pagesPromise;
+    assertEquals(pages.length, 1);
+    assertSpyCalls(warnSpy, 1);
+  } finally {
+    fetchStub.restore();
+    fakeTime.restore();
+    setFacebookServiceLogger();
+  }
+});
+
+Deno.test("facebook-service fetches event details", async () => {
+  setFacebookServiceLogger(noopLogger);
+
+  await withFetchStub(
+    [
+      createJsonResponse({
+        id: "event-1",
+        name: "Launch",
+      }),
+    ],
+    async () => {
+      const event = await getEventDetails("event-1", "token");
+      assertEquals(event.id, "event-1");
+    },
+  );
+
+  setFacebookServiceLogger();
+});
+
 Deno.test("facebook-service aggregates relevant events", async () => {
   setFacebookServiceLogger(noopLogger);
 
@@ -200,6 +363,134 @@ Deno.test("facebook-service handles missing fetch responses", async () => {
         Error,
         "No response received from Facebook API",
       );
+    },
+  );
+
+  setFacebookServiceLogger();
+});
+
+Deno.test(
+  "facebook-service throws when short-lived token exchange response is missing token",
+  async () => {
+    setFacebookServiceLogger(noopLogger);
+
+    await withFetchStub(
+      [createJsonResponse({})],
+      async () => {
+        await assertRejects(
+          () =>
+            exchangeCodeForToken(
+              "code",
+              "app",
+              "secret",
+              "https://redirect.test",
+            ),
+          Error,
+          "No access token received from Facebook",
+        );
+      },
+    );
+
+    setFacebookServiceLogger();
+  },
+);
+
+Deno.test(
+  "facebook-service throws when long-lived token exchange response is missing token",
+  async () => {
+    setFacebookServiceLogger(noopLogger);
+
+    await withFetchStub(
+      [createJsonResponse({})],
+      async () => {
+        await assertRejects(
+          () =>
+            exchangeForLongLivedToken(
+              "short",
+              "app",
+              "secret",
+            ),
+          Error,
+          "No long-lived token received from Facebook",
+        );
+      },
+    );
+
+    setFacebookServiceLogger();
+  },
+);
+
+Deno.test("facebook-service filters past events without start_time", async () => {
+  setFacebookServiceLogger(noopLogger);
+
+  await withFetchStub(
+    [
+      createJsonResponse({
+        data: [{ id: "upcoming", name: "Upcoming", start_time: "2024-06-05" }],
+      }),
+      createJsonResponse({
+        data: [
+          { id: "no-time", name: "No Time" },
+          { id: "recent", name: "Recent", start_time: new Date().toISOString() },
+        ],
+      }),
+    ],
+    async () => {
+      const events = await getAllRelevantEvents("page", "token", 30);
+      const ids = events.map((event) => event.id).sort();
+      assertEquals(ids, ["recent", "upcoming"]);
+    },
+  );
+
+  setFacebookServiceLogger();
+});
+
+Deno.test("facebook-service uses default console logger when custom logger unset", async () => {
+  setFacebookServiceLogger();
+  const consoleLog = spy(console, "log", () => {});
+  try {
+    await withFetchStub(
+      [createJsonResponse({ access_token: "short" })],
+      async () => {
+        await exchangeCodeForToken(
+          "code",
+          "app",
+          "secret",
+          "https://redirect.test",
+        );
+      },
+    );
+    assertSpyCalls(consoleLog, 1);
+  } finally {
+    consoleLog.restore();
+    setFacebookServiceLogger();
+  }
+});
+
+Deno.test("facebook-service removes duplicate events by id", async () => {
+  setFacebookServiceLogger(noopLogger);
+
+  await withFetchStub(
+    [
+      createJsonResponse({
+        data: [
+          { id: "event-1", name: "Upcoming", start_time: "2024-06-05T10:00:00Z" },
+        ],
+      }),
+      createJsonResponse({
+        data: [
+          {
+            id: "event-1",
+            name: "Duplicate Past",
+            start_time: new Date().toISOString(),
+          },
+        ],
+      }),
+    ],
+    async () => {
+      const events = await getAllRelevantEvents("page", "token", 60);
+      assertEquals(events.length, 1);
+      assertEquals(events[0].id, "event-1");
     },
   );
 

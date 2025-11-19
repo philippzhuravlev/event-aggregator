@@ -191,7 +191,7 @@ Deno.test("cleanupOldEvents returns default result when delete fails", async () 
   });
   const result = await cleanupOldEvents(supabase as unknown, 90, false);
 
-  assertEquals(result.success, true);
+  assertEquals(result.success, false);
   assertEquals(result.eventsDeleted, 0);
 });
 
@@ -395,6 +395,53 @@ Deno.test("handleCleanupEvents handles missing dryRun parameter", async () => {
 
     const response = await handleCleanupEvents(request);
     assertEquals(response.status >= 200 && response.status < 600, true);
+  } finally {
+    factoryRestore();
+    restoreEnv();
+  }
+});
+
+Deno.test("cleanupOldEvents marks result as unsuccessful when delete throws", async () => {
+  const supabase = {
+    from: (table: string) => {
+      if (table === "events") {
+        return {
+          select: () => ({
+            lt: () => Promise.resolve({ count: 1, error: null }),
+          }),
+          delete: () => ({
+            lt: () =>
+              Promise.resolve({
+                error: { message: "Delete failed" },
+              }),
+          }),
+        };
+      }
+      return {};
+    },
+  };
+
+  const result = await cleanupOldEvents(supabase as unknown, 30, false);
+  assertEquals(result.success, false);
+  assertEquals(result.eventsDeleted, 0);
+});
+
+Deno.test("handleCleanupEvents returns 500 when Supabase client creation fails", async () => {
+  const restoreEnv = createMockEnv();
+  const factoryRestore = () => resetSupabaseClientFactory();
+  setSupabaseClientFactory(() => {
+    throw new Error("factory boom");
+  });
+  try {
+    const request = new Request(
+      "https://example.com/cleanup-events?daysToKeep=90",
+      { method: "POST" },
+    );
+
+    const response = await handleCleanupEvents(request);
+    assertEquals(response.status, 500);
+    const payload = await response.json();
+    assertEquals(payload.success, false);
   } finally {
     factoryRestore();
     restoreEnv();
