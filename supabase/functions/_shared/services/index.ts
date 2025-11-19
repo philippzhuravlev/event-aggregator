@@ -19,9 +19,11 @@ export {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
   getAllRelevantEvents,
+  getEventDetails,
   getPageEvents,
   getUserPages,
-} from "./facebook-service.ts";
+  setFacebookServiceLogger,
+} from "@event-aggregator/shared/src/services/facebook-service.ts";
 
 // Image Service - Image processing and CDN management
 export {
@@ -43,7 +45,10 @@ export {
   sendTokenRefreshFailedAlert,
 } from "./mail-service.ts";
 
-export type { AlertEmailOptions, EmailOptions } from "@event-aggregator/shared/types.ts";
+export type {
+  AlertEmailOptions,
+  EmailOptions,
+} from "@event-aggregator/shared/types.ts";
 
 // Supabase Service - Database operations
 export {

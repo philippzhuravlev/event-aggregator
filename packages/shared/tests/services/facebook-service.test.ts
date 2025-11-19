@@ -655,8 +655,11 @@ describe("services/facebook-service", () => {
     fetchMock.mockResolvedValueOnce(
       createResponse({
         data: [],
-        paging: { next: undefined },
-      } as PaginatedEventResponse),
+        // coerce to unknown first before forcing PaginatedEventResponse shape
+        paging: {
+          next: undefined,
+        } as unknown as PaginatedEventResponse["paging"],
+      }),
     );
 
     const events = await getPageEvents("page-1", "access-token", "upcoming");

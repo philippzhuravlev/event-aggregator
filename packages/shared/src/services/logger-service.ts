@@ -30,6 +30,76 @@ export interface StructuredLogger {
 
 const defaultNow = () => new Date().toISOString();
 
+export interface ServiceLogger {
+  info?(message: string, metadata?: Record<string, unknown>): void;
+  warn?(message: string, metadata?: Record<string, unknown>): void;
+  error?(
+    message: string,
+    error?: Error | null,
+    metadata?: Record<string, unknown>,
+  ): void;
+  debug?(message: string, metadata?: Record<string, unknown>): void;
+}
+
+type LoggerLike = Pick<
+  StructuredLogger,
+  "info" | "warn" | "error" | "debug"
+>;
+
+const consoleServiceLogger: Required<ServiceLogger> = {
+  info(message, metadata) {
+    console.log(message, ...(metadata ? [metadata] : []));
+  },
+  warn(message, metadata) {
+    console.warn(message, ...(metadata ? [metadata] : []));
+  },
+  error(message, error, metadata) {
+    console.error(message, error ?? null, metadata);
+  },
+  debug(message, metadata) {
+    console.debug(message, ...(metadata ? [metadata] : []));
+  },
+};
+
+export function getConsoleServiceLogger(): Required<ServiceLogger> {
+  return consoleServiceLogger;
+}
+
+export function resolveServiceLogger(
+  logger?: ServiceLogger,
+  fallback: Required<ServiceLogger> = consoleServiceLogger,
+): Required<ServiceLogger> {
+  if (!logger) {
+    return fallback;
+  }
+
+  return {
+    info: logger.info ?? fallback.info,
+    warn: logger.warn ?? fallback.warn,
+    error: logger.error ?? fallback.error,
+    debug: logger.debug ?? fallback.debug,
+  };
+}
+
+export function createServiceLoggerFromStructuredLogger(
+  baseLogger: LoggerLike,
+): Required<ServiceLogger> {
+  return {
+    info(message, metadata) {
+      baseLogger.info(message, metadata);
+    },
+    warn(message, metadata) {
+      baseLogger.warn(message, metadata);
+    },
+    error(message, error, metadata) {
+      baseLogger.error(message, error ?? null, metadata);
+    },
+    debug(message, metadata) {
+      baseLogger.debug(message, metadata);
+    },
+  };
+}
+
 function normalizeError(error: unknown): Record<string, unknown> | undefined {
   if (!error) return undefined;
 
@@ -74,14 +144,13 @@ function write(
         message: "Failed to serialize log payload",
         originalMessage: message,
         timestamp: now(),
-        serializationError:
-          serializationError instanceof Error
-            ? {
-              message: serializationError.message,
-              stack: serializationError.stack,
-              name: serializationError.name,
-            }
-            : serializationError,
+        serializationError: serializationError instanceof Error
+          ? {
+            message: serializationError.message,
+            stack: serializationError.stack,
+            name: serializationError.name,
+          }
+          : serializationError,
       }),
     );
   }
@@ -114,5 +183,3 @@ export function createStructuredLogger(
     },
   };
 }
-
-

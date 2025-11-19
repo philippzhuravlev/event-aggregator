@@ -6,6 +6,11 @@ import {
   SERVER_ERROR_RANGE,
 } from "../config/validation-config.ts";
 import { FACEBOOK as FACEBOOK_CONFIG } from "../config/service-config.ts";
+import {
+  getConsoleServiceLogger,
+  resolveServiceLogger,
+} from "./logger-service.ts";
+import type { ServiceLogger } from "./logger-service.ts";
 import type {
   FacebookErrorResponse,
   FacebookEvent,
@@ -14,48 +19,14 @@ import type {
   PaginatedPageResponse,
 } from "../types.ts";
 
-export interface FacebookServiceLogger {
-  info?(message: string, metadata?: Record<string, unknown>): void;
-  warn?(message: string, metadata?: Record<string, unknown>): void;
-  error?(
-    message: string,
-    error?: Error | null,
-    metadata?: Record<string, unknown>,
-  ): void;
-  debug?(message: string, metadata?: Record<string, unknown>): void;
-}
+export type FacebookServiceLogger = ServiceLogger;
 
-const defaultLogger: Required<FacebookServiceLogger> = {
-  info(message, metadata) {
-    console.log(message, ...(metadata ? [metadata] : []));
-  },
-  warn(message, metadata) {
-    console.warn(message, ...(metadata ? [metadata] : []));
-  },
-  error(message, error, metadata) {
-    console.error(message, error ?? undefined, metadata);
-  },
-  debug(message, metadata) {
-    console.debug(message, ...(metadata ? [metadata] : []));
-  },
-};
-
-let activeLogger: Required<FacebookServiceLogger> = defaultLogger;
+let activeLogger: Required<FacebookServiceLogger> = getConsoleServiceLogger();
 
 export function setFacebookServiceLogger(
   logger?: FacebookServiceLogger,
 ): void {
-  if (!logger) {
-    activeLogger = defaultLogger;
-    return;
-  }
-
-  activeLogger = {
-    info: logger.info ?? defaultLogger.info,
-    warn: logger.warn ?? defaultLogger.warn,
-    error: logger.error ?? defaultLogger.error,
-    debug: logger.debug ?? defaultLogger.debug,
-  };
+  activeLogger = resolveServiceLogger(logger);
 }
 
 const logInfo = (
