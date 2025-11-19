@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Event } from '@/types/index.ts';
 import { formatEventStart, getEventUrl } from '@/utils/eventUtils.ts';
 
@@ -7,7 +8,26 @@ import { formatEventStart, getEventUrl } from '@/utils/eventUtils.ts';
 
 // This file is specifically for a small event card, the ones that show up on the event list.
 
+const DEFAULT_IMAGE = '/dtuevent-logo.png';
+
 export function EventCard({ event }: { event: Event }) {
+  const [imageSrc, setImageSrc] = useState<string>(
+    event.coverImageUrl || DEFAULT_IMAGE
+  );
+  const [hasError, setHasError] = useState(false);
+  const [showPlaceholder, setShowPlaceholder] = useState(false);
+
+  const handleImageError = () => {
+    if (imageSrc !== DEFAULT_IMAGE && !hasError) {
+      // Try fallback image first
+      setHasError(true);
+      setImageSrc(DEFAULT_IMAGE);
+    } else {
+      // Both original and fallback failed, show placeholder
+      setShowPlaceholder(true);
+    }
+  };
+
   return (
     // HTML Quick Intro:
     // p = paragraph
@@ -31,11 +51,18 @@ export function EventCard({ event }: { event: Event }) {
         {/* layout: image to the left, text to the right*/}
         <div className="flex items-start gap-4">
           {/* event cover image with fallback to DTU logo */}
-          <img 
-            src={event.coverImageUrl || '/dtuevent-logo.png'} 
-            alt={event.title} 
-            className="w-28 h-16 object-cover rounded" 
-          />
+          {showPlaceholder ? (
+            <div className="w-28 h-16 bg-gray-200 rounded flex items-center justify-center">
+              <span className="text-xs text-gray-500 text-center px-2">No Image</span>
+            </div>
+          ) : (
+            <img 
+              src={imageSrc} 
+              alt={event.title} 
+              className="w-28 h-16 object-cover rounded bg-gray-100" 
+              onError={handleImageError}
+            />
+          )}
           {/* text column */}
           <div className="min-w-0">
             <div className="font-semibold truncate">{event.title}</div>
