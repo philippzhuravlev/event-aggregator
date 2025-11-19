@@ -1,4 +1,4 @@
-import { assertEquals, assertArrayIncludes } from "std/assert/mod.ts";
+import { assertArrayIncludes, assertEquals } from "std/assert/mod.ts";
 import {
   containsSqlKeywords,
   detectSuspiciousPatterns,
@@ -23,7 +23,7 @@ Deno.test("sanitizeHtml removes dangerous tags and attributes", () => {
 Deno.test("sanitizeHtml falls back to escaping when sanitizer errors", () => {
   const warnings: Array<Record<string, unknown>> = [];
   setInputValidationLogger({
-    warn: (_message, metadata) => {
+    warn: (_message: string, metadata?: Record<string, unknown>) => {
       warnings.push(metadata ?? {});
     },
   });
@@ -46,7 +46,10 @@ Deno.test("sanitizeSql and containsSqlKeywords guard basic injection attempts", 
 });
 
 Deno.test("sanitizeInput supports email, url, number, alphanumeric, and text modes", () => {
-  assertEquals(sanitizeInput(" user@example.com ", "email"), "user@example.com");
+  assertEquals(
+    sanitizeInput(" user@example.com ", "email"),
+    "user@example.com",
+  );
   assertEquals(
     sanitizeInput("https://exa mple.com?<bad>", "url"),
     "https://example.com?bad",
@@ -108,4 +111,3 @@ Deno.test("sanitizeSearchQuery trims invalid characters and length", () => {
   const sanitized = sanitizeSearchQuery("  hello*&%world  ", 8);
   assertEquals(sanitized, "hello&wo");
 });
-

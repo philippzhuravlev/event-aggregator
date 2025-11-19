@@ -1,12 +1,12 @@
 import {
   BruteForceProtection,
-  SlidingWindowRateLimiter,
-  TokenBucketRateLimiter,
   createSlidingWindowLimiter,
   getClientIp,
   getRateLimitExceededResponse,
   getRateLimitHeaders,
   setRateLimitLogger,
+  SlidingWindowRateLimiter,
+  TokenBucketRateLimiter,
 } from "@event-aggregator/shared/validation/rate-limit-validation.js";
 import { TokenBucketRateLimiter as ExportedBucket } from "@event-aggregator/shared/validation/index.js";
 import { assertEquals } from "std/assert/mod.ts";
@@ -31,7 +31,7 @@ Deno.test("SlidingWindowRateLimiter enforces limits and reports status", () => {
 Deno.test("SlidingWindowRateLimiter warns when not initialized", () => {
   const warnings: string[] = [];
   setRateLimitLogger({
-    warn: (message) => warnings.push(message),
+    warn: (message: string) => warnings.push(message),
   });
 
   const limiter = new SlidingWindowRateLimiter();
@@ -55,7 +55,7 @@ Deno.test("createSlidingWindowLimiter wrapper delegates to limiter", () => {
 Deno.test("TokenBucketRateLimiter handles configuration and exhaustion", () => {
   const logs: string[] = [];
   setRateLimitLogger({
-    warn: (message) => logs.push(message),
+    warn: (message: string) => logs.push(message),
   });
 
   const bucket = new TokenBucketRateLimiter();
@@ -89,7 +89,10 @@ Deno.test("getClientIp and rate limit headers utilities handle fallbacks", () =>
     "cf-connecting-ip": "2.2.2.2",
     "x-real-ip": "3.3.3.3",
   });
-  assertEquals(getClientIp(new Request("https://example.com", { headers })), "1.1.1.1");
+  assertEquals(
+    getClientIp(new Request("https://example.com", { headers })),
+    "1.1.1.1",
+  );
 
   const resetAt = Date.now() + 2000;
   const rateHeaders = getRateLimitHeaders(
@@ -102,14 +105,19 @@ Deno.test("getClientIp and rate limit headers utilities handle fallbacks", () =>
     "https://example.com",
   );
   assertEquals(rateHeaders["X-RateLimit-Limit"], "10");
-  assertEquals(rateHeaders["Access-Control-Allow-Origin"], "https://example.com");
+  assertEquals(
+    rateHeaders["Access-Control-Allow-Origin"],
+    "https://example.com",
+  );
 
   const response = getRateLimitExceededResponse(resetAt, "https://example.com");
   assertEquals(response.status, 429);
-  assertEquals(response.headers.get("access-control-allow-origin"), "https://example.com");
+  assertEquals(
+    response.headers.get("access-control-allow-origin"),
+    "https://example.com",
+  );
 });
 
 Deno.test("validation index re-exports rate limit helpers", () => {
   assertEquals(typeof ExportedBucket, "function");
 });
-
