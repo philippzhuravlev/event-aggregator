@@ -1,2 +1,4 @@
 web/
 node_modules/
+packages/shared/src/
+supabase/functions/packages/shared/dist/

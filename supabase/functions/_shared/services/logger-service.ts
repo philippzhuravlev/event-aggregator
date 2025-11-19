@@ -1,4 +1,3 @@
-// @deno-types="../../../../packages/shared/src/services/logger-service.ts"
 import {
   createServiceLoggerFromStructuredLogger,
   createStructuredLogger,

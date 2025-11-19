@@ -7,7 +7,7 @@
     "test": "deno task test:unit && deno task test:integration",
     "test:unit": "deno test --no-check --allow-env --allow-net --allow-read --quiet --ignore=functions/tests/integration functions/tests",
     "test:integration": "deno test --allow-env --allow-net --allow-read --quiet functions/tests/integration",
-    "test:coverage": "deno test --no-check --allow-env --allow-net --allow-read --quiet --coverage=coverage functions/tests && deno coverage coverage --exclude=\"test\\.(js|mjs|ts|jsx|tsx)$\" --exclude=\"functions\\/packages\\/shared\\/dist\""
+    "test:coverage": "deno test --no-check --allow-env --allow-net --allow-read --quiet --coverage=coverage functions/tests && deno coverage coverage --include=\"^file://.*supabase/functions/(_shared|cleanup-events|facebook-webhooks|get-events|health-check|sync-events|token-refresh)/.*\" --exclude=\"test\\.(js|mjs|ts|jsx|tsx)$|packages/shared/src|functions/packages/shared/dist|logger-service\\.ts$\""
   },
   "imports": {
     "std/": "https://deno.land/std@0.208.0/",
