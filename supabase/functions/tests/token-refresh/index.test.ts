@@ -1,7 +1,10 @@
 import { assertEquals, assertObjectMatch } from "std/assert/mod.ts";
+import { assertSpyCalls, spy } from "std/testing/mock.ts";
 import {
   handleTokenRefresh,
   refreshExpiredTokens,
+  resetTokenRefreshDependencies,
+  setTokenRefreshDependencies,
 } from "../../token-refresh/index.ts";
 
 function createSupabaseClientMock(options?: {
@@ -18,9 +21,17 @@ function createSupabaseClientMock(options?: {
     | { token?: string | null; expiry?: string }
     | Array<{ token?: string; expiry?: string }>
     | null;
-  rpcError?: Error | null;
+  getTokenError?: Error | null;
+  storeTokenError?: Error | null;
+  onStoreCall?: (params?: Record<string, unknown>) => void;
 }) {
-  const { pages = [], tokenData = null, rpcError = null } = options || {};
+  const {
+    pages = [],
+    tokenData = null,
+    getTokenError = null,
+    storeTokenError = null,
+    onStoreCall,
+  } = options || {};
 
   const queryResult = Promise.resolve({ data: pages, error: null });
 
@@ -32,14 +43,18 @@ function createSupabaseClientMock(options?: {
         }),
       }),
     }),
-    rpc: (fnName: string) => {
-      if (rpcError) {
-        return Promise.resolve({ data: null, error: rpcError });
-      }
+    rpc: (fnName: string, params?: Record<string, unknown>) => {
       if (fnName === "get_page_access_token") {
+        if (getTokenError) {
+          return Promise.resolve({ data: null, error: getTokenError });
+        }
         return Promise.resolve({ data: tokenData, error: null });
       }
       if (fnName === "store_page_token") {
+        onStoreCall?.(params);
+        if (storeTokenError) {
+          return Promise.resolve({ data: null, error: storeTokenError });
+        }
         return Promise.resolve({ data: null, error: null });
       }
       return Promise.resolve({ data: null, error: null });
@@ -279,7 +294,7 @@ Deno.test("refreshExpiredTokens handles RPC errors when getting token", async ()
         token_expiry: futureDate.toISOString(),
       },
     ],
-    rpcError: new Error("RPC failed"),
+    getTokenError: new Error("RPC failed"),
   });
 
   const result = await refreshExpiredTokens(supabase);
@@ -419,6 +434,87 @@ Deno.test("refreshExpiredTokens handles store error", async () => {
   const result = await refreshExpiredTokens(supabase);
   assertEquals(result.refreshed, 0);
   assertEquals(result.failed >= 0, true);
+});
+
+Deno.test("refreshExpiredTokens stores refreshed token when dependencies injected", async () => {
+  const restoreEnv = createMockEnv();
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 3);
+  const storeCalls: Array<Record<string, unknown>> = [];
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 999,
+        page_name: "Inject Test",
+        token_status: "active",
+        page_access_token_id: 5,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "existing-token", expiry: futureDate.toISOString() },
+    onStoreCall: (params) => {
+      storeCalls.push(params ?? {});
+    },
+  });
+
+  const exchangeSpy = spy(async () => "fresh-token");
+  const alertSpy = spy(async () => {});
+
+  setTokenRefreshDependencies({
+    exchangeForLongLivedToken: exchangeSpy,
+    sendTokenRefreshFailedAlert: alertSpy,
+  });
+
+  try {
+    const result = await refreshExpiredTokens(supabase);
+    assertEquals(result.refreshed, 1);
+    assertEquals(result.failed, 0);
+    assertEquals(storeCalls.length, 1);
+    assertEquals(storeCalls[0].p_access_token, "fresh-token");
+    assertSpyCalls(exchangeSpy, 1);
+    assertSpyCalls(alertSpy, 0);
+  } finally {
+    resetTokenRefreshDependencies();
+    restoreEnv();
+  }
+});
+
+Deno.test("refreshExpiredTokens records rate limit result when limiter denies check", async () => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 2);
+
+  const supabase = createSupabaseClientMock({
+    pages: [
+      {
+        page_id: 456,
+        page_name: "Limited",
+        token_status: "active",
+        page_access_token_id: 2,
+        token_expiry: futureDate.toISOString(),
+      },
+    ],
+    tokenData: { token: "limited-token", expiry: futureDate.toISOString() },
+  });
+
+  setTokenRefreshDependencies({
+    tokenRefreshLimiter: {
+      check: () => false,
+    },
+    sendTokenRefreshFailedAlert: async () => {},
+  });
+
+  try {
+    const result = await refreshExpiredTokens(supabase);
+    assertEquals(result.refreshed, 0);
+    assertEquals(result.failed, 1);
+    assertEquals(
+      result.results[0]?.error,
+      "Rate limited - too many refresh attempts today",
+    );
+  } finally {
+    resetTokenRefreshDependencies();
+  }
 });
 
 Deno.test("refreshExpiredTokens handles missing FACEBOOK_APP_ID", async () => {

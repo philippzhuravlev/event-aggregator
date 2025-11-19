@@ -27,28 +27,16 @@ export interface FacebookServiceLogger {
 
 const defaultLogger: Required<FacebookServiceLogger> = {
   info(message, metadata) {
-    if (metadata) {
-      console.log(message, metadata);
-    } else {
-      console.log(message);
-    }
+    console.log(message, ...(metadata ? [metadata] : []));
   },
   warn(message, metadata) {
-    if (metadata) {
-      console.warn(message, metadata);
-    } else {
-      console.warn(message);
-    }
+    console.warn(message, ...(metadata ? [metadata] : []));
   },
   error(message, error, metadata) {
     console.error(message, error ?? undefined, metadata);
   },
   debug(message, metadata) {
-    if (metadata) {
-      console.debug(message, metadata);
-    } else {
-      console.debug(message);
-    }
+    console.debug(message, ...(metadata ? [metadata] : []));
   },
 };
 

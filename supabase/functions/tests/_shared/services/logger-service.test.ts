@@ -1,5 +1,7 @@
 import { assertEquals, assertExists } from "std/assert/mod.ts";
+import { assertSpyCalls, stub } from "std/testing/mock.ts";
 import { logger } from "../../../_shared/services/logger-service.ts";
+import { sanitizeHtml } from "@event-aggregator/shared/validation/input-validation.js";
 
 Deno.test("logger service exports logger instance", () => {
   assertExists(logger);
@@ -41,5 +43,21 @@ Deno.test("logger methods work without metadata", () => {
   logger.error("Test error", null);
   logger.debug("Test debug");
   assertEquals(true, true);
+});
+
+Deno.test("input validation logger delegates warn calls to structured logger", () => {
+  const warnStub = stub(logger, "warn", () => {});
+  try {
+    const faultyAllowedTags = {
+      has() {
+        throw new Error("boom");
+      },
+    } as unknown as Set<string>;
+
+    sanitizeHtml("<p>boom</p>", faultyAllowedTags);
+    assertSpyCalls(warnStub, 1);
+  } finally {
+    warnStub.restore();
+  }
 });
 

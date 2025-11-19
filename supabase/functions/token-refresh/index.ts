@@ -30,6 +30,40 @@ tokenRefreshLimiter.configure(
   RATE_LIMITS.TOKEN_REFRESH.refillRate,
 );
 
+type TokenRefreshLimiter = Pick<TokenBucketRateLimiter, "check">;
+interface TokenRefreshDependencies {
+  exchangeForLongLivedToken: typeof exchangeForLongLivedToken;
+  sendTokenRefreshFailedAlert: typeof sendTokenRefreshFailedAlert;
+  tokenRefreshLimiter: TokenRefreshLimiter;
+}
+
+const defaultTokenRefreshDependencies: TokenRefreshDependencies = {
+  exchangeForLongLivedToken,
+  sendTokenRefreshFailedAlert,
+  tokenRefreshLimiter,
+};
+
+let activeTokenRefreshDependencies = { ...defaultTokenRefreshDependencies };
+
+function applyTokenRefreshDependencies(
+  overrides: Partial<TokenRefreshDependencies> = {},
+): void {
+  activeTokenRefreshDependencies = {
+    ...defaultTokenRefreshDependencies,
+    ...overrides,
+  };
+}
+
+export function setTokenRefreshDependencies(
+  overrides: Partial<TokenRefreshDependencies> = {},
+): void {
+  applyTokenRefreshDependencies(overrides);
+}
+
+export function resetTokenRefreshDependencies(): void {
+  applyTokenRefreshDependencies();
+}
+
 /**
  * Token Refresh Handler
  * Scheduled cron job (runs every 24 hours)
@@ -89,7 +123,7 @@ export async function refreshExpiredTokens(
     }
 
     if (includeAlert) {
-      await sendTokenRefreshFailedAlert(
+      await activeTokenRefreshDependencies.sendTokenRefreshFailedAlert(
         pageId,
         alertMessage ?? reason,
       );
@@ -196,7 +230,8 @@ export async function refreshExpiredTokens(
         }
 
         // Rate limit: max 24 refreshes per day per page (1 per hour)
-        const isLimited = !tokenRefreshLimiter.check(pageId);
+        const isLimited = !activeTokenRefreshDependencies.tokenRefreshLimiter
+          .check(pageId);
 
         if (isLimited) {
           logger.debug(`Token refresh rate limited for page ${pageId}`);
@@ -223,7 +258,8 @@ export async function refreshExpiredTokens(
             throw new Error("Missing FACEBOOK_APP_ID or FACEBOOK_APP_SECRET");
           }
 
-          const newToken = await exchangeForLongLivedToken(
+          const newToken = await activeTokenRefreshDependencies
+            .exchangeForLongLivedToken(
             accessToken,
             appId,
             appSecret,

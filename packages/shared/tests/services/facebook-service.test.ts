@@ -8,6 +8,7 @@ import {
   getUserPages,
   setFacebookServiceLogger,
 } from "../../src/services/facebook-service.ts";
+import type { PaginatedEventResponse } from "../../src/types.ts";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -481,6 +482,35 @@ describe("services/facebook-service", () => {
     vi.useRealTimers();
   });
 
+  it("handles string-based network errors in retries", async () => {
+    vi.useFakeTimers();
+
+    fetchMock
+      .mockRejectedValueOnce("Network outage")
+      .mockResolvedValueOnce(
+        createResponse({
+          data: [{ id: "1", name: "Recovered Page" }],
+        }),
+      );
+
+    const promise = getUserPages("token");
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const pages = await promise;
+
+    expect(pages).toEqual([{ id: "1", name: "Recovered Page" }]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Facebook API request failed - retrying",
+      expect.objectContaining({
+        error: "Network outage",
+        attempt: 1,
+      }),
+    );
+
+    vi.useRealTimers();
+  });
+
   it("does not retry on token errors in catch block", async () => {
     fetchMock.mockRejectedValueOnce(
       new Error("Facebook token invalid (190)"),
@@ -617,6 +647,56 @@ describe("services/facebook-service", () => {
     expect(logger.error).toHaveBeenCalledWith(
       "Error fetching Facebook page events",
       expect.any(Error),
+      { pageId: "page-1", timeFilter: "upcoming" },
+    );
+  });
+
+  it("treats missing data in getPageEvents response as empty array", async () => {
+    fetchMock.mockResolvedValueOnce(
+      createResponse({
+        data: [],
+        paging: { next: undefined },
+      } as PaginatedEventResponse),
+    );
+
+    const events = await getPageEvents("page-1", "access-token", "upcoming");
+
+    expect(events).toEqual([]);
+    expect(logger.debug).toHaveBeenCalledWith(
+      "Fetched Facebook page events batch",
+      {
+        pageId: "page-1",
+        timeFilter: "upcoming",
+        batchCount: 0,
+      },
+    );
+  });
+
+  it("logs null error metadata when logger throws non-Error in getPageEvents", async () => {
+    const throwingLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(() => {
+        throw "Logger failure";
+      }),
+    };
+
+    setFacebookServiceLogger(throwingLogger);
+
+    fetchMock.mockResolvedValueOnce(
+      createResponse({
+        data: [{ id: "event-1", name: "Event 1" }],
+      }),
+    );
+
+    await expect(
+      getPageEvents("page-1", "access-token", "upcoming"),
+    ).rejects.toBe("Logger failure");
+
+    expect(throwingLogger.error).toHaveBeenCalledWith(
+      "Error fetching Facebook page events",
+      null,
       { pageId: "page-1", timeFilter: "upcoming" },
     );
   });
@@ -1301,6 +1381,20 @@ describe("services/facebook-service", () => {
     fetchMock.mockResolvedValueOnce(mockResponse);
 
     await expect(getUserPages("token")).rejects.toThrow("JSON parse error");
+  });
+
+  it("handles response.json() rejecting with a non-Error value", async () => {
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      json: vi.fn().mockRejectedValue("Malformed payload"),
+    } as unknown as Response;
+
+    fetchMock.mockResolvedValueOnce(mockResponse);
+
+    await expect(getUserPages("token")).rejects.toThrow(
+      "JSON parse error: Malformed payload",
+    );
   });
 
   it("handles isRetryableError with status at SERVER_ERROR_RANGE.MIN", async () => {
