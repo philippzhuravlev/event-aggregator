@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import process from "node:process";
 
-type MutableEnv = NodeJS.ProcessEnv & Record<string, string | undefined>;
+// Avoid depending on the ambient `NodeJS` namespace in tests — use a compatible shape instead
+type MutableEnv = Record<string, string | undefined>;
 
 const ORIGINAL_ENV = { ...process.env } as MutableEnv;
 
