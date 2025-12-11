@@ -22,26 +22,25 @@ export function EventCard({ event }: { event: Event }) {
       href={getEventUrl(event.id, event.eventURL)} // html link to the event
       target="_blank" // open in new tab
       rel="noopener noreferrer" // this is for security, prevents the new page from accessing the old page's window object
-      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-primary)] rounded-xl"
       // the above class is pulling from tailwindcss, basically a very big styling library
     >
       {/* and here we invoke visuals with "div", which just means a "section" or "aspect" of our card */}
       {/* card */}
-      <div className="border rounded p-4 hover:bg-gray-50 transition"> {/* this is just a card container from tailwindcss */}
-        {/* layout: image to the left, text to the right*/}
-        <div className="flex items-start gap-4">
-          {/* event cover image with fallback to DTU logo */}
+      <div className="bubble h-full flex flex-col gap-3">
+        {/* layout: image on top, text below for a cleaner grid look */}
+        <div className="w-full aspect-[16/9] overflow-hidden rounded-xl bg-[var(--button-hover)]">
           <img 
             src={event.coverImageUrl || '/dtuevent-logo.png'} 
             alt={event.title} 
-            className="w-28 h-16 object-cover rounded" 
+            className="w-full h-full object-cover"
           />
-          {/* text column */}
-          <div className="min-w-0">
-            <div className="font-semibold truncate">{event.title}</div>
-            <div className="text-sm text-gray-600">{formatEventStart(event.startTime)}</div>
-            <div className="text-sm">{event.place?.name ?? 'Location TBA'}</div>
-          </div>
+        </div>
+        {/* text column */}
+        <div className="min-w-0 space-y-1">
+          <div className="font-semibold text-primary truncate">{event.title}</div>
+          <div className="text-sm text-subtle">{formatEventStart(event.startTime)}</div>
+          <div className="text-sm text-body">{event.place?.name ?? 'Location TBA'}</div>
         </div>
       </div>
     </a>
