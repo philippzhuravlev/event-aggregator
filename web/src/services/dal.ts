@@ -16,6 +16,7 @@ import {
   API_TIMEOUT_MS,
   BACKEND_URL,
   USE_BACKEND_API,
+  USE_SUPABASE,
 } from "@/constants/config.ts";
 import { supabase } from "@/lib/supabase.ts";
 
@@ -61,9 +62,7 @@ export interface PaginatedEventsResponse {
  * @returns List of pages
  */
 export async function getPages(): Promise<Page[]> {
-  // During development, we can toggle USE_BACKEND_API to use mock data instead of real API calls
-  // This allows frontend development without needing the backend running
-  if (!USE_BACKEND_API) {
+  if (!USE_BACKEND_API && !USE_SUPABASE) {
     await new Promise((r) => setTimeout(r, 100)); // Simulate network delay for realistic UI testing
     return mockPages;
   }
@@ -103,8 +102,10 @@ export async function getPages(): Promise<Page[]> {
  * Falls back to Supabase if backend API fails for graceful error handling
  */
 export async function getEvents(options?: GetEventsOptions): Promise<Event[]> {
-  // During development, we can toggle USE_BACKEND_API to use mock data instead of real API calls
   if (!USE_BACKEND_API) {
+    if (USE_SUPABASE) {
+      return getEventsFromSupabase(options);
+    }
     await new Promise((r) => setTimeout(r, 150)); // Simulate network delay for realistic UI testing
     return mockEvents;
   }
@@ -128,7 +129,8 @@ export async function getEvents(options?: GetEventsOptions): Promise<Event[]> {
     // We use await because fetch returns a Promise, and we want to wait for the response
     // Template literals (${}) allow us to embed variables directly into strings
     const url = `${BACKEND_URL}/get-events?${params.toString()}`;
-    const authKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const authKey = import.meta.env.VITE_SUPABASE_ANON_KEY ||
+      import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!BACKEND_URL || !authKey) {
       // Fall back to direct Supabase access if backend config is missing
@@ -300,4 +302,53 @@ export async function getEventsPaginated(
   }
 
   return await response.json();
+}
+
+/**
+ * Get a single event by id
+ * Uses mock data in dev, otherwise fetches directly from Supabase
+ */
+export async function getEventById(id: string): Promise<Event | null> {
+  if (!USE_BACKEND_API && !USE_SUPABASE) {
+    const found = mockEvents.find((e) => e.id === id);
+    return found ?? null;
+  }
+
+  return await fetchEventFromSupabaseById(id);
+}
+
+async function fetchEventFromSupabaseById(id: string): Promise<Event | null> {
+  try {
+    const { data, error } = await supabase
+      .from("events")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    return {
+      id: data.id,
+      pageId: String(data.page_id),
+      title: (data.event_data?.name as string) || "Unnamed Event",
+      description: (data.event_data?.description as string),
+      startTime: (data.event_data?.start_time as string) || "",
+      endTime: (data.event_data?.end_time as string),
+      place: data.event_data?.place
+        ? {
+          name: (data.event_data.place as Record<string, unknown>)
+            ?.name as string,
+        }
+        : undefined,
+      coverImageUrl: data.event_data?.cover
+        ? (data.event_data.cover as Record<string, unknown>)?.source as string
+        : undefined,
+      eventURL: `https://facebook.com/events/${data.id}`,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    } satisfies Event;
+  } catch (err) {
+    console.error("Error in fetchEventFromSupabaseById:", err);
+    return null;
+  }
 }

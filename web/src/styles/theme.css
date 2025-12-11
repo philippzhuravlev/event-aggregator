@@ -1,0 +1,373 @@
+
+/* Layout */
+html, body { margin: 0; padding: 0; height: 100%; }
+
+/* Light gradient - DTU Salmon theme */
+html, html body {
+  background: linear-gradient(135deg, #FFF9F7 0%, #F5EAE8 25%, #FCF5F0 65%, #FFFBFA 100%);
+  background-attachment: fixed;
+}
+
+/* Dark gradient - DTU Dark Blue theme */
+html.dark, html.dark body {
+  background: linear-gradient(135deg,#0a0a0a 0%,#1a0a14 25%,#1a1f3a 60%,#0a0a0a 100%);
+  background-attachment: fixed;
+}
+
+/* ===== THEME VARIABLES ===== */
+
+/* Light Mode (Day) - DTU Salmon/Orange */
+:root {
+  /* Colors - Light Mode */
+  --dtu-primary-bg: #FFF9F7;
+  --dtu-secondary-bg: #F5EAE8;
+  --dtu-card-bg: #FFFFFF;
+  --dtu-accent: #E85D3B;
+  --dtu-accent-light: #F5B8A6;
+  --dtu-accent-hover: #D84D2B;
+  
+  /* Header - Light Mode */
+  --header-bg: #F5B8A6;
+  --header-bg-secondary: #FAD8CF;
+  --header-text: #1F1F1F;
+  --header-subtitle: #6B6B6B;
+  --header-shadow: 0 8px 24px rgba(245, 184, 166, 0.12);
+  
+  /* Text - Light Mode */
+  --text-primary: #1F1F1F;
+  --text-body: #444444;
+  --text-subtle: #777777;
+  
+  /* UI Elements - Light Mode */
+  --panel-bg: rgba(255, 255, 255, 0.9);
+  --panel-border: #E8D5D0;
+  --input-bg: #FFFFFF;
+  --input-border: #E8D5D0;
+  --input-focus-border: #E85D3B;
+  --input-text: #1F1F1F;
+  --button-hover: rgba(232, 93, 59, 0.1);
+  --shadow-color: rgba(139, 69, 19, 0.12);
+  --shadow-color-hover: rgba(139, 69, 19, 0.18);
+  
+  /* Links - Light Mode */
+  --link-primary: #E85D3B;
+  --link-primary-hover: #D84D2B;
+}
+
+/* Dark Mode (Night) - DTU Dark Blue */
+html.dark {
+  /* Colors - Dark Mode */
+  --dtu-primary-bg: #0A1A4F;
+  --dtu-secondary-bg: #0D1F54;
+  --dtu-card-bg: rgba(20, 24, 50, 0.6);
+  --dtu-accent: #3C54F0;
+  --dtu-accent-light: #5E73FF;
+  --dtu-accent-hover: #3347D2;
+  
+  /* Header - Dark Mode */
+  --header-bg: linear-gradient(135deg,#0a0a0a 0%,#1a0a14 25%,#1a1f3a 60%,#0a0a0a 100%);
+  --header-bg-secondary: #0A1F6A;
+  --header-text: #FFFFFF;
+  --header-subtitle: #A8AFBE;
+  --header-shadow: 0 8px 40px rgba(255, 255, 255, 0.25);
+  
+  /* Text - Dark Mode */
+  --text-primary: #FFFFFF;
+  --text-body: #D5D8E0;
+  --text-subtle: #8C92A5;
+  
+  /* UI Elements - Dark Mode */
+  --panel-bg: rgba(18, 20, 36, 0.7);
+  --panel-border: rgba(255, 255, 255, 0.25);
+  --input-bg: rgba(25, 32, 58, 0.55);
+  --input-border: rgba(255, 255, 255, 0.25);
+  --input-focus-border: #5565FF;
+  --input-text: #D5D8E0;
+  --button-hover: rgba(30, 63, 242, 0.15);
+
+  --shadow-color: rgba(40, 60, 140, 0.25);
+  --shadow-color-hover: rgba(255, 255, 255, 0.25);
+  
+  /* Links - Dark Mode */
+  --link-primary: #1E3FF2;
+  --link-primary-hover: #4B6FFF;
+}
+
+/* ===== BASE STYLES ===== */
+
+/* Text Classes */
+.text-primary { color: var(--text-primary); }
+.text-body { color: var(--text-body); }
+.text-subtle { color: var(--text-subtle); }
+
+/* ===== HEADER STYLING ===== */
+
+.page-header {
+  /* use only theme variables for the gradient */
+  background: linear-gradient(135deg, var(--header-bg) 0%, var(--header-bg-secondary) 100%);
+  /* reduced vertical padding to avoid colliding with the theme toggle */
+  padding: 24px 32px;
+  /* extra right padding to give room for the fixed toggle */
+  padding-right: calc(32px + 80px);
+  position: relative;
+  border-radius: 24px;
+  /* slightly reduce the top-right radius so toggle doesn't visually collide */
+  border-top-right-radius: 20px;
+  box-shadow: var(--header-shadow);
+  border-bottom: 2px solid rgba(30, 63, 242, 0.12);
+  overflow: visible;
+}
+
+/* Subtle inner glow effect */
+.page-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  border-top-right-radius: 20px;
+  background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.page-header::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  border-top-right-radius: 20px;
+  background: radial-gradient(ellipse at 50% 100%, rgba(30, 63, 242, 0.04) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.header-content {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 1rem; /* reduced gap for a flatter header */
+  max-width: 1344px;
+  margin: 0 auto;
+}
+
+.header-logo {
+  width: 3.5rem; /* 56px - smaller, crisper */
+  height: 3.5rem;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  flex-shrink: 0;
+  transition: transform 220ms ease;
+}
+
+.header-logo:hover {
+  transform: scale(1.05);
+}
+
+/* Theme toggle placement inside header */
+.header-toggle {
+  position: absolute;
+  top: 14px;
+  right: 20px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .header-toggle { top: 8px; right: 12px; }
+}
+
+.header-text {
+  flex: 1;
+}
+
+.header-title {
+  font-size: 2.5rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--header-text);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.header-subtitle {
+  font-size: 0.95rem;
+  color: var(--header-subtitle);
+  margin: 0.5rem 0 0 0;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+/* Responsive header */
+@media (max-width: 640px) {
+  .page-header {
+    padding: 16px 12px; /* slightly smaller on mobile */
+    padding-right: 12px; /* don't reserve large right padding on small screens */
+  }
+  
+  .header-content {
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .header-logo {
+    width: 3rem;
+    height: 3rem;
+  }
+  
+  .header-title {
+    font-size: 1.875rem;
+  }
+  
+  .header-text {
+    text-align: center;
+    flex: 1 100%;
+  }
+}
+
+/* Containers */
+.page { 
+  min-height: 100vh; 
+  color: var(--text-primary); 
+}
+
+.panel,
+.card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  box-shadow: 0 4px 12px var(--shadow-color);
+  transition: all 200ms ease;
+}
+
+.card:hover {
+  box-shadow: 0 8px 20px var(--shadow-color-hover);
+  transform: translateY(-2px);
+}
+
+/* ===== INPUTS ===== */
+
+.input {
+  background: var(--input-bg);
+  border: 2px solid var(--input-border);
+  color: var(--input-text);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  cursor: pointer;
+  transition: all 200ms ease;
+  font-size: 0.95rem;
+}
+
+.input:hover {
+  border-color: var(--dtu-accent);
+}
+
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px var(--button-hover);
+}
+
+/* Date input styling */
+input[type="date"] {
+  cursor: pointer;
+}
+
+/* Fix calendar icon visibility in dark mode */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0) brightness(1);
+  cursor: pointer;
+}
+
+html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.9);
+  cursor: pointer;
+}
+
+/* ===== BUTTONS ===== */
+
+.btn {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 200ms ease;
+  font-weight: 500;
+}
+
+.btn:hover {
+  background: var(--button-hover);
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: var(--link-primary);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: var(--link-primary-hover);
+  box-shadow: 0 4px 12px rgba(30, 63, 242, 0.3);
+  transform: translateY(-2px);
+}
+
+html.dark .btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(30, 63, 242, 0.4);
+}
+
+/* ===== UNIVERSAL GLASSMORPHISM STYLE ===== */
+
+.bubble {
+  padding: 20px 24px;
+  border-radius: 1.25rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 4px 12px var(--shadow-color);
+  transition: all 250ms ease;
+}
+
+.bubble:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 8px 20px var(--shadow-color-hover);
+}
+
+/* iOS-style button inside a bubble */
+.bubble-button {
+  padding: 12px 18px;
+  border-radius: 0.875rem;
+  border: 1px solid var(--panel-border);
+  background: var(--button-hover);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 200ms ease;
+  font-weight: 500;
+}
+
+.bubble-button:hover {
+  background: var(--link-primary);
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow-color-hover);
+}
+
+/* ===== SMOOTH TRANSITIONS ===== */
+
+* {
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+}
+
+button, a, input, select, textarea {
+  transition: all 200ms ease;
+}

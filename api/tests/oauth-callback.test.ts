@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildRedirectUrl, logEvent } from "../oauth-callback/index";
-import handler from "../oauth-callback/index";
-import { validateOAuthCallbackQuery } from "../oauth-callback/schema";
+import { buildRedirectUrl, logEvent } from "../oauth-callback/index.js";
+import handler from "../oauth-callback/index.js";
+import { validateOAuthCallbackQuery } from "../oauth-callback/schema.js";
 import * as facebookService from "@event-aggregator/shared/services/facebook-service";
 import { createClient } from "@supabase/supabase-js";
-import * as oauthCallbackModule from "../oauth-callback/index";
+import * as oauthCallbackModule from "../oauth-callback/index.js";
 
 // Mock dependencies
 vi.mock("@supabase/supabase-js");
@@ -361,7 +361,7 @@ describe("handler", () => {
       });
       
       // Mock buildRedirectUrl to return a URL even though state validation failed
-      const buildRedirectUrlModule = await import("../oauth-callback/index");
+      const buildRedirectUrlModule = await import("../oauth-callback/index.js");
       vi.spyOn(buildRedirectUrlModule, "buildRedirectUrl").mockReturnValueOnce(
         "https://allowed.app/callback?error=Invalid%20state"
       );
@@ -539,7 +539,7 @@ describe("handler", () => {
       
       // Mock buildRedirectUrl to return null to test fallback
       // It's called once at line 219 for the "no pages" redirect
-      const buildRedirectUrlModule = await import("../oauth-callback/index");
+      const buildRedirectUrlModule = await import("../oauth-callback/index.js");
       vi.spyOn(buildRedirectUrlModule, "buildRedirectUrl").mockReturnValueOnce(null);
 
       await handler(mockReq, mockRes);
@@ -669,7 +669,7 @@ describe("handler", () => {
       
       // Mock buildRedirectUrl to return null to test fallback
       // It's called once at line 356 for the success redirect
-      const buildRedirectUrlModule = await import("../oauth-callback/index");
+      const buildRedirectUrlModule = await import("../oauth-callback/index.js");
       vi.spyOn(buildRedirectUrlModule, "buildRedirectUrl").mockReturnValueOnce(null);
 
       await handler(mockReq, mockRes);

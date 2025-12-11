@@ -61,7 +61,7 @@ export function EventCard({ event }: { event: Event }) {
       href={getEventUrl(event.id, event.eventURL)} // html link to the event
       target="_blank" // open in new tab
       rel="noopener noreferrer" // this is for security, prevents the new page from accessing the old page's window object
-      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-primary)] rounded-xl"
       // the above class is pulling from tailwindcss, basically a very big styling library
     >
       {/* and here we invoke visuals with "div", which just means a "section" or "aspect" of our card */}
