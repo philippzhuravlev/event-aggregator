@@ -104,6 +104,11 @@ export async function syncSinglePage(
       return { events: [], pageId: String(page.page_id), error: null };
     }
 
+    logger.debug("Access token retrieved", {
+      pageId: page.page_id,
+      pageName: page.page_name,
+    });
+
     logger.info("Syncing events for page", {
       pageId: page.page_id,
       pageName: page.page_name,
@@ -171,6 +176,12 @@ export async function syncSinglePage(
             ? fileExtension 
             : 'jpg';
           const filePath = `events/${year}/${event.id}.${validExtension}`;
+          logger.debug("Uploading cover image to Supabase Storage", {
+            pageId: page.page_id,
+            eventId: event.id,
+            bucket: EVENT_IMAGES_BUCKET,
+            path: filePath,
+          });
           
           // Download from Facebook and upload to Supabase Storage
           const uploadResult = await downloadAndUploadImage(
@@ -207,8 +218,19 @@ export async function syncSinglePage(
         String(page.page_id),
         (coverImageUrl ?? null) as null | undefined,
       );
+      logger.debug("Normalized event payload", {
+        pageId: normalized.page_id,
+        eventId: normalized.event_id,
+        startTime: normalized.event_data.start_time,
+        cover: normalized.event_data.cover?.source ?? null,
+      });
       pageEventData.push(normalized);
     }
+
+    logger.info("Prepared events for page", {
+      pageId: page.page_id,
+      eventCount: pageEventData.length,
+    });
 
     return { events: pageEventData, pageId: String(page.page_id), error: null };
   } catch (error) {
