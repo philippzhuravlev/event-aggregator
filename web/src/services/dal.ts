@@ -157,12 +157,12 @@ export async function getEvents(options?: GetEventsOptions): Promise<Event[]> {
     return events.map((e: Record<string, unknown>) => {
       // Extract coverImageUrl - handle both string and object formats
       let coverImageUrl: string | undefined;
-      if (typeof e.coverImageUrl === 'string') {
+      if (typeof e.coverImageUrl === "string") {
         coverImageUrl = e.coverImageUrl;
       } else if (e.cover) {
         // Handle cover as object with source property
         const cover = e.cover as Record<string, unknown>;
-        if (typeof cover.source === 'string') {
+        if (typeof cover.source === "string") {
           coverImageUrl = cover.source;
         }
       }
