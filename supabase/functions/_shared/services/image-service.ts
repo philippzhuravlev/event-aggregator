@@ -599,6 +599,10 @@ export async function downloadAndUploadImage(
       throw new Error("Image URL, bucket name, and file path are required");
     }
 
+    if (!supabase?.storage?.from) {
+      throw new Error("Supabase Storage client is not initialized");
+    }
+
     logger.debug("Downloading image from URL", { imageUrl, bucket, filePath });
 
     // Download the image from the URL

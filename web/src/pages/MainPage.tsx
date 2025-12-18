@@ -84,7 +84,7 @@ export function MainPage() { // function for main page (can be used in other fil
     return isNaN(ms) ? new Date(e.startTime).getTime() : ms; // fallback to startTime if parsing fails
   };
 
-  const [sortMode, setSortMode] = useState<SortMode>('upcoming'); // 'upcoming' = all (default)
+  const [sortMode, setSortMode] = useState<SortMode>('all'); // default to showing every fetched event, so past data isn't filtered away
 
   // build final list with sortMode
   let list = [...dateFiltered];
