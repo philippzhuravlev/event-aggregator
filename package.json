@@ -33,19 +33,19 @@
   },
   "homepage": "https://github.com/philippzhuravlev/DTUEvent#readme",
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.15",
+    "@vitest/coverage-v8": "^4.0.16",
     "node-fetch": "^3.3.2",
-    "supabase": "^2.54.11",
-    "vite": "^7.1.12",
-    "vite-tsconfig-paths": "^5.1.1",
-    "vitest": "^4.0.15"
+    "supabase": "^2.67.2",
+    "vite": "^7.3.0",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^4.0.16"
   },
   "dependencies": {
     "@event-aggregator/shared": "file:packages/shared",
-    "@supabase/supabase-js": "^2.45.0",
-    "axios": "^1.12.2",
+    "@supabase/supabase-js": "^2.89.0",
+    "axios": "^1.13.2",
     "dotenv": "^17.2.3",
-    "express": "^5.1.0"
+    "express": "^5.2.1"
   },
   "overrides": {
     "punycode": "^2.3.1"

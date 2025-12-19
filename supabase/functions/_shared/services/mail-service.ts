@@ -1,5 +1,5 @@
 import { logger } from "./logger-service.ts";
-import type { AlertEmailOptions, EmailOptions } from "@event-aggregator/shared/types.ts";
+import type { AlertEmailOptions, EmailOptions } from "../../../../packages/shared/src/types.ts";
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, Supabase and

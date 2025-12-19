@@ -376,7 +376,7 @@ export function parseResponseBody(body: string): ApiResponse | null {
   }
 }
 
-export function handleCORSPreflight(origin?: string): Response {
+export function handleCORSPreflight(origin?: string | null): Response {
   const corsHeaders = createCorsHeaders(origin ?? "*");
 
   return new Response(null, {

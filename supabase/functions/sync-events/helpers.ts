@@ -10,7 +10,10 @@ import {
   TOKEN_REFRESH,
 } from "@event-aggregator/shared/runtime/deno.js";
 import { normalizeEvent } from "@event-aggregator/shared/utils/event-normalizer.js";
-import type { DatabasePage } from "@event-aggregator/shared/types.ts";
+import type {
+  DatabasePage,
+  NormalizedEvent,
+} from "@event-aggregator/shared/types.ts";
 import { ExpiringToken, PageSyncResult } from "./types.ts";
 import { downloadAndUploadImage } from "../_shared/services/image-service.ts";
 
@@ -213,7 +216,7 @@ export async function syncSinglePage(
         }
       }
 
-      const normalized = currentSyncDeps.normalizeEvent(
+      const normalized: NormalizedEvent = currentSyncDeps.normalizeEvent(
         event,
         String(page.page_id),
         (coverImageUrl ?? null) as null | undefined,

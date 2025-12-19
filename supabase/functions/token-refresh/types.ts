@@ -3,7 +3,7 @@
  * Types for token refresh operations and status reporting
  */
 
-import type { DatabasePage } from "@event-aggregator/shared/types.ts";
+import type { DatabasePage } from "../../../packages/shared/src/types.ts";
 
 /**
  * Page token information

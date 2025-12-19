@@ -1,6 +1,6 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "npm:@supabase/supabase-js";
 import { logger } from "./logger-service.ts";
-import type { FileMetadata, UploadOptions } from "@event-aggregator/shared/types.ts";
+import type { FileMetadata, UploadOptions } from "../../../../packages/shared/src/types.ts";
 
 /**
  * ImageService manages file storage and retrieval via Supabase Storage
@@ -382,9 +382,20 @@ export async function listFiles(
     }
 
     // Convert storage API response to FileMetadata format
+    type StorageFile = {
+      name: string;
+      metadata?: {
+        size?: number;
+        mimetype?: string;
+      };
+      created_at?: string;
+    };
+
     const files: FileMetadata[] = data
-      .filter((item) => item.metadata) // Skip folders
-      .map((item) => ({
+      .filter((item: StorageFile): item is StorageFile & { metadata: NonNullable<StorageFile["metadata"]> } =>
+        Boolean(item.metadata),
+      )
+      .map((item: StorageFile & { metadata: NonNullable<StorageFile["metadata"]> }) => ({
         name: item.name,
         size: item.metadata.size || 0,
         contentType: item.metadata.mimetype || "application/octet-stream",

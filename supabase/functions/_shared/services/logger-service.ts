@@ -1,13 +1,13 @@
 import {
   createServiceLoggerFromStructuredLogger,
   createStructuredLogger,
-} from "@event-aggregator/shared/services/logger-service.js";
-import { setFacebookServiceLogger } from "@event-aggregator/shared/src/services/facebook-service.ts";
+} from "../../../../packages/shared/src/services/logger-service.ts";
+import { setFacebookServiceLogger } from "../../../../packages/shared/src/services/facebook-service.ts";
 import type {
   ErrorMetadata,
   LogMetadata,
-} from "@event-aggregator/shared/types.ts";
-import { setInputValidationLogger } from "@event-aggregator/shared/validation/input-validation.js";
+} from "../../../../packages/shared/src/types.ts";
+import { setInputValidationLogger } from "../../../../packages/shared/src/validation/input-validation.ts";
 
 /**
  * Heads up on Supabase logging:

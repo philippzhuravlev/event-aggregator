@@ -23,7 +23,7 @@ export {
   getPageEvents,
   getUserPages,
   setFacebookServiceLogger,
-} from "@event-aggregator/shared/src/services/facebook-service.ts";
+} from "../../../../packages/shared/src/services/facebook-service.ts";
 
 // Image Service - Image processing and CDN management
 export {
@@ -48,7 +48,7 @@ export {
 export type {
   AlertEmailOptions,
   EmailOptions,
-} from "@event-aggregator/shared/types.ts";
+} from "../../../../packages/shared/src/types.ts";
 
 // Supabase Service - Database operations
 export {

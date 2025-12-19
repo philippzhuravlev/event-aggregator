@@ -1,14 +1,14 @@
-import { exchangeForLongLivedToken } from "@event-aggregator/shared/src/services/facebook-service.ts";
+import { exchangeForLongLivedToken } from "../../../packages/shared/src/services/facebook-service.ts";
 import { logger } from "../_shared/services/logger-service.ts";
 import { sendTokenRefreshFailedAlert } from "../_shared/services/mail-service.ts";
 import { createSupabaseClient } from "../_shared/services/supabase-service.ts";
-import { calculateDaysUntilExpiry } from "@event-aggregator/shared/utils/token-expiry.js";
+import { calculateDaysUntilExpiry } from "../../../packages/shared/src/utils/token-expiry-util.ts";
 import {
   createErrorResponse,
   createSuccessResponse,
   TokenBucketRateLimiter,
-} from "@event-aggregator/shared/validation/index.js";
-import { RATE_LIMITS } from "@event-aggregator/shared/runtime/deno.js";
+} from "../../../packages/shared/src/validation/index.ts";
+import { RATE_LIMITS } from "../../../packages/shared/src/runtime/deno.ts";
 import { PageToken, RefreshResult } from "./types.ts";
 
 type PageTokenWithExpiry = PageToken & {

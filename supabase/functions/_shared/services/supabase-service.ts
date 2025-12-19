@@ -7,12 +7,12 @@ import { logger } from "./logger-service.ts";
 import type {
   DatabasePage,
   NormalizedEvent,
-} from "@event-aggregator/shared/types.ts";
+} from "../../../../packages/shared/src/types.ts";
 import {
   calculateDaysUntilExpiry,
   isTokenExpiring,
-} from "@event-aggregator/shared/utils/token-expiry.js";
-import { TOKEN_EXPIRY_CONFIG } from "@event-aggregator/shared/runtime/deno.js";
+} from "../../../../packages/shared/src/utils/token-expiry-util.ts";
+import { TOKEN_EXPIRY_CONFIG } from "../../../../packages/shared/src/runtime/deno.ts";
 
 // this is a "service", which sounds vague but basically means a specific piece
 // of code that connects it to external elements like facebook, Supabase and
