@@ -8,6 +8,7 @@
     "test:coverage": "deno test --allow-env --allow-net --allow-read --coverage=coverage functions/tests/**/*.test.ts && deno coverage coverage --lcov --output=coverage/lcov.info --exclude=\"_shared/services/index\\.ts|.*types\\.ts$|sync-events/schema\\.ts$\""
   },
   "imports": {
+    "process": "node:process",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
     "@event-aggregator/shared": "./packages/shared/dist/index.js",
     "@event-aggregator/shared/": "./packages/shared/dist/",

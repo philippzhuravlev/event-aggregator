@@ -1,5 +1,5 @@
 {
-  "version": "5",
+  "version": "4",
   "remote": {
     "https://deno.land/std@0.208.0/assert/_constants.ts": "8a9da298c26750b28b326b297316cdde860bc237533b07e1337c021379e6b2a9",
     "https://deno.land/std@0.208.0/assert/_diff.ts": "58e1461cc61d8eb1eacbf2a010932bf6a05b79344b02ca38095f9b805795dc48",
@@ -44,20 +44,20 @@
   },
   "workspace": {
     "dependencies": [
-      "npm:@supabase/supabase-js@2"
+      "npm:@supabase/supabase-js@^2.89.0"
     ],
     "packageJson": {
       "dependencies": [
-        "npm:@supabase/supabase-js@^2.45.0",
-        "npm:@vitest/coverage-v8@^2.1.3",
-        "npm:axios@^1.12.2",
+        "npm:@supabase/supabase-js@^2.89.0",
+        "npm:@vitest/coverage-v8@^4.0.16",
+        "npm:axios@^1.13.2",
         "npm:dotenv@^17.2.3",
-        "npm:express@^5.1.0",
+        "npm:express@^5.2.1",
         "npm:node-fetch@^3.3.2",
-        "npm:supabase@^2.54.11",
-        "npm:vite-tsconfig-paths@^5.1.1",
-        "npm:vite@^7.1.12",
-        "npm:vitest@^2.1.3"
+        "npm:supabase@^2.67.2",
+        "npm:vite-tsconfig-paths@^5.1.4",
+        "npm:vite@^7.3.0",
+        "npm:vitest@^4.0.16"
       ]
     },
     "members": {
