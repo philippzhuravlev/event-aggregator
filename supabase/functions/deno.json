@@ -27,7 +27,8 @@
     "@event-aggregator/shared/src/services/facebook-service.ts": "../../packages/shared/src/services/facebook-service.ts",
     "@event-aggregator/shared/src/": "../../packages/shared/src/",
     "std/": "https://deno.land/std@0.208.0/",
-    "std/assert": "https://deno.land/std@0.208.0/assert/mod.ts"
+    "std/assert": "https://deno.land/std@0.208.0/assert/mod.ts",
+    "std/assert/mod.ts": "https://deno.land/std@0.208.0/assert/mod.ts"
   }
 }
 

@@ -1,3 +1,7 @@
+// Supabase Edge Function Configuration
+// @supabase-auth: none  - Disable JWT verification, use custom auth via sync-token
+// This allows us to use token-based authentication (SYNC_TOKEN) instead of JWT
+
 import {
   batchWriteEvents,
   createSupabaseClient,
@@ -221,8 +225,11 @@ export async function handleSyncEvents(req: Request): Promise<Response> {
     }
 
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    // Try remote first (for local development), fallback to local Supabase vars
+    const supabaseUrl = Deno.env.get("REMOTE_SUPABASE_URL") ||
+      Deno.env.get("SUPABASE_URL") || "";
+    const supabaseKey = Deno.env.get("REMOTE_SUPABASE_SERVICE_ROLE_KEY") ||
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
     if (!supabaseUrl || !supabaseKey) {
       return createErrorResponse(

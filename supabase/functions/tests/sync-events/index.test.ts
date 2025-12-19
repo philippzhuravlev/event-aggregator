@@ -7,6 +7,7 @@ import {
   handleSyncEvents,
   resetSyncEventsDeps,
   setSyncEventsDeps,
+  SYNC_TOKEN_HEADER,
   syncAllPageEvents,
 } from "../../sync-events/index.ts";
 import {
@@ -82,7 +83,10 @@ async function runSyncSuccess(env: EnvOverrides, authToken: string) {
       const response = await handleSyncEvents(
         new Request("https://example.com/sync-events", {
           method: "POST",
-          headers: { authorization: `Bearer ${authToken}` },
+          headers: {
+            [SYNC_TOKEN_HEADER]: authToken,
+            authorization: "Bearer supabase-service-token",
+          },
         }),
       );
 
@@ -120,10 +124,13 @@ Deno.test("handleSyncEvents handles OPTIONS for CORS", async () => {
   });
 });
 
-Deno.test("handleSyncEvents returns 401 when authorization missing", async () => {
+Deno.test("handleSyncEvents returns 401 when sync token missing", async () => {
   await withMockEnv(baseEnv, async () => {
     const response = await handleSyncEvents(
-      new Request("https://example.com/sync-events", { method: "POST" }),
+      new Request("https://example.com/sync-events", {
+        method: "POST",
+        headers: { authorization: "Bearer supabase-service-token" },
+      }),
     );
     assertEquals(response.status, 401);
     assertObjectMatch(await response.json(), {
@@ -143,7 +150,9 @@ Deno.test("handleSyncEvents returns 500 when sync token configuration is missing
       const response = await handleSyncEvents(
         new Request("https://example.com/sync-events", {
           method: "POST",
-          headers: { authorization: "Bearer anything" },
+          headers: {
+            authorization: "Bearer supabase-service-token",
+          },
         }),
       );
       assertEquals(response.status, 500);
@@ -162,7 +171,10 @@ Deno.test("handleSyncEvents returns 500 when Supabase config missing", async () 
       const response = await handleSyncEvents(
         new Request("https://example.com/sync-events", {
           method: "POST",
-          headers: { authorization: "Bearer sync-secret" },
+          headers: {
+            [SYNC_TOKEN_HEADER]: baseEnv.SYNC_TOKEN,
+            authorization: "Bearer sync-secret",
+          },
         }),
       );
       assertEquals(response.status, 500);

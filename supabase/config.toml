@@ -1,0 +1,15 @@
+# Supabase Edge Function Configuration
+# See: https://supabase.com/docs/guides/functions/function-configuration
+
+# Disable JWT verification for sync-events
+# This allows us to use custom token-based authentication (SYNC_TOKEN)
+[functions.sync-events]
+verify_jwt = false
+
+# Disable JWT verification for cleanup-events
+[functions.cleanup-events]
+verify_jwt = false
+
+# Disable JWT verification for token-refresh
+[functions.token-refresh]
+verify_jwt = false
