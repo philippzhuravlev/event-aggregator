@@ -1,7 +1,7 @@
 import { assertArrayIncludes, assertEquals, assertMatch } from "std/assert/mod.ts";
 
 const runtimeModuleUrl = new URL(
-  "../../../../packages/shared/dist/runtime/deno.js",
+  "../../../../../../packages/shared/src/runtime/deno.ts",
   import.meta.url,
 ).href;
 

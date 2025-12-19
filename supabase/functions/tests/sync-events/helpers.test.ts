@@ -8,7 +8,7 @@ import type {
   DatabasePage,
   FacebookEvent,
   NormalizedEvent,
-} from "@event-aggregator/shared/types.ts";
+} from "../../../../packages/shared/src/types.ts";
 import type { ExpiringToken } from "../../sync-events/types.ts";
 
 type SyncOverride = Parameters<typeof setSyncSinglePageDeps>[0];

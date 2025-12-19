@@ -23,7 +23,11 @@ import {
   verifyBearerToken,
   verifyHmacSignature,
   extractBearerToken,
-} from "@event-aggregator/shared/validation/index.js";
+} from "../../../../../../packages/shared/src/validation/index.ts";
+import type {
+  ApiResponse,
+  JsonSchema,
+} from "../../../../../../packages/shared/src/types.ts";
 import {
   assert,
   assertEquals,
@@ -84,9 +88,15 @@ Deno.test("response helpers serialize and parse bodies safely", () => {
   assertEquals(getStatusText(404), "Not Found");
   assertEquals(getStatusText(499), "HTTP 499");
 
-  const json = responseToJson({ foo: "bar" });
-  assertEquals(json, '{"foo":"bar"}');
-  assertEquals(parseResponseBody(json), { foo: "bar" });
+  const response: ApiResponse<{ foo: string }> = {
+    success: true,
+    data: { foo: "bar" },
+    timestamp: "2025-01-01T00:00:00.000Z",
+  };
+
+  const json = responseToJson(response);
+  assertEquals(json, JSON.stringify(response));
+  assertEquals(parseResponseBody(json), response);
   assertEquals(parseResponseBody("not json"), null);
 });
 
@@ -136,7 +146,7 @@ Deno.test("request validation utilities guard headers, methods and payloads", ()
     true,
   );
 
-  const schema = {
+  const schema: JsonSchema = {
     type: "object",
     required: ["ok"],
     properties: {
@@ -251,12 +261,16 @@ Deno.test("getStatusText handles all known status codes", () => {
 });
 
 Deno.test("responseToJson handles pretty printing", () => {
-  const obj = { foo: "bar", nested: { value: 123 } };
-  const compact = responseToJson(obj, false);
-  const pretty = responseToJson(obj, true);
-  assertEquals(compact, JSON.stringify(obj));
+  const response: ApiResponse<{ foo: string; nested: { value: number } }> = {
+    success: true,
+    data: { foo: "bar", nested: { value: 123 } },
+    timestamp: "2025-01-01T00:00:00.000Z",
+  };
+  const compact = responseToJson(response, false);
+  const pretty = responseToJson(response, true);
+  assertEquals(JSON.parse(compact), response);
   assert(pretty.includes("\n"));
-  assertEquals(JSON.parse(pretty), obj);
+  assertEquals(JSON.parse(pretty), response);
 });
 
 Deno.test("parseResponseBody handles invalid JSON", () => {
@@ -395,7 +409,7 @@ Deno.test("validateRequestJson handles empty body", () => {
 });
 
 Deno.test("validateJsonStructure handles missing required fields", () => {
-  const schema = {
+  const schema: JsonSchema = {
     type: "object",
     required: ["name", "age"],
     properties: {
@@ -409,14 +423,14 @@ Deno.test("validateJsonStructure handles missing required fields", () => {
 });
 
 Deno.test("validateJsonStructure handles wrong type", () => {
-  const schema = { type: "string" };
+  const schema: JsonSchema = { type: "string" };
   const result = validateJsonStructure(123, schema);
   assertEquals(result.valid, false);
   assert(result.error?.includes("Expected type string"));
 });
 
 Deno.test("validateJsonStructure handles string validation", () => {
-  const schema = {
+  const schema: JsonSchema = {
     type: "string",
     minLength: 5,
     maxLength: 10,
@@ -429,7 +443,7 @@ Deno.test("validateJsonStructure handles string validation", () => {
 });
 
 Deno.test("validateJsonStructure handles array validation", () => {
-  const schema = {
+  const schema: JsonSchema = {
     type: "array",
     minItems: 2,
     maxItems: 4,

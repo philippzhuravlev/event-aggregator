@@ -2,7 +2,7 @@ import { assertEquals, assertObjectMatch } from "std/assert/mod.ts";
 import type {
   DatabasePage,
   NormalizedEvent,
-} from "@event-aggregator/shared/types.ts";
+} from "../../../../packages/shared/src/types.ts";
 import {
   handleSyncEvents,
   resetSyncEventsDeps,

@@ -1,4 +1,6 @@
-import { assertEquals, assertExists, assertRejects } from "std/assert/mod.ts";
+import { assertEquals } from "https://deno.land/std@0.208.0/assert/assert_equals.ts";
+import { assertExists } from "https://deno.land/std@0.208.0/assert/assert_exists.ts";
+import { assertRejects } from "https://deno.land/std@0.208.0/assert/assert_rejects.ts";
 import {
   batchWriteEvents,
   checkTokenExpiry,
@@ -11,8 +13,8 @@ import {
 import type {
   DatabasePage,
   NormalizedEvent,
-} from "@event-aggregator/shared/types.ts";
-import type { SupabaseClient } from "@supabase/supabase-js";
+} from "../../../../../packages/shared/src/types.ts";
+import type { SupabaseClient } from "npm:@supabase/supabase-js";
 
 type MockQueryResult<T> = {
   data: T | null;

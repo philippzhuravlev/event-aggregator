@@ -3,7 +3,7 @@ import { assertSpyCalls, spy } from "std/testing/mock.ts";
 
 Deno.test("shared facebook-service module can be imported", async () => {
   const facebookService = await import(
-    "@event-aggregator/shared/src/services/facebook-service.ts"
+    "../../../../../packages/shared/src/services/facebook-service.ts"
   );
 
   assertEquals(typeof facebookService, "object");

@@ -4,7 +4,7 @@ import {
   calculateExpirationDate,
   getTokenStatus,
   isTokenExpiring,
-} from "@event-aggregator/shared/utils/token-expiry.js";
+} from "../../../../../../packages/shared/src/utils/token-expiry-util.ts";
 
 Deno.test("calculateDaysUntilExpiry rounds up to next whole day", () => {
   const now = new Date("2024-01-01T00:00:00.000Z");

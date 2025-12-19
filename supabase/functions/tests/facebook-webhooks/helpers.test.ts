@@ -7,7 +7,7 @@ import {
   setWebhookHelperDeps,
   shouldProcessEventType,
 } from "../../facebook-webhooks/helpers.ts";
-import type { FacebookEvent } from "@event-aggregator/shared/types.ts";
+import type { FacebookEvent } from "../../../../packages/shared/src/types.ts";
 
 function createBasicSupabaseMock() {
   return {
@@ -501,7 +501,7 @@ Deno.test("processWebhookChanges processes create events", async () => {
 
   // Mock getEventDetails and batchWriteEvents
   const _originalGetEventDetails = await import(
-    "@event-aggregator/shared/src/services/facebook-service.ts"
+    "../../../../packages/shared/src/services/facebook-service.ts"
   ).then((m) => m.getEventDetails);
   const _originalBatchWriteEvents = await import(
     "../../_shared/services/supabase-service.ts"

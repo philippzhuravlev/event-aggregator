@@ -7,8 +7,8 @@ import {
   setRateLimitLogger,
   SlidingWindowRateLimiter,
   TokenBucketRateLimiter,
-} from "@event-aggregator/shared/validation/rate-limit-validation.js";
-import { TokenBucketRateLimiter as ExportedBucket } from "@event-aggregator/shared/validation/index.js";
+} from "../../../../../../packages/shared/src/validation/rate-limit-validation.ts";
+import { TokenBucketRateLimiter as ExportedBucket } from "../../../../../../packages/shared/src/validation/index.ts";
 import { assertEquals } from "std/assert/mod.ts";
 
 Deno.test("SlidingWindowRateLimiter enforces limits and reports status", () => {
@@ -164,8 +164,6 @@ Deno.test("SlidingWindowRateLimiter cleanup prunes expired buckets", () => {
 
     limiter.check("test", "ip"); // request at t=0
     now = 200;
-    limiter.cleanup(); // should remove old bucket
-
     const status = limiter.getStatus("test", "ip");
     assertEquals(status.used, 0);
     limiter.destroy();

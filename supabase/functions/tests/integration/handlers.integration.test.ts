@@ -5,7 +5,7 @@ import { handleHealthCheck } from "../../health-check/index.ts";
 import { handleSyncEvents } from "../../sync-events/index.ts";
 import { handleTokenRefresh } from "../../token-refresh/index.ts";
 import { handleWebhook } from "../../facebook-webhooks/index.ts";
-import { WEBHOOK } from "@event-aggregator/shared/runtime/deno.js";
+import { WEBHOOK } from "../../../../packages/shared/src/runtime/deno.ts";
 import {
   resetSupabaseClientFactory,
   setSupabaseClientFactory,

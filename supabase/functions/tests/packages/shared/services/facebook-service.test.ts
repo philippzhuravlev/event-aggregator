@@ -9,7 +9,7 @@ import {
   getPageEvents,
   getUserPages,
   setFacebookServiceLogger,
-} from "@event-aggregator/shared/src/services/facebook-service.ts";
+} from "../../../../../../packages/shared/src/services/facebook-service.ts";
 
 // Helper function to infer the stub return type
 function createFetchStub() {

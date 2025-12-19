@@ -1,9 +1,9 @@
 import { assertEquals, assertThrows } from "std/assert/mod.ts";
-import { normalizeEvent } from "@event-aggregator/shared/src/utils/event-normalizer-util.ts";
+import { normalizeEvent } from "../../../../../../packages/shared/src/utils/event-normalizer-util.ts";
 import type {
   FacebookEvent,
   NormalizedEvent,
-} from "@event-aggregator/shared/types.ts";
+} from "../../../../../../packages/shared/src/types.ts";
 
 const baseEvent: FacebookEvent = {
   id: "evt_1",

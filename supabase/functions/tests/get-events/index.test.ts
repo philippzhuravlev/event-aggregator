@@ -4,8 +4,8 @@ import {
   assertObjectMatch,
 } from "std/assert/mod.ts";
 import { getEvents, handleGetEvents } from "../../get-events/index.ts";
-import type { GetEventsQuery } from "@event-aggregator/shared/types.ts";
-import { PAGINATION } from "@event-aggregator/shared/runtime/deno.js";
+import type { GetEventsQuery } from "../../../../packages/shared/src/types.ts";
+import { PAGINATION } from "../../../../packages/shared/src/runtime/deno.ts";
 
 type MockEvent = {
   page_id: number;

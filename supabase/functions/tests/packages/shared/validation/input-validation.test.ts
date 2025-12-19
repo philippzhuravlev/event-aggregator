@@ -11,7 +11,7 @@ import {
   setInputValidationLogger,
   validateInputComplexity,
   validateInputLength,
-} from "@event-aggregator/shared/validation/input-validation.js";
+} from "../../../../../../packages/shared/src/validation/input-validation.ts";
 
 Deno.test("sanitizeHtml removes dangerous tags and attributes", () => {
   const dirty = `<script>alert(1)</script><p onclick="hack()">Hello</p>`;

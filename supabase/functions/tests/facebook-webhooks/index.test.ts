@@ -8,8 +8,8 @@ import {
   handleWebhookGet,
   handleWebhookPost,
 } from "../../facebook-webhooks/index.ts";
-import { WEBHOOK } from "@event-aggregator/shared/runtime/deno.js";
-import { computeHmacSignature } from "@event-aggregator/shared/validation/index.js";
+import { WEBHOOK } from "../../../../packages/shared/src/runtime/deno.ts";
+import { computeHmacSignature } from "../../../../packages/shared/src/validation/index.ts";
 
 function createSupabaseClientMock() {
   return {

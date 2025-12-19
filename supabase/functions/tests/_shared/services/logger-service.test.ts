@@ -1,7 +1,7 @@
 import { assertEquals, assertExists } from "std/assert/mod.ts";
 import { assertSpyCalls, stub } from "std/testing/mock.ts";
 import { logger } from "../../../_shared/services/logger-service.ts";
-import { sanitizeHtml } from "@event-aggregator/shared/validation/input-validation.js";
+import { sanitizeHtml } from "../../../../../packages/shared/src/validation/input-validation.ts";
 
 Deno.test("logger service exports logger instance", () => {
   assertExists(logger);
