@@ -61,6 +61,43 @@ const basePage: DatabasePage = {
   updated_at: new Date().toISOString(),
 };
 
+async function runSyncSuccess(env: EnvOverrides, authToken: string) {
+  await withMockEnv(env, async () => {
+    resetSyncEventsDeps();
+    setSyncEventsDeps({
+      getActivePages: () => Promise.resolve([basePage]),
+      syncSinglePage: () =>
+        Promise.resolve({
+          events: [makeNormalizedEvent(basePage.page_id, "a")],
+          pageId: String(basePage.page_id),
+          error: null,
+        }),
+      batchWriteEvents: () => Promise.resolve(1),
+    });
+
+    // deno-lint-ignore no-explicit-any
+    setSupabaseClientFactory(() => ({}) as any);
+
+    try {
+      const response = await handleSyncEvents(
+        new Request("https://example.com/sync-events", {
+          method: "POST",
+          headers: { authorization: `Bearer ${authToken}` },
+        }),
+      );
+
+      assertEquals(response.status, 200);
+      const payload = await response.json();
+      assertEquals(payload.success, true);
+      assertEquals(payload.data.pagesProcessed, 1);
+      assertEquals(payload.data.eventsAdded, 1);
+    } finally {
+      resetSyncEventsDeps();
+      resetSupabaseClientFactory();
+    }
+  });
+}
+
 Deno.test("handleSyncEvents returns 405 for non-POST requests", async () => {
   await withMockEnv(baseEnv, async () => {
     const response = await handleSyncEvents(
@@ -96,7 +133,7 @@ Deno.test("handleSyncEvents returns 401 when authorization missing", async () =>
   });
 });
 
-Deno.test("handleSyncEvents returns 500 when SYNC_TOKEN missing", async () => {
+Deno.test("handleSyncEvents returns 500 when sync token configuration is missing", async () => {
   await withMockEnv(
     {
       SUPABASE_URL: baseEnv.SUPABASE_URL,
@@ -134,41 +171,22 @@ Deno.test("handleSyncEvents returns 500 when Supabase config missing", async () 
 });
 
 Deno.test("handleSyncEvents returns success body when sync succeeds", async () => {
-  await withMockEnv(baseEnv, async () => {
-    resetSyncEventsDeps();
-    setSyncEventsDeps({
-      getActivePages: () => Promise.resolve([basePage]),
-      syncSinglePage: () =>
-        Promise.resolve({
-          events: [makeNormalizedEvent(basePage.page_id, "a")],
-          pageId: String(basePage.page_id),
-          error: null,
-        }),
-      batchWriteEvents: () => Promise.resolve(1),
-    });
-
-    // deno-lint-ignore no-explicit-any
-    setSupabaseClientFactory(() => ({}) as any);
-
-    try {
-      const response = await handleSyncEvents(
-        new Request("https://example.com/sync-events", {
-          method: "POST",
-          headers: { authorization: "Bearer sync-secret" },
-        }),
-      );
-
-      assertEquals(response.status, 200);
-      const payload = await response.json();
-      assertEquals(payload.success, true);
-      assertEquals(payload.data.pagesProcessed, 1);
-      assertEquals(payload.data.eventsAdded, 1);
-    } finally {
-      resetSyncEventsDeps();
-      resetSupabaseClientFactory();
-    }
-  });
+  await runSyncSuccess(baseEnv, baseEnv.SYNC_TOKEN);
 });
+
+Deno.test(
+  "handleSyncEvents accepts API_SYNC_KEY when SYNC_TOKEN missing",
+  async () => {
+    await runSyncSuccess(
+      {
+        SUPABASE_URL: baseEnv.SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY: baseEnv.SUPABASE_SERVICE_ROLE_KEY,
+        API_SYNC_KEY: baseEnv.SYNC_TOKEN,
+      },
+      baseEnv.SYNC_TOKEN,
+    );
+  },
+);
 
 Deno.test("syncAllPageEvents aggregates multi-page results", async () => {
   resetSyncEventsDeps();

@@ -12,12 +12,12 @@ import {
   handleCORSPreflight,
   TokenBucketRateLimiter,
   verifyBearerToken,
-} from "@event-aggregator/shared/validation/index.js";
-import { HTTP_STATUS, RATE_LIMITS } from "@event-aggregator/shared/runtime/deno.js";
-import type {
-  ExpiringToken,
-  SynchronizedEvent,
-} from "./types.ts";
+} from "../packages/shared/dist/validation/index.js";
+import {
+  HTTP_STATUS,
+  RATE_LIMITS,
+} from "../packages/shared/dist/runtime/deno.js";
+import type { ExpiringToken, SynchronizedEvent } from "./types.ts";
 import { SyncResult } from "./types.ts";
 import { syncSinglePage } from "./helpers.ts";
 
@@ -71,6 +71,26 @@ syncRateLimiter.configure(
   RATE_LIMITS.SYNC_ENDPOINT.capacity,
   RATE_LIMITS.SYNC_ENDPOINT.refillRate,
 );
+
+const SYNC_TOKEN_ENV_KEYS = [
+  "SYNC_TOKEN",
+  "SYNC_KEY",
+  "API_SYNC_KEY",
+] as const;
+
+type SyncTokenEnvironmentKey = (typeof SYNC_TOKEN_ENV_KEYS)[number];
+
+function resolveSyncToken():
+  | { key: SyncTokenEnvironmentKey; value: string }
+  | null {
+  for (const key of SYNC_TOKEN_ENV_KEYS) {
+    const value = Deno.env.get(key);
+    if (value) {
+      return { key, value };
+    }
+  }
+  return null;
+}
 
 /**
  * Sync events, simple as. We have a manual and cron version
@@ -161,10 +181,14 @@ export async function handleSyncEvents(req: Request): Promise<Response> {
   try {
     // Verify Bearer token for authorization
     const authHeader = req.headers.get("authorization");
-    const expectedToken = Deno.env.get("SYNC_TOKEN");
+    const tokenInfo = resolveSyncToken();
 
-    if (!expectedToken) {
-      logger.error("Missing SYNC_TOKEN environment variable", null);
+    if (!tokenInfo) {
+      logger.error(
+        "Missing sync token configuration",
+        null,
+        { envKeys: SYNC_TOKEN_ENV_KEYS },
+      );
       return createErrorResponse(
         "Server configuration error",
         HTTP_STATUS.INTERNAL_SERVER_ERROR,
@@ -172,12 +196,14 @@ export async function handleSyncEvents(req: Request): Promise<Response> {
     }
 
     const token = extractBearerToken(authHeader);
+    const expectedToken = tokenInfo.value;
     const isAuthorized = typeof token === "string" &&
       verifyBearerToken(token, expectedToken);
 
     if (!isAuthorized) {
       logger.warn("Unauthorized sync-events request", {
         error: "Invalid or missing bearer token",
+        envKey: tokenInfo.key,
       });
       return createErrorResponse(
         "Unauthorized",
