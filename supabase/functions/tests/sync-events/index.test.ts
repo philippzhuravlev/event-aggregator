@@ -84,8 +84,7 @@ async function runSyncSuccess(env: EnvOverrides, authToken: string) {
         new Request("https://example.com/sync-events", {
           method: "POST",
           headers: {
-            [SYNC_TOKEN_HEADER]: authToken,
-            authorization: "Bearer supabase-service-token",
+            [SYNC_TOKEN_HEADER]: `Bearer ${authToken}`,
           },
         }),
       );
@@ -172,8 +171,7 @@ Deno.test("handleSyncEvents returns 500 when Supabase config missing", async () 
         new Request("https://example.com/sync-events", {
           method: "POST",
           headers: {
-            [SYNC_TOKEN_HEADER]: baseEnv.SYNC_TOKEN,
-            authorization: "Bearer sync-secret",
+            [SYNC_TOKEN_HEADER]: `Bearer ${baseEnv.SYNC_TOKEN}`,
           },
         }),
       );

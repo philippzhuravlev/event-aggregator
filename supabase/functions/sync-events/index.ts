@@ -82,6 +82,8 @@ const SYNC_TOKEN_ENV_KEYS = [
   "API_SYNC_KEY",
 ] as const;
 
+export const SYNC_TOKEN_HEADER = "authorization";
+
 type SyncTokenEnvironmentKey = (typeof SYNC_TOKEN_ENV_KEYS)[number];
 
 function resolveSyncToken():
