@@ -313,6 +313,27 @@ export function validateHttpMethod(
   return { valid: true };
 }
 
+/**
+ * Check if an origin matches an allowed origin pattern
+ * Supports wildcards like "*.vercel.app" or exact matches like "https://example.com"
+ */
+function isOriginAllowed(origin: string, allowedPattern: string): boolean {
+  // Exact match
+  if (origin === allowedPattern) {
+    return true;
+  }
+
+  // Wildcard pattern matching (e.g., "*.vercel.app" or "event-aggregator-*.vercel.app")
+  if (allowedPattern.includes("*")) {
+    const regex = new RegExp(
+      "^" + allowedPattern.replace(/\*/g, "[a-zA-Z0-9._-]+") + "$"
+    );
+    return regex.test(origin);
+  }
+
+  return false;
+}
+
 export function validateOrigin(
   request: Request,
   allowedOrigins: string | string[],
@@ -330,7 +351,10 @@ export function validateOrigin(
     ? allowedOrigins
     : [allowedOrigins];
 
-  if (!allowed.includes(origin)) {
+  // Check if origin matches any allowed pattern
+  const isAllowed = allowed.some((pattern) => isOriginAllowed(origin, pattern));
+
+  if (!isAllowed) {
     return {
       valid: false,
       error: `Origin not allowed: ${origin}`,
