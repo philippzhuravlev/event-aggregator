@@ -386,7 +386,7 @@ async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
 
             const { error: eventsError } = await supabase
               .from("events")
-              .upsert(normalizedEvents);
+              .upsert(normalizedEvents, { onConflict: ["page_id", "event_id"] });
 
             if (eventsError) {
               logEvent("error", "Failed to upsert events in Supabase", {
