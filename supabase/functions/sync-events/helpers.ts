@@ -207,11 +207,16 @@ export async function syncSinglePage(
         } catch (error) {
           // If image download/upload fails, log error but continue with event sync
           // Fall back to Facebook URL (may not work due to tracking protection, but better than nothing)
-          logger.warn("Failed to download and store event cover image, using Facebook URL", {
-            eventId: event.id,
-            coverUrl: event.cover.source,
-            error: error instanceof Error ? error.message : String(error),
-          });
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorStack = error instanceof Error ? error.stack : undefined;
+          logger.error("Failed to download and store event cover image, using Facebook URL", 
+            error instanceof Error ? error : null,
+            {
+              eventId: event.id,
+              coverUrl: event.cover.source,
+              errorMessage,
+              errorStack,
+            });
           coverImageUrl = event.cover.source;
         }
       }

@@ -128,17 +128,14 @@ export async function getPageToken(
   supabase: SupabaseClient,
   pageId: string,
 ): Promise<string | null> {
-  const secretName = `facebook-token-${pageId}`;
-
   try {
-    // Query the vault.decrypted_secrets view which automatically decrypts secrets on read
-    const { data, error } = await supabase
-      .from("vault.decrypted_secrets")
-      .select("decrypted_secret")
-      .eq("unique_name", secretName)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Use RPC to call the PL/pgSQL function get_page_access_token
+    // This function safely decrypts tokens from the vault and returns them
+    // deno-lint-ignore no-explicit-any
+    const { data, error } = await (supabase.rpc as any)(
+      "get_page_access_token",
+      { page_id_input: parseInt(pageId, 10) },
+    );
 
     if (error) {
       logger.warn("Failed to retrieve token from Supabase Vault", {
@@ -148,13 +145,14 @@ export async function getPageToken(
       return null;
     }
 
-    if (!data) {
+    if (!data || data.length === 0) {
       logger.warn("No token found in Supabase Vault", { pageId });
       return null;
     }
 
-    // @ts-ignore - vault.decrypted_secrets returns decrypted_secret field
-    return (data.decrypted_secret as string) || null;
+    // The RPC function returns a table with token data
+    const tokenRow = data[0];
+    return (tokenRow?.token as string) || null;
   } catch (error) {
     logger.error(
       "Failed to retrieve token from Supabase Vault",
@@ -180,7 +178,7 @@ export async function getApiKey(
     const { data, error } = await supabase
       .from("vault.decrypted_secrets")
       .select("decrypted_secret")
-      .eq("unique_name", secretName)
+      .eq("name", secretName)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -225,7 +223,7 @@ export async function getWebhookVerifyToken(
     const { data, error } = await supabase
       .from("vault.decrypted_secrets")
       .select("decrypted_secret")
-      .eq("unique_name", secretName)
+      .eq("name", secretName)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
