@@ -62,3 +62,4 @@ pids
 .supabase/
 *.md
 envs.txt
+supabase/supabase/supabase/coverage-output.txt

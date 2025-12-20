@@ -94,10 +94,10 @@ export function EventCard({ event }: { event: Event }) {
             <div className="font-semibold truncate">{event.title}</div>
             <div className="text-sm text-gray-600">{formatEventStart(event.startTime)}</div>
             <div className="text-sm">{event.place?.name ?? 'Location TBA'}</div>
-      button   </div>
+          </div>
         </div>
       </div>
-    </a>
+    </button>
   );
 }
 
