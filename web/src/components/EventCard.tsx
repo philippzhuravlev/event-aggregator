@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Event } from '@/types/index.ts';
-import { formatEventStart, getEventUrl } from '@/utils/eventUtils.ts';
+import { formatEventStart } from '@/utils/eventUtils.ts';
 
 // in frontend, we use React/ts components to render stuff, anything from a small button to a whole page
 // therefore a lot of the code is going to be in /components/ and /pages/ folders as .tsx files. This 
@@ -16,6 +17,8 @@ function isValidImageUrl(url: string | undefined): boolean {
 }
 
 export function EventCard({ event }: { event: Event }) {
+  const navigate = useNavigate();
+  
   // Initialize with the event's cover image if it's valid, otherwise use default
   const [imageSrc, setImageSrc] = useState<string>(() => {
     return isValidImageUrl(event.coverImageUrl) ? event.coverImageUrl! : DEFAULT_IMAGE;
@@ -47,6 +50,10 @@ export function EventCard({ event }: { event: Event }) {
     }
   };
 
+  const handleClick = () => {
+    navigate(`/events/${event.id}`);
+  };
+
   return (
     // HTML Quick Intro:
     // p = paragraph
@@ -57,11 +64,10 @@ export function EventCard({ event }: { event: Event }) {
     // div = division, creates an element 
     // label = text next to element
     // map = iterate over each event, for loop
-    <a // this confusing syntax is JSX allow us to write html inside tsx files with React
-      href={getEventUrl(event.id, event.eventURL)} // html link to the event
-      target="_blank" // open in new tab
-      rel="noopener noreferrer" // this is for security, prevents the new page from accessing the old page's window object
-      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-primary)] rounded-xl"
+    <button // changed from <a> to <button> for client-side navigation
+      onClick={handleClick} // navigate to event detail page
+      type="button"
+      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--link-primary)] rounded-xl text-left w-full"
       // the above class is pulling from tailwindcss, basically a very big styling library
     >
       {/* and here we invoke visuals with "div", which just means a "section" or "aspect" of our card */}
@@ -88,7 +94,7 @@ export function EventCard({ event }: { event: Event }) {
             <div className="font-semibold truncate">{event.title}</div>
             <div className="text-sm text-gray-600">{formatEventStart(event.startTime)}</div>
             <div className="text-sm">{event.place?.name ?? 'Location TBA'}</div>
-          </div>
+      button   </div>
         </div>
       </div>
     </a>
