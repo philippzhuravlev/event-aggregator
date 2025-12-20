@@ -39,7 +39,7 @@ export interface Place {
  * Represents a Facebook event aggregated from a Page
  */
 export interface Event {
-    id: string; // Event ID
+    id: string; // Facebook Event ID (e.g. 681584148307168)
     pageId: string; // Source Facebook Page ID
     title: string; // FB: "name"
     description?: string; // FB: "description"

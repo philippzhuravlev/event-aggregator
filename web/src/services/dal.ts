@@ -227,12 +227,13 @@ async function getEventsFromSupabase(
       d: {
         id: string;
         page_id: number;
+        event_id: string;
         event_data: Record<string, unknown>;
         created_at: string;
         updated_at: string;
       },
     ) => ({
-      id: d.id,
+      id: d.event_id,
       pageId: String(d.page_id),
       title: (d.event_data?.name as string) || "Unnamed Event",
       description: (d.event_data?.description as string),
@@ -246,7 +247,7 @@ async function getEventsFromSupabase(
       coverImageUrl: d.event_data?.cover
         ? (d.event_data.cover as Record<string, unknown>)?.source as string
         : undefined,
-      eventURL: `https://facebook.com/events/${d.id}`,
+      eventURL: `https://facebook.com/events/${d.event_id}`,
       createdAt: d.created_at,
       updatedAt: d.updated_at,
     }));
@@ -322,13 +323,13 @@ async function fetchEventFromSupabaseById(id: string): Promise<Event | null> {
     const { data, error } = await supabase
       .from("events")
       .select("*")
-      .eq("id", id)
+      .eq("event_id", id)
       .maybeSingle();
 
     if (error || !data) return null;
 
     return {
-      id: data.id,
+      id: data.event_id,
       pageId: String(data.page_id),
       title: (data.event_data?.name as string) || "Unnamed Event",
       description: (data.event_data?.description as string),
@@ -343,7 +344,7 @@ async function fetchEventFromSupabaseById(id: string): Promise<Event | null> {
       coverImageUrl: data.event_data?.cover
         ? (data.event_data.cover as Record<string, unknown>)?.source as string
         : undefined,
-      eventURL: `https://facebook.com/events/${data.id}`,
+      eventURL: `https://facebook.com/events/${data.event_id}`,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     } satisfies Event;
