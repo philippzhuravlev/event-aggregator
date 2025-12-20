@@ -8,6 +8,7 @@
   "imports": {
     "std/": "https://deno.land/std@0.208.0/",
     "std/assert/mod.ts": "https://deno.land/std@0.208.0/assert/mod.ts",
+    "std/cli/parse_args.ts": "https://deno.land/std@0.208.0/cli/parse_args.ts",
     "process": "node:process",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@^2.89.0",
     "@event-aggregator/shared": "./supabase/functions/packages/shared/dist/index.js",
@@ -26,6 +27,11 @@
     "@event-aggregator/shared/config/index.ts": "./packages/shared/src/config/index.ts",
     "@event-aggregator/shared/src/services/facebook-service.ts": "./packages/shared/src/services/facebook-service.ts",
     "@event-aggregator/shared/src/": "./packages/shared/src/"
+  },
+  "tasks": {
+    "sync": "deno run --allow-env --allow-net --allow-read scripts/manual-sync.ts --production",
+    "sync:local": "deno run --allow-env --allow-net --allow-read scripts/manual-sync.ts",
+    "sync:dry-run": "deno run --allow-env --allow-net --allow-read scripts/manual-sync.ts --production --dry-run"
   }
 }
 
